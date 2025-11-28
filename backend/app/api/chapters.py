@@ -444,6 +444,7 @@ async def build_smart_chapter_context(
             .where(Chapter.content != "")
             .order_by(Chapter.chapter_number)
         )
+
         all_chapters_info = all_chapters_result.all()
         total_previous = len(all_chapters_info)
         
@@ -1054,10 +1055,10 @@ async def generate_chapter_content_stream(
                     )
                     style = style_result.scalar_one_or_none()
                     if style:
-                        # 验证风格是否可用：全局预设风格（project_id为NULL）或者当前项目的自定义风格
-                        if style.project_id is None or style.project_id == current_chapter.project_id:
+                        # 验证风格是否可用：全局预设风格（user_id为NULL）或者当前用户的自定义风格
+                        if style.user_id is None or style.user_id == current_user_id:
                             style_content = style.prompt_content or ""
-                            style_type = "全局预设" if style.project_id is None else "项目自定义"
+                            style_type = "全局预设" if style.user_id is None else "用户自定义"
                             logger.info(f"使用指定风格: {style.name} ({style_type})")
                         else:
                             logger.warning(f"风格 {style_id} 不属于当前项目，无法使用")
@@ -2338,7 +2339,7 @@ async def generate_single_chapter_for_batch(
         )
         style = style_result.scalar_one_or_none()
         if style:
-            if style.project_id is None or style.project_id == chapter.project_id:
+            if style.user_id is None or style.user_id == user_id:
                 style_content = style.prompt_content or ""
     
     # 构建智能上下文
@@ -2589,10 +2590,10 @@ async def regenerate_chapter_stream(
                 )
                 style = style_result.scalar_one_or_none()
                 if style:
-                    # 验证风格是否可用：全局预设风格（project_id为NULL）或者当前项目的自定义风格
-                    if style.project_id is None or style.project_id == chapter.project_id:
+                    # 验证风格是否可用：全局预设风格（user_id为NULL）或者当前用户的自定义风格
+                    if style.user_id is None or style.user_id == user_id:
                         style_content = style.prompt_content or ""
-                        style_type = "全局预设" if style.project_id is None else "项目自定义"
+                        style_type = "全局预设" if style.user_id is None else "用户自定义"
                         logger.info(f"✅ 使用写作风格: {style.name} ({style_type})")
                     else:
                         logger.warning(f"⚠️ 风格 {style_id} 不属于当前项目，跳过")

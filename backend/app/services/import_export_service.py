@@ -340,10 +340,19 @@ class ImportExportService:
     
     @staticmethod
     async def _export_writing_styles(project_id: str, db: AsyncSession) -> List[WritingStyleExportData]:
-        """导出写作风格"""
+        """导出写作风格（用户自定义风格）"""
+        # 获取项目所属用户
+        project_result = await db.execute(
+            select(Project).where(Project.id == project_id)
+        )
+        project = project_result.scalar_one_or_none()
+        if not project:
+            return []
+        
+        # 导出该用户的自定义风格（不包括全局预设）
         result = await db.execute(
             select(WritingStyle)
-            .where(WritingStyle.project_id == project_id)
+            .where(WritingStyle.user_id == project.user_id)
             .order_by(WritingStyle.order_index)
         )
         styles = result.scalars().all()
@@ -797,11 +806,30 @@ class ImportExportService:
         styles_data: List[Dict],
         db: AsyncSession
     ) -> int:
-        """导入写作风格"""
+        """导入写作风格（用户自定义风格）"""
+        # 获取项目所属用户
+        project_result = await db.execute(
+            select(Project).where(Project.id == project_id)
+        )
+        project = project_result.scalar_one_or_none()
+        if not project:
+            return 0
+        
         count = 0
         for style_data in styles_data:
+            # 检查是否已存在同名风格（避免重复导入）
+            existing = await db.execute(
+                select(WritingStyle).where(
+                    WritingStyle.user_id == project.user_id,
+                    WritingStyle.name == style_data.get("name")
+                )
+            )
+            if existing.scalar_one_or_none():
+                logger.debug(f"风格 {style_data.get('name')} 已存在，跳过导入")
+                continue
+            
             style = WritingStyle(
-                project_id=project_id,
+                user_id=project.user_id,  # 使用 user_id 而不是 project_id
                 name=style_data.get("name"),
                 style_type=style_data.get("style_type"),
                 preset_id=style_data.get("preset_id"),
