@@ -3,6 +3,98 @@ from typing import Dict, Any, Optional
 import json
 
 
+# Genre Strategy Matrix for Long-Form Novels (1M+ words)
+GENRE_STRATEGIES = {
+    "history": {
+        "keywords": ["历史", "权谋", "架空历史", "穿越", "三国", "大秦", "大明"],
+        "instruction": """
+【长篇驱动模式：推演与势】
+- 核心动力：从"棋子"到"棋手"的转变，积蓄力量 -> 改变大势 -> 遭遇反噬 -> 建立新秩序。
+- 关键节点：
+  * 100万字：必须完成阶级跨越，成为一方诸侯或朝堂大佬。
+  * 300万字：必须涉及改朝换代或文明路线的分歧（如：工业革命 vs 传统皇权）。
+- 爽点来源：种田建设的成就感、运筹帷幄的智商碾压、改变历史意难平。
+- 写作风格：厚重、考究。多用侧面描写烘托大势，对话需符合时代阶级特征，权谋要草蛇灰线。
+"""
+    },
+    "scifi": {
+        "keywords": ["科幻", "星际", "赛博朋克", "末世", "机甲", "未来"],
+        "instruction": """
+【长篇驱动模式：尺度跃迁】
+- 核心动力：技术奇点与文明冲突，从"行星地表"走向"宇宙深空"。
+- 关键节点：
+  * 100万字：接触第一类外星文明或完成关键技术飞跃（如可控核聚变）。
+  * 300万字：涉及维度战争、宇宙社会学或时间悖论。
+  * 500万字：探讨存在意义、创世/灭世的哲学命题。
+- 写作风格：冷峻、理性。注重技术细节的逻辑自洽（Hard Sci-Fi）或社会学推演（Soft Sci-Fi）。
+"""
+    },
+    "supernatural": {
+        "keywords": ["灵异", "惊悚", "恐怖", "神秘复苏", "克苏鲁", "怪谈"],
+        "instruction": """
+【长篇驱动模式：拼图与规则】
+- 核心动力：从"求生者"变为"驾驭者"，建立自己的势力/禁区。
+- 关键节点：
+  * 100万字：主角建立安全区/驭鬼者组织。
+  * 300万字：世界观彻底崩坏，从解决灵异事件变成对抗末日/旧日支配者。
+- 恐怖维持：随着主角变强，恐怖源从"具体的鬼"升级为"无法理解的规则"或"因果律"。
+- 写作风格：压抑、诡谲。多用环境描写烘托氛围，强调未知的恐惧，少用热血词汇。
+"""
+    },
+    "suspense": {
+        "keywords": ["悬疑", "刑侦", "推理", "侦探", "犯罪"],
+        "instruction": """
+【长篇驱动模式：剥洋葱引擎】
+- 核心动力：案中案，局中局，阴谋的无限嵌套。
+- 关键节点：
+  * 100万字：揭开第一个大BOSS，却发现他只是某个庞大组织的棋子。
+  * 300万字：主角发现自己也是阴谋的一部分（身世之谜/记忆修改）。
+- 续航关键：永远不要让读者看到真相的全貌，每解决一个谜题，要引出两个新谜题。
+- 写作风格：紧凑、高智商。强调逻辑链条，伏笔回收必须严丝合缝，反转要震撼。
+"""
+    },
+    "western_fantasy": {
+        "keywords": ["西幻", "奇幻", "DND", "魔法", "龙与地下城", "领主"],
+        "instruction": """
+【长篇驱动模式：史诗构建】
+- 核心动力：探索地图 + 收集神器 + 阵营战争 + 封神之路。
+- 关键节点：
+  * 100万字：完成小队集结，解决王国危机/深渊入侵。
+  * 300万字：点燃神火，参与位面战争/深渊血战。
+  * 500万字：建立神系，重塑晶壁系规则。
+- 写作风格：史诗感、咏叹调。注重种族习俗、宗教历史、魔法原理的深度描写。
+"""
+    },
+    "eastern_fantasy": {
+        "keywords": ["玄幻", "仙侠", "修真", "高武", "洪荒", "东方玄幻"],
+        "instruction": """
+【长篇驱动模式：位面飞升】
+- 核心动力：生命层次的进化，换地图（新手村->主城->新位面->神界）。
+- 关键节点：
+  * 100万字：称霸本位面/人界，准备飞升。
+  * 300万字：在更高位面建立宗门/天庭，参与大道之争。
+- 爽点来源：境界突破、宝物争夺、跨阶杀敌、众生膜拜。
+- 写作风格：热血、宏大。强调战斗画面的破坏力，等级森严的社会结构。
+"""
+    },
+    "urban": {
+        "keywords": ["都市", "言情", "职场", "现实", "生活", "娱乐", "重生", "神豪", "校花"],
+        "instruction": """
+【长篇驱动模式：圈层与欲望】
+- 核心动力：社会地位的提升、财富/权力的积累、情感的圆满。
+- 关键节点：
+  * 50万字（积累期）：第一桶金，初识关键人脉，解决生存危机。
+  * 200万字（扩张期）：行业博弈，资本运作，确立行业地位。
+  * 500万字（巅峰期）：改变世界/行业规则，从棋子变成棋手。
+- 写作重点：
+  * 去翻译腔：对话符合当代口语，多用潜台词。
+  * 细节质感：具体描写品牌、车型、食物、穿搭，增加真实感。
+  * 爽点：并非单纯打脸，而是通过"人脉网"和"资源调动"降维打击对手。
+"""
+    }
+}
+
+
 class WritingStyleManager:
     """写作风格管理器"""
     
@@ -42,6 +134,11 @@ class PromptService:
 - 类型适配：符合{genre}类型的特征
 - 规模适当：根据题材选择合适的设定尺度
 </task>
+
+<strategy priority="P0">
+【长篇类型策略 - 核心指导】
+{genre_strategy}
+</strategy>
 
 <input priority="P0">
 【项目信息】
@@ -142,6 +239,47 @@ class PromptService:
 ❌ 使用模板化、空泛的表达
 ❌ 输出markdown或代码块标记
 </constraints>"""
+
+    # 世界扩展提示词 V2（RTCO框架 - 换地图/升级）
+    WORLD_EXPANSION = """<system>
+你是资深的世界观架构师，擅长设计宏大的多层级世界体系。
+</system>
+
+<task>
+【扩展任务】
+为小说《{title}》设计更高层级的世界地图（换地图/版本升级）。
+当前剧情已达到【{current_level}】层级的巅峰，主角需要进入更广阔的舞台。
+</task>
+
+<strategy priority="P0">
+【长篇类型策略 - 扩展指导】
+{genre_strategy}
+</strategy>
+
+<context priority="P0">
+【旧世界档案】
+核心力量：{old_power_system}
+核心冲突：{old_conflict} (已解决/已超越)
+当前状态：主角已成为旧世界的巅峰/霸主
+</context>
+
+<output priority="P0">
+【输出格式】
+生成新世界的详细设定JSON：
+{{
+  "world_name": "新世界/新地图名称",
+  "entry_method": "主角如何进入该世界（飞升/偷渡/被抓/意外）",
+  "power_system_upgrade": "力量体系的升级路径（如何从旧体系过渡）",
+  "core_conflict": "新世界的核心矛盾（比旧世界更宏大、更本质）",
+  "social_structure": "新世界的势力格局（300字）",
+  "connection": "与旧世界的联系（传说/下界/故人）",
+  "locations": ["关键地点1", "关键地点2"],
+  "factions": [
+    {{"name": "势力A", "description": "势力描述", "stance": "敌对/中立/友善"}}
+  ]
+}}
+</output>
+"""
 
     # 批量角色生成提示词 V2（RTCO框架）
     CHARACTERS_BATCH_GENERATION = """<system>
@@ -286,6 +424,11 @@ class PromptService:
 - 为后续剧情发展打下基础
 - 不需要完整闭环，为续写留空间
 </task>
+
+<strategy priority="P0">
+【长篇类型策略 - 核心指导】
+{genre_strategy}
+</strategy>
 
 <project priority="P0">
 【项目信息】
@@ -491,7 +634,87 @@ class PromptService:
 ❌ 与前文矛盾或脱节
 ❌ 忽略已有角色发展
 </constraints>"""
-    
+
+    # 分卷规划提示词 V2（RTCO框架 - 50-100万字规划）
+    VOLUME_PLANNING = """<system>
+你是掌控全局的小说主编，擅长规划长篇小说的宏观结构（分卷/大篇章）。
+</system>
+
+<task>
+【规划任务】
+为小说《{title}》规划第 {volume_number} 卷的核心架构。
+本卷预计篇幅：{volume_word_count}字（约50-100章）。
+
+【核心目标】
+这一卷必须是一个完整的"起承转合"闭环，同时推动全书主线。
+</task>
+
+<strategy priority="P0">
+【长篇类型策略 - 分卷指导】
+{genre_strategy}
+</strategy>
+
+<context priority="P0">
+【当前进度】
+主角现状：{mc_status}
+上一卷结局：{prev_volume_summary}
+全书主线进度：{main_story_progress}%
+</context>
+
+<output priority="P0">
+【输出格式】
+生成分卷规划JSON：
+{{
+  "volume_title": "卷名（富有史诗感或悬念）",
+  "core_theme": "本卷探讨的核心主题",
+  "main_antagonist": "本卷最终BOSS或核心阻碍",
+  "key_events": [
+    {{"phase": "开篇（切入）", "content": "事件简述"}},
+    {{"phase": "发展（铺垫）", "content": "事件简述"}},
+    {{"phase": "高潮（爆发）", "content": "事件简述"}},
+    {{"phase": "结局（余韵）", "content": "事件简述"}}
+  ],
+  "mc_growth": {{
+    "power": "力量/能力提升",
+    "status": "地位/声望提升",
+    "relationship": "关键关系的突破"
+  }},
+  "hooks": ["留给下一卷的伏笔1", "留给下一卷的伏笔2"]
+}}
+</output>
+"""
+
+    # 状态管理提示词 (用于清理记忆/更新状态)
+    STATE_MANAGER = """<system>
+你是小说世界的"逻辑维护者"。你的职责不是创作，而是维护数据的逻辑一致性。
+</system>
+
+<task>
+根据最新的剧情发展，更新【世界状态表】。
+检查范围：第 {start_chapter} 章 到 第 {end_chapter} 章。
+</task>
+
+<input>
+【当前状态】
+{current_state_json}
+
+【最新剧情摘要】
+{recent_plot_summary}
+</input>
+
+<actions>
+请执行以下维护操作：
+1. **标记死亡**：将剧情中明确死亡的角色标记为 "status": "DEAD"。
+2. **关系变更**：更新角色间的关系（如从"盟友"变为"死敌"）。
+3. **物品归档**：将已消耗或遗弃的关键物品标记为 "archived": true。
+4. **伏笔回收**：将已解决的伏笔标记为 "resolved": true。
+</actions>
+
+<output>
+返回更新后的状态JSON。仅返回有变更的字段。
+</output>
+"""
+
     # 章节生成V2 - 无前置章节版本（用于第1章）
     CHAPTER_GENERATION_V2 = """<system>
 你是《{project_title}》的作者，一位专注于{genre}类型的网络小说家。
@@ -505,6 +728,11 @@ class PromptService:
 - 目标字数：{target_word_count}字（允许±200字浮动）
 - 叙事视角：{narrative_perspective}
 </task>
+
+<strategy priority="P0">
+【长篇类型策略 - 写作指导】
+{genre_strategy}
+</strategy>
 
 <outline priority="P0">
 【本章大纲 - 必须遵循】
@@ -550,6 +778,11 @@ class PromptService:
 - 目标字数：{target_word_count}字（允许±500字浮动）
 - 叙事视角：{narrative_perspective}
 </task>
+
+<strategy priority="P0">
+【长篇类型策略 - 写作指导】
+{genre_strategy}
+</strategy>
 
 <outline priority="P0">
 【本章大纲 - 必须遵循】
@@ -1028,6 +1261,11 @@ class PromptService:
 【展开任务】
 将第{outline_order_index}节大纲《{outline_title}》展开为{target_chapter_count}个章节的详细规划。
 
+<strategy priority="P0">
+【长篇类型策略 - 核心指导】
+{genre_strategy}
+</strategy>
+
 【展开策略】
 {strategy_instruction}
 </task>
@@ -1136,6 +1374,11 @@ class PromptService:
 - 必须与前面已生成的章节自然衔接
 - 从第{start_index}节开始编号
 - 继续深化当前大纲内容
+
+<strategy priority="P0">
+【长篇类型策略 - 核心指导】
+{genre_strategy}
+</strategy>
 
 【展开策略】
 {strategy_instruction}
@@ -1375,6 +1618,124 @@ class PromptService:
 
     # 灵感模式 - 类型生成（用户提示词）
     INSPIRATION_GENRE_USER = "原始想法：{initial_idea}\n书名：{title}\n简介：{description}\n主题：{theme}\n请生成6个类型标签"
+
+    # 灵感模式 - 世界观设定生成
+    INSPIRATION_WORLD_SYSTEM = """你是一位专业的小说创作顾问。
+用户的原始想法：{initial_idea}
+小说信息：
+- 书名：{title}
+- 简介：{description}
+- 类型：{genre}
+
+请生成6个具体的世界观设定方案（Flavor），要求：
+1. 基于类型（{genre}）进行细化
+2. 描述世界的特殊规则、时代背景或独特氛围
+3. 每个选项20-50字，简洁有力
+
+返回JSON格式：
+{{"prompt":"这个故事发生在一个什么样的世界？","options":["设定1","设定2","设定3","设定4","设定5","设定6"]}}
+
+只返回纯JSON。"""
+
+    INSPIRATION_WORLD_USER = "书名：{title}\n类型：{genre}\n请生成6个世界观设定方案"
+
+    # 灵感模式 - 核心冲突生成
+    INSPIRATION_CONFLICT_SYSTEM = """你是一位专业的小说创作顾问。
+小说信息：
+- 书名：{title}
+- 类型：{genre}
+- 世界观：{world_setting}
+
+请生成6个核心冲突（Core Conflict）选项，要求：
+1. 必须是推动整本书（100万字以上）的终极矛盾
+2. 具有张力和紧迫感
+3. 涵盖复仇、生存、探索、守护等不同维度
+
+返回JSON格式：
+{{"prompt":"推动故事发展的核心冲突是什么？","options":["冲突1","冲突2","冲突3","冲突4","冲突5","冲突6"]}}
+
+只返回纯JSON。"""
+
+    INSPIRATION_CONFLICT_USER = "书名：{title}\n世界观：{world_setting}\n请生成6个核心冲突选项"
+
+    # 灵感模式 - 主角人设生成
+    INSPIRATION_PROTAGONIST_SYSTEM = """你是一位专业的小说创作顾问。
+小说信息：
+- 书名：{title}
+- 类型：{genre}
+- 核心冲突：{core_conflict}
+
+请生成6个主角人设原型（Archetype），要求：
+1. 与核心冲突形成张力（如：弱小的复仇者，贪财的救世主）
+2. 包含性格关键词和核心身份
+3. 有鲜明的记忆点
+
+返回JSON格式：
+{{"prompt":"主角是什么样的人？","options":["人设1","人设2","人设3","人设4","人设5","人设6"]}}
+
+只返回纯JSON。"""
+
+    INSPIRATION_PROTAGONIST_USER = "书名：{title}\n核心冲突：{core_conflict}\n请生成6个主角人设选项"
+
+    # 灵感模式 - 金手指/优势生成
+    INSPIRATION_GOLDEN_FINGER_SYSTEM = """你是一位专业的小说创作顾问。
+小说信息：
+- 书名：{title}
+- 类型：{genre}
+- 主角：{protagonist}
+
+请生成6个主角的特殊优势（金手指/Golden Finger），要求：
+1. 符合网文爽点逻辑
+2. 能帮助主角打破常规，解决难题
+3. 形式多样（系统、老爷爷、异能、重生先知、特殊背景）
+
+返回JSON格式：
+{{"prompt":"主角的特殊优势（金手指）是什么？","options":["金手指1","金手指2","金手指3","金手指4","金手指5","金手指6"]}}
+
+只返回纯JSON。"""
+
+    INSPIRATION_GOLDEN_FINGER_USER = "书名：{title}\n主角：{protagonist}\n请生成6个金手指选项"
+
+    # 灵感模式 - 动态引导代理 (Auto Mode)
+    INSPIRATION_DYNAMIC_SYSTEM = """你是一位专业的小说创作顾问。你的目标是通过 8-10 轮循序渐进的对话，引导用户构建出完整且深度的小说设定方案。
+
+当前已收集的信息（上下文）：
+{context_json}
+
+【你的预设引导图谱】（仅供参考，请根据实际情况灵活调整顺序）：
+1. 核心创意 (initial_idea) - 种子
+2. 书名 (title) - 门面
+3. 类型 (genre) - 基调
+4. 核心主题 (theme) - 灵魂
+5. 世界观/地图 (world_setting) - 舞台
+6. 力量体系/金手指 (power_system) - 玩法
+7. 主角人设 (protagonist) - 核心驱动
+8. 核心冲突/反派 (conflict) - 阻力
+9. 故事节奏/风格 (pacing) - 体验
+10. 开篇切入点 (opening_hook) - 抓手
+
+【任务】
+1. 分析【上下文】，判断当前已有哪些信息，还缺哪些关键信息。
+2. 决定**下一个**最需要确定的关键设定（Next Best Action）。
+3. 针对该设定，设计一个引导问题（Prompt）。
+4. 生成 6 个具有启发性、具体且符合已有逻辑的选项（Options）。
+5. 确定该设定的字段键名（Key）。
+
+【返回格式】
+{{
+    "next_step_key": "字段英文键名（如 world_setting, conflict 等）",
+    "prompt": "引导问题（如：这个故事发生在一个什么样的世界？）",
+    "options": ["选项1", "选项2", "选项3", "选项4", "选项5", "选项6"]
+}}
+
+【注意】
+- 如果上下文为空，默认从"书名"或"核心创意"开始。
+- 选项要与已有信息（如类型、题材）高度自洽。
+- 只有当所有关键信息都收集完毕，才建议结束（此时 key 返回 "finish"）。
+- 只返回纯 JSON。
+"""
+
+    INSPIRATION_DYNAMIC_USER = "请分析当前进度，生成下一步的引导问题和选项。"
 
     # 灵感模式智能补全提示词
     INSPIRATION_QUICK_COMPLETE = """你是一位专业的小说创作顾问。用户提供了部分小说信息，请补全缺失的字段。
@@ -2019,9 +2380,27 @@ class PromptService:
 </constraints>"""
 
     @staticmethod
+    def _get_genre_strategy(genre: str) -> str:
+        """根据类型获取长篇策略指令"""
+        if not genre:
+            return ""
+            
+        # 标准化类型名称
+        genre_lower = genre.lower()
+        
+        # 遍历策略矩阵进行匹配
+        for strategy_key, strategy_data in GENRE_STRATEGIES.items():
+            # 检查是否匹配关键字
+            if any(keyword in genre_lower for keyword in strategy_data["keywords"]):
+                return strategy_data["instruction"]
+                
+        # 默认返回空或通用建议
+        return ""
+
+    @staticmethod
     def format_prompt(template: str, **kwargs) -> str:
         """
-        格式化提示词模板
+        格式化提示词模板 - 自动注入类型策略
         
         Args:
             template: 提示词模板
@@ -2031,6 +2410,12 @@ class PromptService:
             格式化后的提示词
         """
         try:
+            # 自动注入长篇策略 (如果参数中包含 genre)
+            if "genre" in kwargs and "genre_strategy" not in kwargs:
+                kwargs["genre_strategy"] = PromptService._get_genre_strategy(kwargs["genre"])
+            
+            # 如果模板中没有 {genre_strategy} 占位符，format 会忽略多余参数
+            # 但为了安全起见，我们可以检查一下
             return template.format(**kwargs)
         except KeyError as e:
             raise ValueError(f"缺少必需的参数: {e}")

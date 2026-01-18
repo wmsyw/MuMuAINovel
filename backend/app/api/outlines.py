@@ -2595,7 +2595,7 @@ async def expand_outline_generator(
         expansion_strategy = data.get("expansion_strategy", "balanced")
         enable_scene_analysis = data.get("enable_scene_analysis", True)
         auto_create_chapters = data.get("auto_create_chapters", False)
-        batch_size = int(data.get("batch_size", 5))  # 支持自定义批次大小
+        batch_size = int(data.get("batch_size", 10))  # 支持自定义批次大小，默认10
         
         # 获取大纲
         yield await tracker.loading("加载大纲信息...", 0.3)

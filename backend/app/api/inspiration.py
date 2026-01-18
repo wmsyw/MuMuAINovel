@@ -19,7 +19,13 @@ TEMPERATURE_SETTINGS = {
     "title": 0.8,        # 书名阶段可以更有创意
     "description": 0.65, # 简介需要贴合书名和原始想法
     "theme": 0.55,       # 主题需要更加贴合
-    "genre": 0.45        # 类型应该很明确
+    "genre": 0.45,       # 类型应该很明确
+    # 新增步骤
+    "world_setting": 0.7,
+    "core_conflict": 0.6,
+    "protagonist": 0.65,
+    "golden_finger": 0.75,
+    "auto": 0.7
 }
 
 
@@ -110,7 +116,13 @@ async def generate_options(
                 "title": ("INSPIRATION_TITLE_SYSTEM", "INSPIRATION_TITLE_USER"),
                 "description": ("INSPIRATION_DESCRIPTION_SYSTEM", "INSPIRATION_DESCRIPTION_USER"),
                 "theme": ("INSPIRATION_THEME_SYSTEM", "INSPIRATION_THEME_USER"),
-                "genre": ("INSPIRATION_GENRE_SYSTEM", "INSPIRATION_GENRE_USER")
+                "genre": ("INSPIRATION_GENRE_SYSTEM", "INSPIRATION_GENRE_USER"),
+                # 新增步骤
+                "world_setting": ("INSPIRATION_WORLD_SYSTEM", "INSPIRATION_WORLD_USER"),
+                "core_conflict": ("INSPIRATION_CONFLICT_SYSTEM", "INSPIRATION_CONFLICT_USER"),
+                "protagonist": ("INSPIRATION_PROTAGONIST_SYSTEM", "INSPIRATION_PROTAGONIST_USER"),
+                "golden_finger": ("INSPIRATION_GOLDEN_FINGER_SYSTEM", "INSPIRATION_GOLDEN_FINGER_USER"),
+                "auto": ("INSPIRATION_DYNAMIC_SYSTEM", "INSPIRATION_DYNAMIC_USER")
             }
             template_keys = template_key_map.get(step)
             
@@ -128,12 +140,22 @@ async def generate_options(
             user_template = await PromptService.get_template(user_key, user_id, db)
             
             # 准备格式化参数
-            format_params = {
-                "initial_idea": context.get("initial_idea", context.get("description", "")),
-                "title": context.get("title", ""),
-                "description": context.get("description", ""),
-                "theme": context.get("theme", "")
-            }
+            if step == "auto":
+                format_params = {
+                    "context_json": json.dumps(context, ensure_ascii=False, indent=2)
+                }
+            else:
+                format_params = {
+                    "initial_idea": context.get("initial_idea", context.get("description", "")),
+                    "title": context.get("title", ""),
+                    "description": context.get("description", ""),
+                    "theme": context.get("theme", ""),
+                    "genre": context.get("genre", ""),
+                    "world_setting": context.get("world_setting", ""),
+                    "core_conflict": context.get("core_conflict", ""),
+                    "protagonist": context.get("protagonist", ""),
+                    "golden_finger": context.get("golden_finger", "")
+                }
             
             # 格式化提示词
             system_prompt = system_template.format(**format_params)
@@ -270,7 +292,13 @@ async def refine_options(
                 "title": ("INSPIRATION_TITLE_SYSTEM", "INSPIRATION_TITLE_USER"),
                 "description": ("INSPIRATION_DESCRIPTION_SYSTEM", "INSPIRATION_DESCRIPTION_USER"),
                 "theme": ("INSPIRATION_THEME_SYSTEM", "INSPIRATION_THEME_USER"),
-                "genre": ("INSPIRATION_GENRE_SYSTEM", "INSPIRATION_GENRE_USER")
+                "genre": ("INSPIRATION_GENRE_SYSTEM", "INSPIRATION_GENRE_USER"),
+                # 新增步骤
+                "world_setting": ("INSPIRATION_WORLD_SYSTEM", "INSPIRATION_WORLD_USER"),
+                "core_conflict": ("INSPIRATION_CONFLICT_SYSTEM", "INSPIRATION_CONFLICT_USER"),
+                "protagonist": ("INSPIRATION_PROTAGONIST_SYSTEM", "INSPIRATION_PROTAGONIST_USER"),
+                "golden_finger": ("INSPIRATION_GOLDEN_FINGER_SYSTEM", "INSPIRATION_GOLDEN_FINGER_USER"),
+                "auto": ("INSPIRATION_DYNAMIC_SYSTEM", "INSPIRATION_DYNAMIC_USER")
             }
             template_keys = template_key_map.get(step)
             
@@ -288,12 +316,22 @@ async def refine_options(
             user_template = await PromptService.get_template(user_key, user_id, db)
             
             # 准备格式化参数
-            format_params = {
-                "initial_idea": context.get("initial_idea", context.get("description", "")),
-                "title": context.get("title", ""),
-                "description": context.get("description", ""),
-                "theme": context.get("theme", "")
-            }
+            if step == "auto":
+                format_params = {
+                    "context_json": json.dumps(context, ensure_ascii=False, indent=2)
+                }
+            else:
+                format_params = {
+                    "initial_idea": context.get("initial_idea", context.get("description", "")),
+                    "title": context.get("title", ""),
+                    "description": context.get("description", ""),
+                    "theme": context.get("theme", ""),
+                    "genre": context.get("genre", ""),
+                    "world_setting": context.get("world_setting", ""),
+                    "core_conflict": context.get("core_conflict", ""),
+                    "protagonist": context.get("protagonist", ""),
+                    "golden_finger": context.get("golden_finger", "")
+                }
             
             # 格式化提示词
             system_prompt = system_template.format(**format_params)
