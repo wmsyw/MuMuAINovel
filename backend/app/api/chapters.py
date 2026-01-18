@@ -1053,6 +1053,30 @@ async def analyze_chapter_background(
         else:
             logger.debug("📋 分析结果中无角色状态信息，跳过职业更新")
         
+        # 6. 运行状态维护 (State Manager) - 每10章运行一次
+        if chapter.chapter_number > 1 and chapter.chapter_number % 10 == 0:
+            try:
+                end_chapter = chapter.chapter_number
+                start_chapter = max(1, end_chapter - 9)
+                
+                logger.info(f"🧹 触发自动状态维护 (Ch {start_chapter}-{end_chapter})")
+                
+                # 使用当前的db_session (写锁保护中)
+                cleanup_report = await memory_service.run_state_cleanup(
+                    user_id=user_id,
+                    project_id=project_id,
+                    start_chapter=start_chapter,
+                    end_chapter=end_chapter,
+                    db=db_session,
+                    ai_service=ai_service
+                )
+                
+                if cleanup_report.get("updates"):
+                    logger.info(f"✨ 状态维护更新: {cleanup_report['updates']}")
+                    
+            except Exception as e:
+                logger.error(f"❌ 状态维护失败: {str(e)}", exc_info=True)
+        
         # 最终更新任务状态（写操作，需要锁）- 增加重试机制
         update_success = False
         for retry in range(3):

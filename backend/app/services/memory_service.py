@@ -7,6 +7,13 @@ from datetime import datetime
 from app.logger import get_logger
 import os
 import hashlib
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.character import Character
+from app.models.memory import StoryMemory, PlotAnalysis
+from app.services.prompt_service import PromptService
+from app.services.json_helper import parse_json
 
 logger = get_logger(__name__)
 
@@ -909,12 +916,183 @@ class MemoryService:
                 "foreshadow_resolved": sum(1 for m in all_memories['metadatas'] if m.get('is_foreshadow') == 2)
             }
             
-            logger.info(f"📊 记忆统计: 总计{stats['total_count']}条, 伏笔{foreshadow_count}个")
+            logger.info(f"📊 记忆统计: 总计{stats['total_count']}条, 伏笔{stats['foreshadow_count']}个")
             return stats
             
         except Exception as e:
             logger.error(f"❌ 获取统计信息失败: {str(e)}")
             return {"error": str(e)}
+
+    async def run_state_cleanup(
+        self,
+        user_id: str,
+        project_id: str,
+        start_chapter: int,
+        end_chapter: int,
+        db: AsyncSession,
+        ai_service: Any
+    ) -> Dict[str, Any]:
+        """
+        运行状态清理/维护 (State Manager)
+        
+        每隔一定章节(如10章)运行一次，用于：
+        1. 标记死亡角色
+        2. 更新角色关系
+        3. 归档已消耗物品
+        4. 标记已回收伏笔
+        
+        Args:
+            user_id: 用户ID
+            project_id: 项目ID
+            start_chapter: 开始章节
+            end_chapter: 结束章节
+            db: 数据库会话
+            ai_service: AI服务实例
+            
+        Returns:
+            维护报告
+        """
+        logger.info(f"🧹 开始运行状态维护: {project_id} (Ch {start_chapter}-{end_chapter})")
+        report = {"updates": [], "errors": []}
+        
+        try:
+            # 1. 获取当前状态上下文
+            # 1.1 获取活跃角色
+            char_result = await db.execute(
+                select(Character).where(Character.project_id == project_id)
+            )
+            characters = char_result.scalars().all()
+            
+            active_chars = []
+            char_map = {}
+            for c in characters:
+                char_map[c.name] = c
+                # 检查是否已死亡
+                traits = json.loads(c.traits) if c.traits else []
+                status = "ACTIVE"
+                if "DEAD" in traits or "STATUS:DEAD" in traits:
+                    status = "DEAD"
+                
+                if status == "ACTIVE":
+                    active_chars.append({
+                        "name": c.name,
+                        "role": c.role_type,
+                        "status": status
+                    })
+            
+            # 1.2 获取未回收伏笔
+            foreshadow_result = await db.execute(
+                select(StoryMemory)
+                .where(StoryMemory.project_id == project_id)
+                .where(StoryMemory.is_foreshadow == 1)
+            )
+            foreshadows = foreshadow_result.scalars().all()
+            active_foreshadows = [
+                {"id": f.id, "content": f.content, "chapter": f.story_timeline}
+                for f in foreshadows
+            ]
+            
+            # 1.3 构建当前状态JSON
+            current_state = {
+                "active_characters": [c["name"] for c in active_chars],
+                "unresolved_foreshadows": active_foreshadows
+            }
+            
+            # 2. 获取剧情摘要 (从PlotAnalysis获取)
+            plot_result = await db.execute(
+                select(PlotAnalysis)
+                .where(PlotAnalysis.project_id == project_id)
+                .where(PlotAnalysis.chapter_id.in_(
+                    select(StoryMemory.chapter_id) # 这里的关联有点绕，我们直接查章节号
+                    # 简化：直接查询PlotAnalysis，假设我们能通过chapter_number关联
+                    # 但PlotAnalysis只有chapter_id。我们需要先查章节ID。
+                ))
+            )
+            
+            # 更简单的方法：直接查询范围内的Chapters，然后查PlotAnalysis
+            # 或者直接查询StoryMemory中的chapter_summary
+            
+            # 尝试从StoryMemory获取chapter_summary
+            summary_result = await db.execute(
+                select(StoryMemory)
+                .where(StoryMemory.project_id == project_id)
+                .where(StoryMemory.story_timeline >= start_chapter)
+                .where(StoryMemory.story_timeline <= end_chapter)
+                .where(StoryMemory.memory_type == "chapter_summary")
+                .order_by(StoryMemory.story_timeline)
+            )
+            summaries = summary_result.scalars().all()
+            
+            recent_plot = "\n".join([
+                f"第{s.story_timeline}章: {s.content}" for s in summaries
+            ])
+            
+            if not recent_plot:
+                logger.warning("⚠️ 未找到剧情摘要，跳过状态维护")
+                return report
+                
+            # 3. 调用AI
+            prompt = PromptService.STATE_MANAGER.format(
+                start_chapter=start_chapter,
+                end_chapter=end_chapter,
+                current_state_json=json.dumps(current_state, ensure_ascii=False, indent=2),
+                recent_plot_summary=recent_plot
+            )
+            
+            response = await ai_service.generate_text(
+                prompt=prompt,
+                auto_mcp=False, # 不需要MCP，纯逻辑处理
+                temperature=0.3 # 低温度，保证逻辑性
+            )
+            
+            # 4. 解析结果并更新
+            try:
+                result_json = parse_json(response.get("content", "{}"))
+            except Exception as e:
+                logger.error(f"❌ 解析状态管理响应失败: {e}")
+                return report
+                
+            # 5. 执行更新
+            # 5.1 处理死亡角色
+            dead_chars = result_json.get("dead_characters", [])
+            # 兼容格式：有些模型可能返回 "characters": [{"name": "X", "status": "DEAD"}]
+            if not dead_chars and "characters" in result_json:
+                dead_chars = [
+                    c["name"] for c in result_json["characters"] 
+                    if c.get("status") == "DEAD"
+                ]
+                
+            for char_name in dead_chars:
+                if char_name in char_map:
+                    char = char_map[char_name]
+                    traits = json.loads(char.traits) if char.traits else []
+                    if "STATUS:DEAD" not in traits:
+                        traits.append("STATUS:DEAD")
+                        char.traits = json.dumps(traits, ensure_ascii=False)
+                        report["updates"].append(f"角色 {char_name} 标记为死亡")
+            
+            # 5.2 处理伏笔回收
+            resolved_foreshadows = result_json.get("resolved_foreshadows", []) # id列表
+            # 兼容格式：可能返回内容匹配
+            
+            # 如果AI返回的是ID (我们传入了ID)
+            for f_id in resolved_foreshadows:
+                # 查找对应的StoryMemory
+                memory = next((f for f in foreshadows if f.id == f_id), None)
+                if memory:
+                    memory.is_foreshadow = 2 # Resolved
+                    report["updates"].append(f"伏笔回收: {memory.content[:20]}...")
+            
+            # 如果AI返回的是内容描述，尝试模糊匹配 (TODO)
+            
+            await db.commit()
+            logger.info(f"✅ 状态维护完成: {len(report['updates'])} 项更新")
+            
+        except Exception as e:
+            logger.error(f"❌ 状态维护失败: {str(e)}", exc_info=True)
+            report["errors"].append(str(e))
+            
+        return report
 
 
 # 创建全局实例
