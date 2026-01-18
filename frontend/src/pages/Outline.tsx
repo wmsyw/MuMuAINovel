@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Button, List, Modal, Form, Input, message, Empty, Space, Popconfirm, Card, Select, Radio, Tag, InputNumber, Tabs } from 'antd';
 import { EditOutlined, DeleteOutlined, ThunderboltOutlined, BranchesOutlined, AppstoreAddOutlined, CheckCircleOutlined, ExclamationCircleOutlined, PlusOutlined, FileTextOutlined } from '@ant-design/icons';
 import { useStore } from '../store';
@@ -906,7 +906,7 @@ export default function Outline() {
               >
                 <InputNumber
                   min={2}
-                  max={10}
+                  max={1000}
                   style={{ width: '100%' }}
                   placeholder="建议2-5章"
                 />
@@ -945,7 +945,8 @@ export default function Outline() {
             const requestData = {
               ...values,
               auto_create_chapters: false, // 第一步：仅生成规划
-              enable_scene_analysis: true
+              enable_scene_analysis: true,
+              batch_size: 10
             };
 
             // 使用SSE客户端调用新的流式端点
