@@ -165,3 +165,50 @@ class ExpansionPlanResponse(BaseModel):
     id: str = Field(..., description="章节ID")
     expansion_plan: Optional[Dict[str, Any]] = Field(None, description="规划数据")
     message: str = Field(..., description="响应消息")
+
+
+class PartialRegenerateRequest(BaseModel):
+    """局部重写请求参数"""
+    selected_text: str = Field(..., description="选中的原文内容")
+    start_position: int = Field(..., description="在章节内容中的起始位置（字符索引）", ge=0)
+    end_position: int = Field(..., description="在章节内容中的结束位置（字符索引）", ge=0)
+    user_instructions: str = Field(..., description="用户的修改要求", min_length=1, max_length=1000)
+    
+    # 可选参数
+    context_chars: int = Field(
+        500,
+        description="上下文截取长度（前后各截取多少字符）",
+        ge=100,
+        le=2000
+    )
+    style_id: Optional[int] = Field(None, description="写作风格ID，不提供则使用项目默认风格")
+    length_mode: Optional[str] = Field(
+        "similar",
+        description="字数调整模式：similar(保持相近)/expand(适当扩展)/condense(精简压缩)/custom(自定义)"
+    )
+    target_word_count: Optional[int] = Field(
+        None,
+        description="指定目标字数（仅当length_mode为custom时有效）",
+        ge=10,
+        le=5000
+    )
+    
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "selected_text": "林霄挥剑斩向敌人，剑光凌厉，一招制敌。",
+            "start_position": 1234,
+            "end_position": 1260,
+            "user_instructions": "增加更细腻的打斗描写，加入主角的心理活动",
+            "context_chars": 500,
+            "length_mode": "expand"
+        }
+    })
+
+
+class PartialRegenerateResponse(BaseModel):
+    """局部重写响应模型"""
+    success: bool = Field(..., description="是否成功")
+    new_text: str = Field(..., description="重写后的新内容")
+    word_count: int = Field(..., description="新内容字数")
+    original_word_count: int = Field(..., description="原文字数")
+    message: str = Field("重写成功", description="响应消息")

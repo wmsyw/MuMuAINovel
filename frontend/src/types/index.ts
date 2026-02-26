@@ -193,7 +193,7 @@ export interface OutlineCreate {
 export interface OutlineUpdate {
   title?: string;
   content?: string;
-  // structure 暂不支持修改
+  structure?: string;  // 支持修改structure字段
   // order_index 只能通过 reorder 接口批量调整
 }
 
@@ -220,6 +220,11 @@ export interface Character {
   location?: string;
   motto?: string;
   color?: string;
+  // 角色/组织状态
+  status?: string;
+  status_changed_chapter?: number;
+  current_state?: string;
+  state_updated_chapter?: number;
   // 职业相关字段
   main_career_id?: string;
   main_career_stage?: number;
@@ -240,7 +245,6 @@ export interface CharacterUpdate {
   personality?: string;
   background?: string;
   appearance?: string;
-  relationships?: string;
   organization_type?: string;
   organization_purpose?: string;
   organization_members?: string;
@@ -741,3 +745,234 @@ export interface MCPToolCallResponse {
   result?: unknown;
   error?: string;
 }
+
+// 伏笔管理类型定义
+export type ForeshadowStatus = 'pending' | 'planted' | 'resolved' | 'partially_resolved' | 'abandoned';
+export type ForeshadowSourceType = 'analysis' | 'manual';
+export type ForeshadowCategory = 'identity' | 'mystery' | 'item' | 'relationship' | 'event' | 'ability' | 'prophecy';
+
+export interface Foreshadow {
+  id: string;
+  project_id: string;
+  title: string;
+  content: string;
+  hint_text?: string;
+  resolution_text?: string;
+  source_type?: ForeshadowSourceType;
+  source_memory_id?: string;
+  source_analysis_id?: string;
+  plant_chapter_id?: string;
+  plant_chapter_number?: number;
+  target_resolve_chapter_id?: string;
+  target_resolve_chapter_number?: number;
+  actual_resolve_chapter_id?: string;
+  actual_resolve_chapter_number?: number;
+  status: ForeshadowStatus;
+  is_long_term: boolean;
+  importance: number;
+  strength: number;
+  subtlety: number;
+  urgency: number;
+  related_characters?: string[];
+  related_foreshadow_ids?: string[];
+  tags?: string[];
+  category?: ForeshadowCategory;
+  notes?: string;
+  resolution_notes?: string;
+  auto_remind: boolean;
+  remind_before_chapters: number;
+  include_in_context: boolean;
+  created_at?: string;
+  updated_at?: string;
+  planted_at?: string;
+  resolved_at?: string;
+}
+
+export interface ForeshadowCreate {
+  project_id: string;
+  title: string;
+  content: string;
+  hint_text?: string;
+  resolution_text?: string;
+  plant_chapter_number?: number;
+  target_resolve_chapter_number?: number;
+  is_long_term?: boolean;
+  importance?: number;
+  strength?: number;
+  subtlety?: number;
+  related_characters?: string[];
+  tags?: string[];
+  category?: ForeshadowCategory;
+  notes?: string;
+  resolution_notes?: string;
+  auto_remind?: boolean;
+  remind_before_chapters?: number;
+  include_in_context?: boolean;
+}
+
+export interface ForeshadowUpdate {
+  title?: string;
+  content?: string;
+  hint_text?: string;
+  resolution_text?: string;
+  plant_chapter_number?: number;
+  target_resolve_chapter_number?: number;
+  status?: ForeshadowStatus;
+  is_long_term?: boolean;
+  importance?: number;
+  strength?: number;
+  subtlety?: number;
+  urgency?: number;
+  related_characters?: string[];
+  related_foreshadow_ids?: string[];
+  tags?: string[];
+  category?: ForeshadowCategory;
+  notes?: string;
+  resolution_notes?: string;
+  auto_remind?: boolean;
+  remind_before_chapters?: number;
+  include_in_context?: boolean;
+}
+
+export interface ForeshadowStats {
+  total: number;
+  pending: number;
+  planted: number;
+  resolved: number;
+  partially_resolved: number;
+  abandoned: number;
+  long_term_count: number;
+  overdue_count: number;
+}
+
+export interface ForeshadowListResponse {
+  total: number;
+  items: Foreshadow[];
+  stats?: ForeshadowStats;
+}
+
+export interface PlantForeshadowRequest {
+  chapter_id: string;
+  chapter_number: number;
+  hint_text?: string;
+}
+
+export interface ResolveForeshadowRequest {
+  chapter_id: string;
+  chapter_number: number;
+  resolution_text?: string;
+  is_partial?: boolean;
+}
+
+export interface SyncFromAnalysisRequest {
+  chapter_ids?: string[];
+  overwrite_existing?: boolean;
+  auto_set_planted?: boolean;
+}
+
+export interface SyncFromAnalysisResponse {
+  synced_count: number;
+  skipped_count: number;
+  new_foreshadows: Foreshadow[];
+  skipped_reasons: Array<{ source_memory_id: string; reason: string }>;
+}
+
+export interface ForeshadowContextResponse {
+  chapter_number: number;
+  context_text: string;
+  pending_plant: Foreshadow[];
+  pending_resolve: Foreshadow[];
+  overdue: Foreshadow[];
+  recently_planted: Foreshadow[];
+}
+
+// ==================== 提示词工坊类型定义 ====================
+
+export interface PromptWorkshopItem {
+  id: string;
+  name: string;
+  description?: string;
+  prompt_content: string;
+  category: string;
+  tags?: string[];
+  author_name?: string;
+  is_official: boolean;
+  download_count: number;
+  like_count: number;
+  is_liked?: boolean;
+  created_at?: string;
+}
+
+export interface PromptSubmission {
+  id: string;
+  name: string;
+  description?: string;
+  prompt_content?: string;
+  category: string;
+  tags?: string[];
+  author_display_name?: string;
+  is_anonymous: boolean;
+  status: 'pending' | 'approved' | 'rejected';
+  review_note?: string;
+  reviewed_at?: string;
+  created_at?: string;
+  source_instance?: string;
+  submitter_name?: string;
+}
+
+export interface PromptSubmissionCreate {
+  name: string;
+  description?: string;
+  prompt_content: string;
+  category: string;
+  tags?: string[];
+  author_display_name?: string;
+  is_anonymous?: boolean;
+  source_style_id?: number;
+}
+
+export interface PromptWorkshopCategory {
+  id: string;
+  name: string;
+  count: number;
+}
+
+export interface PromptWorkshopListResponse {
+  success: boolean;
+  data: {
+    total: number;
+    page: number;
+    limit: number;
+    items: PromptWorkshopItem[];
+    categories: PromptWorkshopCategory[];
+  };
+}
+
+export interface PromptWorkshopStatusResponse {
+  mode: 'client' | 'server';
+  instance_id: string;
+  cloud_url?: string;
+  cloud_connected?: boolean;
+}
+
+export interface PromptWorkshopAdminStats {
+  total_items: number;
+  total_official: number;
+  total_pending: number;
+  total_downloads: number;
+  total_likes: number;
+}
+
+// 提示词工坊分类常量
+export const PROMPT_CATEGORIES: Record<string, string> = {
+  general: '通用',
+  fantasy: '玄幻/仙侠',
+  martial: '武侠',
+  romance: '言情',
+  scifi: '科幻',
+  horror: '悬疑/惊悚',
+  history: '历史',
+  urban: '都市',
+  game: '游戏/电竞',
+  other: '其他',
+};

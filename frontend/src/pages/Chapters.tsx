@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { List, Button, Modal, Form, Input, Select, message, Empty, Space, Badge, Tag, Card, InputNumber, Alert, Radio, Descriptions, Collapse, Popconfirm, FloatButton } from 'antd';
 import { EditOutlined, FileTextOutlined, ThunderboltOutlined, LockOutlined, DownloadOutlined, SettingOutlined, FundOutlined, SyncOutlined, CheckCircleOutlined, CloseCircleOutlined, RocketOutlined, StopOutlined, InfoCircleOutlined, CaretRightOutlined, DeleteOutlined, BookOutlined, FormOutlined, PlusOutlined, ReadOutlined } from '@ant-design/icons';
 import { useStore } from '../store';
@@ -12,6 +12,8 @@ import { SSELoadingOverlay } from '../components/SSELoadingOverlay';
 import { SSEProgressModal } from '../components/SSEProgressModal';
 import FloatingIndexPanel from '../components/FloatingIndexPanel';
 import ChapterReader from '../components/ChapterReader';
+import PartialRegenerateToolbar from '../components/PartialRegenerateToolbar';
+import PartialRegenerateModal from '../components/PartialRegenerateModal';
 
 const { TextArea } = Input;
 
@@ -78,6 +80,14 @@ export default function Chapters() {
   const [planEditorVisible, setPlanEditorVisible] = useState(false);
   const [editingPlanChapter, setEditingPlanChapter] = useState<Chapter | null>(null);
 
+  // 局部重写状态
+  const [partialRegenerateToolbarVisible, setPartialRegenerateToolbarVisible] = useState(false);
+  const [partialRegenerateToolbarPosition, setPartialRegenerateToolbarPosition] = useState({ top: 0, left: 0 });
+  const [selectedTextForRegenerate, setSelectedTextForRegenerate] = useState('');
+  const [selectionStartPosition, setSelectionStartPosition] = useState(0);
+  const [selectionEndPosition, setSelectionEndPosition] = useState(0);
+  const [partialRegenerateModalVisible, setPartialRegenerateModalVisible] = useState(false);
+
   // 单章节生成进度状态
   const [singleChapterProgress, setSingleChapterProgress] = useState(0);
   const [singleChapterProgressMessage, setSingleChapterProgressMessage] = useState('');
@@ -105,6 +115,212 @@ export default function Chapters() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // 处理文本选中 - 检测选中文本并显示浮动工具栏
+  const handleTextSelection = useCallback(() => {
+    // 只在编辑器打开时处理选中
+    if (!isEditorOpen || isGenerating) {
+      setPartialRegenerateToolbarVisible(false);
+      return;
+    }
+
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) {
+      setPartialRegenerateToolbarVisible(false);
+      return;
+    }
+
+    const selectedText = selection.toString().trim();
+    
+    // 至少选中10个字符才显示工具栏
+    if (selectedText.length < 10) {
+      setPartialRegenerateToolbarVisible(false);
+      return;
+    }
+
+    // 检查选中是否在 TextArea 内
+    const textArea = contentTextAreaRef.current?.resizableTextArea?.textArea;
+    if (!textArea) {
+      setPartialRegenerateToolbarVisible(false);
+      return;
+    }
+    
+    // 检查选中是否在 textarea 内（需要特殊处理，因为 textarea 的选中不会创建 range）
+    if (document.activeElement !== textArea) {
+      setPartialRegenerateToolbarVisible(false);
+      return;
+    }
+
+    // 获取 textarea 中的选中位置
+    const start = textArea.selectionStart;
+    const end = textArea.selectionEnd;
+    const textContent = textArea.value;
+    const selectedInTextArea = textContent.substring(start, end);
+
+    if (selectedInTextArea.trim().length < 10) {
+      setPartialRegenerateToolbarVisible(false);
+      return;
+    }
+
+    // 计算浮动工具栏位置
+    const rect = textArea.getBoundingClientRect();
+    const computedStyle = window.getComputedStyle(textArea);
+    const lineHeight = parseFloat(computedStyle.lineHeight) || 24;
+    const paddingTop = parseFloat(computedStyle.paddingTop) || 0;
+    
+    // 计算选中文本起始位置所在的行号
+    const textBeforeSelection = textContent.substring(0, start);
+    const startLine = textBeforeSelection.split('\n').length - 1;
+    
+    // 计算选中文本在 textarea 中的视觉位置
+    // 需要考虑 scrollTop（textarea 内部滚动偏移）
+    const scrollTop = textArea.scrollTop;
+    const visualTop = (startLine * lineHeight) + paddingTop - scrollTop;
+    
+    // 工具栏位置：textarea 顶部 + 选中文本的视觉位置 - 工具栏高度偏移
+    const toolbarTop = rect.top + visualTop - 45;
+    
+    // 水平位置：放在 textarea 的右侧区域，避免遮挡文本
+    const toolbarLeft = rect.right - 180;
+
+    setSelectedTextForRegenerate(selectedInTextArea);
+    setSelectionStartPosition(start);
+    setSelectionEndPosition(end);
+    
+    // 计算工具栏位置，如果选中位置不在可视区域内，固定在边缘
+    let finalTop = toolbarTop;
+    if (visualTop < 0) {
+      finalTop = rect.top + 10;
+    } else if (visualTop > textArea.clientHeight) {
+      finalTop = rect.bottom - 50;
+    }
+    
+    setPartialRegenerateToolbarPosition({
+      top: Math.max(rect.top + 10, Math.min(finalTop, rect.bottom - 50)),
+      left: Math.min(Math.max(rect.left + 20, toolbarLeft), window.innerWidth - 200),
+    });
+    setPartialRegenerateToolbarVisible(true);
+  }, [isEditorOpen, isGenerating]);
+
+  // 更新工具栏位置的函数（不检测选中，只更新位置）
+  const updateToolbarPosition = useCallback(() => {
+    if (!partialRegenerateToolbarVisible || !selectedTextForRegenerate) return;
+    
+    const textArea = contentTextAreaRef.current?.resizableTextArea?.textArea;
+    if (!textArea) return;
+    
+    const rect = textArea.getBoundingClientRect();
+    const computedStyle = window.getComputedStyle(textArea);
+    const lineHeight = parseFloat(computedStyle.lineHeight) || 24;
+    const paddingTop = parseFloat(computedStyle.paddingTop) || 0;
+    
+    const textContent = textArea.value;
+    const textBeforeSelection = textContent.substring(0, selectionStartPosition);
+    const startLine = textBeforeSelection.split('\n').length - 1;
+    
+    const scrollTop = textArea.scrollTop;
+    const visualTop = (startLine * lineHeight) + paddingTop - scrollTop;
+    
+    const toolbarTop = rect.top + visualTop - 45;
+    // 固定在 textarea 右上角，不随选中位置变化
+    const toolbarLeft = rect.right - 180;
+    
+    // 工具栏固定在 textarea 可视区域内，即使选中文本滚出视野也保持显示
+    // 如果选中位置在可视区域内，跟随选中位置
+    // 如果滚出视野，固定在顶部或底部边缘
+    let finalTop = toolbarTop;
+    if (visualTop < 0) {
+      // 选中位置在上方视野外，工具栏固定在顶部
+      finalTop = rect.top + 10;
+    } else if (visualTop > textArea.clientHeight) {
+      // 选中位置在下方视野外，工具栏固定在底部
+      finalTop = rect.bottom - 50;
+    }
+    
+    setPartialRegenerateToolbarPosition({
+      top: Math.max(rect.top + 10, Math.min(finalTop, rect.bottom - 50)),
+      left: Math.min(Math.max(rect.left + 20, toolbarLeft), window.innerWidth - 200),
+    });
+  }, [partialRegenerateToolbarVisible, selectedTextForRegenerate, selectionStartPosition]);
+
+  // 监听选中事件
+  useEffect(() => {
+    if (!isEditorOpen) return;
+
+    const textArea = contentTextAreaRef.current?.resizableTextArea?.textArea;
+    if (!textArea) return;
+
+    const handleMouseUp = () => {
+      // 鼠标释放时检查选中
+      setTimeout(handleTextSelection, 50);
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      // Shift + 方向键选中时检查
+      if (e.shiftKey && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+        setTimeout(handleTextSelection, 50);
+      }
+    };
+
+    const handleScroll = () => {
+      // 滚动时更新位置（使用 requestAnimationFrame 优化性能）
+      requestAnimationFrame(updateToolbarPosition);
+    };
+
+    // 监听 textarea 滚动
+    textArea.addEventListener('mouseup', handleMouseUp);
+    textArea.addEventListener('keyup', handleKeyUp);
+    textArea.addEventListener('scroll', handleScroll);
+
+    // 同时监听 Modal body 滚动（Modal 内容可能在外层容器滚动）
+    const modalBody = textArea.closest('.ant-modal-body');
+    if (modalBody) {
+      modalBody.addEventListener('scroll', handleScroll);
+    }
+
+    // 监听窗口大小变化
+    window.addEventListener('resize', handleScroll);
+
+    return () => {
+      textArea.removeEventListener('mouseup', handleMouseUp);
+      textArea.removeEventListener('keyup', handleKeyUp);
+      textArea.removeEventListener('scroll', handleScroll);
+      if (modalBody) {
+        modalBody.removeEventListener('scroll', handleScroll);
+      }
+      window.removeEventListener('resize', handleScroll);
+    };
+  }, [isEditorOpen, handleTextSelection, updateToolbarPosition]);
+
+  // 点击其他区域时隐藏工具栏
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      
+      // 如果点击的是工具栏，不隐藏
+      if (target.closest('[data-partial-regenerate-toolbar]')) {
+        return;
+      }
+      
+      // 如果点击的是 textarea，不隐藏
+      if (target.tagName === 'TEXTAREA') {
+        return;
+      }
+      
+      // 如果点击的是 Modal 内部（包括滚动条），不隐藏
+      if (target.closest('.ant-modal-content')) {
+        return;
+      }
+      
+      // 点击 Modal 外部才隐藏工具栏
+      setPartialRegenerateToolbarVisible(false);
+    };
+
+    if (partialRegenerateToolbarVisible) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [partialRegenerateToolbarVisible]);
 
   const {
     refreshChapters,
@@ -376,12 +592,17 @@ export default function Chapters() {
 
   if (!currentProject) return null;
 
-  // 获取人称的中文显示文本
+  // 获取人称的中文显示文本（同时支持中英文值）
   const getNarrativePerspectiveText = (perspective?: string): string => {
     const texts: Record<string, string> = {
+      // 英文值映射（向后兼容）
       'first_person': '第一人称（我）',
       'third_person': '第三人称（他/她）',
       'omniscient': '全知视角',
+      // 中文值映射（项目设置使用）
+      '第一人称': '第一人称（我）',
+      '第三人称': '第三人称（他/她）',
+      '全知视角': '全知视角',
     };
     return texts[perspective || ''] || '第三人称（默认）';
   };
@@ -1193,12 +1414,19 @@ export default function Chapters() {
             等待分析
           </Tag>
         );
-      case 'running':
+      case 'running': {
+        // 检查是否正在重试（后端会在error_message中包含"重试"信息）
+        const isRetrying = task.error_message && task.error_message.includes('重试');
         return (
-          <Tag icon={<SyncOutlined spin />} color="processing">
-            分析中 {task.progress}%
+          <Tag
+            icon={<SyncOutlined spin />}
+            color={isRetrying ? "warning" : "processing"}
+            title={task.error_message || undefined}
+          >
+            {isRetrying ? `重试中 ${task.progress}%` : `分析中 ${task.progress}%`}
           </Tag>
         );
+      }
       case 'completed':
         return (
           <Tag icon={<CheckCircleOutlined />} color="success">
@@ -1533,6 +1761,29 @@ export default function Chapters() {
     }
   };
 
+  // 打开局部重写弹窗
+  const handleOpenPartialRegenerate = () => {
+    setPartialRegenerateToolbarVisible(false);
+    setPartialRegenerateModalVisible(true);
+  };
+
+  // 应用局部重写结果
+  const handleApplyPartialRegenerate = (newText: string, startPos: number, endPos: number) => {
+    // 获取当前内容
+    const currentContent = editorForm.getFieldValue('content') || '';
+    
+    // 替换选中部分
+    const newContent = currentContent.substring(0, startPos) + newText + currentContent.substring(endPos);
+    
+    // 更新表单
+    editorForm.setFieldsValue({ content: newContent });
+    
+    // 关闭弹窗
+    setPartialRegenerateModalVisible(false);
+    
+    message.success('局部重写已应用');
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {contextHolder}
@@ -1630,7 +1881,7 @@ export default function Chapters() {
                     icon={<EditOutlined />}
                     onClick={() => handleOpenEditor(item.id)}
                   >
-                    编辑内容
+                    编辑
                   </Button>,
                   (() => {
                     const task = analysisTasksMap[item.id];
@@ -1650,7 +1901,7 @@ export default function Chapters() {
                               ''
                         }
                       >
-                        {isAnalyzing ? '分析中' : '查看分析'}
+                        {isAnalyzing ? '分析中' : '分析'}
                       </Button>
                     );
                   })(),
@@ -1659,7 +1910,7 @@ export default function Chapters() {
                     icon={<SettingOutlined />}
                     onClick={() => handleOpenModal(item.id)}
                   >
-                    修改信息
+                    修改
                   </Button>,
                 ]}
               >
@@ -1716,7 +1967,7 @@ export default function Chapters() {
                         icon={<EditOutlined />}
                         onClick={() => handleOpenEditor(item.id)}
                         size="small"
-                        title="编辑内容"
+                        title="编辑"
                       />
                       {(() => {
                         const task = analysisTasksMap[item.id];
@@ -1734,7 +1985,7 @@ export default function Chapters() {
                             title={
                               !hasContent ? '请先生成章节内容' :
                                 isAnalyzing ? '分析中' :
-                                  '查看分析'
+                                  '分析'
                             }
                           />
                         );
@@ -1744,7 +1995,7 @@ export default function Chapters() {
                         icon={<SettingOutlined />}
                         onClick={() => handleOpenModal(item.id)}
                         size="small"
-                        title="修改信息"
+                        title="修改"
                       />
                     </Space>
                   )}
@@ -1815,7 +2066,7 @@ export default function Chapters() {
                           icon={<EditOutlined />}
                           onClick={() => handleOpenEditor(item.id)}
                         >
-                          编辑内容
+                          编辑
                         </Button>,
                         (() => {
                           const task = analysisTasksMap[item.id];
@@ -1835,7 +2086,7 @@ export default function Chapters() {
                                     ''
                               }
                             >
-                              {isAnalyzing ? '分析中' : '查看分析'}
+                              {isAnalyzing ? '分析中' : '分析'}
                             </Button>
                           );
                         })(),
@@ -1844,7 +2095,7 @@ export default function Chapters() {
                           icon={<SettingOutlined />}
                           onClick={() => handleOpenModal(item.id)}
                         >
-                          修改信息
+                          修改
                         </Button>,
                         // 只在 one-to-many 模式下显示删除按钮
                         ...(currentProject.outline_mode === 'one-to-many' ? [
@@ -1940,7 +2191,7 @@ export default function Chapters() {
                               icon={<EditOutlined />}
                               onClick={() => handleOpenEditor(item.id)}
                               size="small"
-                              title="编辑内容"
+                              title="编辑"
                             />
                             {(() => {
                               const task = analysisTasksMap[item.id];
@@ -1958,7 +2209,7 @@ export default function Chapters() {
                                   title={
                                     !hasContent ? '请先生成章节内容' :
                                       isAnalyzing ? '分析中' :
-                                        '查看分析'
+                                        '分析'
                                   }
                                 />
                               );
@@ -1968,7 +2219,7 @@ export default function Chapters() {
                               icon={<SettingOutlined />}
                               onClick={() => handleOpenModal(item.id)}
                               size="small"
-                              title="修改信息"
+                              title="修改"
                             />
                             {/* 只在 one-to-many 模式下显示删除按钮 */}
                             {currentProject.outline_mode === 'one-to-many' && (
@@ -2079,7 +2330,7 @@ export default function Chapters() {
           setIsEditorOpen(false);
         }}
         closable={!isGenerating}
-        maskClosable={!isGenerating}
+        maskClosable={false}
         keyboard={!isGenerating}
         width={isMobile ? 'calc(100vw - 32px)' : '85%'}
         centered
@@ -2173,9 +2424,9 @@ export default function Chapters() {
                 allowClear
                 disabled={isGenerating}
               >
-                <Select.Option value="first_person">第一人称(我)</Select.Option>
-                <Select.Option value="third_person">第三人称(他/她)</Select.Option>
-                <Select.Option value="omniscient">全知视角</Select.Option>
+                <Select.Option value="第一人称">第一人称(我)</Select.Option>
+                <Select.Option value="第三人称">第三人称(他/她)</Select.Option>
+                <Select.Option value="全知视角">全知视角</Select.Option>
               </Select>
               {temporaryNarrativePerspective && (
                 <div style={{ color: 'var(--color-success)', fontSize: 12, marginTop: 4 }}>
@@ -2245,6 +2496,16 @@ export default function Chapters() {
               disabled={isGenerating}
             />
           </Form.Item>
+
+          {/* 局部重写浮动工具栏 */}
+          <div data-partial-regenerate-toolbar>
+            <PartialRegenerateToolbar
+              visible={partialRegenerateToolbarVisible && !isGenerating}
+              position={partialRegenerateToolbarPosition}
+              selectedText={selectedTextForRegenerate}
+              onRegenerate={handleOpenPartialRegenerate}
+            />
+          </div>
 
           <Form.Item>
             <Space style={{ width: '100%', justifyContent: 'flex-end', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center' }}>
@@ -2631,6 +2892,20 @@ export default function Chapters() {
             setReadingChapter(null);
           }}
           onChapterChange={handleReaderChapterChange}
+        />
+      )}
+
+      {/* 局部重写弹窗 */}
+      {editingId && (
+        <PartialRegenerateModal
+          visible={partialRegenerateModalVisible}
+          chapterId={editingId}
+          selectedText={selectedTextForRegenerate}
+          startPosition={selectionStartPosition}
+          endPosition={selectionEndPosition}
+          styleId={selectedStyleId}
+          onClose={() => setPartialRegenerateModalVisible(false)}
+          onApply={handleApplyPartialRegenerate}
         />
       )}
 

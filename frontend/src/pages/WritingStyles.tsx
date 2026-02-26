@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Button,
   Modal,
@@ -12,14 +12,14 @@ import {
   Empty,
   Typography,
   Row,
-  Col
+  Col,
 } from 'antd';
 import {
   PlusOutlined,
   EditOutlined,
   DeleteOutlined,
   StarOutlined,
-  StarFilled
+  StarFilled,
 } from '@ant-design/icons';
 import { useStore } from '../store';
 import { writingStyleApi } from '../services/api';
@@ -56,7 +56,7 @@ export default function WritingStyles() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentProject?.id]);
 
-  const loadStyles = async () => {
+  const loadStyles = useCallback(async () => {
     try {
       setLoading(true);
       // 如果有当前项目，使用项目API获取（包含is_default标记）
@@ -80,7 +80,7 @@ export default function WritingStyles() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentProject?.id]);
 
   const handleCreate = async (values: { name: string; description?: string; prompt_content: string }) => {
     try {
@@ -175,10 +175,8 @@ export default function WritingStyles() {
         marginBottom: isMobile ? 12 : 16,
         borderBottom: '1px solid #f0f0f0',
         display: 'flex',
-        flexDirection: isMobile ? 'column' : 'row',
-        gap: isMobile ? 12 : 0,
         justifyContent: 'space-between',
-        alignItems: isMobile ? 'stretch' : 'center'
+        alignItems: 'center',
       }}>
         <h2 style={{ margin: 0, fontSize: isMobile ? 18 : 24 }}>
           <EditOutlined style={{ marginRight: 8 }} />
@@ -188,7 +186,6 @@ export default function WritingStyles() {
           type="primary"
           icon={<PlusOutlined />}
           onClick={showCreateModal}
-          block={isMobile}
         >
           创建自定义风格
         </Button>

@@ -16,6 +16,8 @@ import {
   FundOutlined,
   HeartOutlined,
   TrophyOutlined,
+  BulbOutlined,
+  CloudOutlined,
 } from '@ant-design/icons';
 import { useStore } from '../store';
 import { useCharacterSync, useOutlineSync, useChapterSync } from '../store/hooks';
@@ -141,9 +143,19 @@ export default function ProjectDetail() {
       label: <Link to={`/project/${projectId}/chapter-analysis`}>剧情分析</Link>,
     },
     {
+      key: 'foreshadows',
+      icon: <BulbOutlined />,
+      label: <Link to={`/project/${projectId}/foreshadows`}>伏笔管理</Link>,
+    },
+    {
       key: 'writing-styles',
       icon: <EditOutlined />,
       label: <Link to={`/project/${projectId}/writing-styles`}>写作风格</Link>,
+    },
+    {
+      key: 'prompt-workshop',
+      icon: <CloudOutlined />,
+      label: <Link to={`/project/${projectId}/prompt-workshop`}>提示词工坊</Link>,
     },
     // {
     //   key: 'polish',
@@ -162,8 +174,10 @@ export default function ProjectDetail() {
     if (path.includes('/outline')) return 'outline';
     if (path.includes('/characters')) return 'characters';
     if (path.includes('/chapter-analysis')) return 'chapter-analysis';
+    if (path.includes('/foreshadows')) return 'foreshadows';
     if (path.includes('/chapters')) return 'chapters';
     if (path.includes('/writing-styles')) return 'writing-styles';
+    if (path.includes('/prompt-workshop')) return 'prompt-workshop';
     if (path.includes('/sponsor')) return 'sponsor';
     // if (path.includes('/polish')) return 'polish';
     return 'sponsor'; // 默认选中赞助支持
