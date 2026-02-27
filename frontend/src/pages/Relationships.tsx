@@ -1,9 +1,20 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, Table, Tag, Button, Space, message, Modal, Form, Select, Slider, Input, Tabs, AutoComplete } from 'antd';
 import { PlusOutlined, ApartmentOutlined, UserOutlined, EditOutlined } from '@ant-design/icons';
 import { useStore } from '../store';
 import axios from 'axios';
+import {
+  ReactFlow,
+  Background,
+  Controls,
+  MiniMap,
+  useNodesState,
+  useEdgesState,
+  BackgroundVariant,
+  MarkerType,
+} from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
 
 const { TextArea } = Input;
 
@@ -32,6 +43,27 @@ interface Character {
   is_organization: boolean;
 }
 
+interface GraphNode {
+  id: string;
+  name: string;
+  type: string;
+  role_type: string;
+  avatar: string | null;
+}
+
+interface GraphLink {
+  source: string;
+  target: string;
+  relationship: string;
+  intimacy: number;
+  status: string;
+}
+
+interface GraphData {
+  nodes: GraphNode[];
+  links: GraphLink[];
+}
+
 export default function Relationships() {
   const { projectId } = useParams<{ projectId: string }>();
   const { currentProject } = useStore();
@@ -47,6 +79,11 @@ export default function Relationships() {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
+  const [graphData, setGraphData] = useState<GraphData | null>(null);
+  const [graphLoading, setGraphLoading] = useState(false);
+
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -72,7 +109,7 @@ export default function Relationships() {
         axios.get('/api/relationships/types'),
         axios.get(`/api/characters?project_id=${projectId}`)
       ]);
-      
+
       setRelationships(relsRes.data);
       setRelationshipTypes(typesRes.data);
       setCharacters(charsRes.data.items || []);
@@ -81,6 +118,67 @@ export default function Relationships() {
       console.error(error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadGraphData = async () => {
+    if (!projectId) return;
+    setGraphLoading(true);
+    try {
+      const res = await axios.get(`/api/relationships/graph/${projectId}`);
+      const data = res.data as GraphData;
+
+      // 转换为 React Flow 的节点和边
+      const flowNodes: Node[] = data.nodes.map((node, index) => ({
+        id: node.id,
+        type: 'default',
+        position: {
+          x: 100 + (index % 4) * 200,
+          y: 100 + Math.floor(index / 4) * 150,
+        },
+        data: {
+          label: node.name,
+          type: node.type,
+          role_type: node.role_type,
+        },
+      }));
+
+      const flowEdges: Edge[] = data.links.map(link => ({
+        id: `${link.source}-${link.target}`,
+        source: link.source,
+        target: link.target,
+        label: link.relationship,
+        type: 'smoothstep',
+        style: {
+          stroke: link.status === 'active' ? '#a3b1bf' : '#ffccc7',
+          strokeWidth: 2,
+        },
+        labelStyle: {
+          fill: '#666',
+          fontSize: 10,
+        },
+        labelBgStyle: {
+          fill: '#fff',
+          fillOpacity: 0.9,
+        },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: link.status === 'active' ? '#a3b1bf' : '#ffccc7',
+        },
+        data: {
+          intimacy: link.intimacy,
+          status: link.status,
+        },
+      }));
+
+      setNodes(flowNodes);
+      setEdges(flowEdges);
+      setGraphData(data);
+    } catch (error) {
+      message.error('加载关系图谱失败');
+      console.error(error);
+    } finally {
+      setGraphLoading(false);
     }
   };
 
@@ -130,7 +228,7 @@ export default function Relationships() {
     description?: string;
   }) => {
     if (!editingRelationship) return;
-    
+
     try {
       await axios.put(`/api/relationships/${editingRelationship.id}`, {
         relationship_name: values.relationship_name,
@@ -352,7 +450,7 @@ export default function Relationships() {
                       setCurrentPage(page);
                       if (size !== pageSize) {
                         setPageSize(size);
-                        setCurrentPage(1); // 切换每页条数时重置到第一页
+                        setCurrentPage(1);
                       }
                     },
                     onShowSizeChange: (_, size) => {
@@ -396,6 +494,73 @@ export default function Relationships() {
                       </Space>
                     </Card>
                   ))}
+                </div>
+              ),
+            },
+            {
+              key: 'graph',
+              label: '关系图谱',
+              children: (
+                <div style={{ height: isMobile ? 'calc(100vh - 400px)' : 'calc(100vh - 350px)' }}>
+                  {!graphData && !graphLoading && (
+                    <div style={{ textAlign: 'center', padding: '50px 0' }}>
+                      <Button type="primary" onClick={loadGraphData} loading={graphLoading}>
+                        加载关系图谱
+                      </Button>
+                    </div>
+                  )}
+                  {graphLoading && (
+                    <div style={{ textAlign: 'center', padding: '50px 0' }}>
+                      加载中...
+                    </div>
+                  )}
+                  {graphData && (
+                    <>
+                      <div style={{
+                        marginBottom: 12,
+                        display: 'flex',
+                        gap: 16,
+                        flexWrap: 'wrap',
+                        alignItems: 'center'
+                      }}>
+                        <Tag color="blue">节点: {graphData.nodes.length}</Tag>
+                        <Tag color="green">关系: {graphData.links.length}</Tag>
+                        <div style={{ fontSize: 12, color: '#8c8c8c' }}>
+                          提示: 拖拽画布平移 | 滚轮缩放 | 拖拽节点移动 | 点击节点查看详情
+                        </div>
+                      </div>
+                      <div style={{
+                        width: '100%',
+                        height: isMobile ? 'calc(100% - 60px)' : 'calc(100% - 60px)',
+                        minHeight: 400,
+                        border: '1px solid #e8e8e8',
+                        borderRadius: 4,
+                        backgroundColor: '#fafafa'
+                      }}>
+                        <ReactFlow
+                          nodes={nodes}
+                          edges={edges}
+                          onNodesChange={onNodesChange}
+                          onEdgesChange={onEdgesChange}
+                          fitView
+                          fitViewOptions={{ padding: 0.2 }}
+                          attributionPosition="bottom-left"
+                        >
+                          <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
+                          <Controls />
+                          <MiniMap
+                            nodeColor={(node) => {
+                              const data = node.data as { type?: string; role_type?: string };
+                              if (data?.type === 'organization') return '#52c41a';
+                              if (data?.role_type === 'protagonist') return '#f5222d';
+                              return '#1890ff';
+                            }}
+                            style={{ backgroundColor: '#f5f5f5' }}
+                          />
+                        </ReactFlow>
+                      </div>
+                    </>
+                  )}
                 </div>
               ),
             },
