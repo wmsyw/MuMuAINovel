@@ -10,6 +10,7 @@ import Outline from './pages/Outline';
 import Characters from './pages/Characters';
 import Careers from './pages/Careers';
 import Relationships from './pages/Relationships';
+import RelationshipGraph from './pages/RelationshipGraph';
 import Organizations from './pages/Organizations';
 import Chapters from './pages/Chapters';
 import ChapterReader from './pages/ChapterReader';
@@ -61,6 +62,7 @@ function App() {
             <Route path="outline" element={<Outline />} />
             <Route path="characters" element={<Characters />} />
             <Route path="relationships" element={<Relationships />} />
+            <Route path="relationships-graph" element={<RelationshipGraph />} />
             <Route path="organizations" element={<Organizations />} />
             <Route path="chapters" element={<Chapters />} />
             <Route path="chapter-analysis" element={<ChapterAnalysis />} />
