@@ -18,6 +18,18 @@
 
 <div align="center">
 
+## 💬 加入交流群
+
+欢迎扫码加入 QQ 交流群，一起交流 AI 小说创作心得、反馈问题、获取最新动态！
+
+<img src="frontend/public/qq.jpg" alt="QQ交流群二维码" width="300" />
+
+</div>
+
+---
+
+<div align="center">
+
 ## 💖 支持项目
 
 如果这个项目对你有帮助，欢迎通过以下方式支持开发：

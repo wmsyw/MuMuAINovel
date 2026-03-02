@@ -40,7 +40,7 @@ const benefits = [
     {
         icon: <MessageOutlined style={{ fontSize: '32px', color: 'var(--color-warning)' }} />,
         title: '专属技术支持',
-        description: '加入赞助者群，获得远程协助和配置指导'
+        description: '加入赞助者群，获得远程协助和配置指导（☕ 一杯咖啡）'
     }
 ];
 
