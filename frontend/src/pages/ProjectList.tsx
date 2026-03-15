@@ -561,7 +561,7 @@ export default function ProjectList() {
               style={{ borderRight: 0, paddingTop: 12, width: '100%' }}
               onClick={({ key }) => {
                 if (key === 'mumu-api') {
-                  window.open('https://api.mumuverse.space', '_blank', 'noopener,noreferrer');
+                  window.open('https://api.mumuverse.space/register?aff=4NN8', '_blank', 'noopener,noreferrer');
                   return;
                 }
                 changeView(key as ProjectListView);
@@ -766,7 +766,7 @@ export default function ProjectList() {
               style={{ borderRight: 0, paddingTop: 8 }}
               onClick={({ key }) => {
                 if (key === 'mumu-api') {
-                  window.open('https://api.mumuverse.space', '_blank', 'noopener,noreferrer');
+                  window.open('https://api.mumuverse.space/register?aff=4NN8', '_blank', 'noopener,noreferrer');
                   setDrawerVisible(false);
                   return;
                 }

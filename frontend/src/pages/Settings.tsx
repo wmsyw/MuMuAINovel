@@ -1079,7 +1079,7 @@ export default function SettingsPage() {
                                   <div>
                                     <Button
                                       type="primary"
-                                      onClick={() => window.open('https://api.mumuverse.space', '_blank', 'noopener,noreferrer')}
+                                      onClick={() => window.open('https://api.mumuverse.space/register?aff=4NN8', '_blank', 'noopener,noreferrer')}
                                     >
                                       打开 MuMuのAPI 站点免费注册
                                     </Button>
@@ -1625,7 +1625,7 @@ export default function SettingsPage() {
                         <div>
                           <Button
                             type="primary"
-                            onClick={() => window.open('https://api.mumuverse.space', '_blank', 'noopener,noreferrer')}
+                            onClick={() => window.open('https://api.mumuverse.space/register?aff=4NN8', '_blank', 'noopener,noreferrer')}
                           >
                             打开 MuMuのAPI 站点免费注册
                           </Button>
