@@ -11,6 +11,65 @@ export interface User {
   last_login: string;
 }
 
+export interface EmailLoginPayload {
+  email: string;
+  code: string;
+}
+
+export interface EmailRegisterPayload {
+  email: string;
+  code: string;
+  password: string;
+  display_name?: string;
+}
+
+export interface EmailSendCodePayload {
+  email: string;
+  scene: 'register' | 'login' | 'reset_password';
+}
+
+export interface EmailResetPasswordPayload {
+  email: string;
+  code: string;
+  new_password: string;
+}
+
+export interface SystemSMTPSettings {
+  id: string;
+  user_id: string;
+  smtp_provider: string;
+  smtp_host?: string;
+  smtp_port: number;
+  smtp_username?: string;
+  smtp_password?: string;
+  smtp_use_tls: boolean;
+  smtp_use_ssl: boolean;
+  smtp_from_email?: string;
+  smtp_from_name: string;
+  email_auth_enabled: boolean;
+  email_register_enabled: boolean;
+  verification_code_ttl_minutes: number;
+  verification_resend_interval_seconds: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SystemSMTPSettingsUpdate {
+  smtp_provider?: string;
+  smtp_host?: string;
+  smtp_port?: number;
+  smtp_username?: string;
+  smtp_password?: string;
+  smtp_use_tls?: boolean;
+  smtp_use_ssl?: boolean;
+  smtp_from_email?: string;
+  smtp_from_name?: string;
+  email_auth_enabled?: boolean;
+  email_register_enabled?: boolean;
+  verification_code_ttl_minutes?: number;
+  verification_resend_interval_seconds?: number;
+}
+
 // 设置类型定义
 export interface Settings {
   id: string;
@@ -22,6 +81,11 @@ export interface Settings {
   temperature: number;
   max_tokens: number;
   system_prompt?: string;
+  cover_api_provider?: string;
+  cover_api_key?: string;
+  cover_api_base_url?: string;
+  cover_image_model?: string;
+  cover_enabled?: boolean;
   preferences?: string;
   created_at: string;
   updated_at: string;
@@ -35,6 +99,11 @@ export interface SettingsUpdate {
   temperature?: number;
   max_tokens?: number;
   system_prompt?: string;
+  cover_api_provider?: string;
+  cover_api_key?: string;
+  cover_api_base_url?: string;
+  cover_image_model?: string;
+  cover_enabled?: boolean;
   preferences?: string;
 }
 
@@ -102,6 +171,11 @@ export interface Project {
   chapter_count?: number;
   narrative_perspective?: string;
   character_count?: number;
+  cover_image_url?: string;
+  cover_prompt?: string;
+  cover_status?: 'none' | 'generating' | 'ready' | 'failed';
+  cover_error?: string;
+  cover_updated_at?: string;
   created_at: string;
   updated_at: string;
 }
@@ -178,6 +252,7 @@ export interface Outline {
   content: string;
   structure?: string;
   order_index: number;
+  has_chapters?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -541,6 +616,26 @@ export interface AnalysisTask {
   completed_at?: string | null;
 }
 
+export interface BatchAnalysisStatusResponse {
+  project_id: string;
+  total: number;
+  items: Record<string, AnalysisTask>;
+}
+
+export interface BatchAnalyzeUnanalyzedRequest {
+  chapter_ids?: string[];
+}
+
+export interface BatchAnalyzeUnanalyzedResponse {
+  project_id: string;
+  total_candidates: number;
+  total_started: number;
+  total_skipped_no_content: number;
+  total_skipped_running: number;
+  total_already_completed: number;
+  started_tasks: Record<string, AnalysisTask>;
+}
+
 // 分析结果 - 钩子
 export interface AnalysisHook {
   type: string;
@@ -649,12 +744,26 @@ export interface StoryMemory {
   is_foreshadow: 0 | 1 | 2; // 0=普通, 1=已埋下, 2=已回收
 }
 
+export interface EntityChangesSummaryItem {
+  updated_count?: number;
+  state_updated_count?: number;
+  relationship_created_count?: number;
+  relationship_updated_count?: number;
+  org_updated_count?: number;
+  changes: string[];
+}
+
 // 章节分析结果响应 - 匹配后端API返回
 export interface ChapterAnalysisResponse {
   chapter_id: string;
   analysis: AnalysisData;  // 注意：后端返回的是analysis而不是analysis_data
   memories: StoryMemory[];
   created_at: string;
+  entity_changes?: {
+    careers: EntityChangesSummaryItem;
+    character_states: EntityChangesSummaryItem;
+    organization_states: EntityChangesSummaryItem;
+  };
 }
 
 // 手动触发分析响应
@@ -884,6 +993,100 @@ export interface ForeshadowContextResponse {
   pending_resolve: Foreshadow[];
   overdue: Foreshadow[];
   recently_planted: Foreshadow[];
+}
+
+// ==================== 拆书导入类型定义 ====================
+
+export type BookImportTaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+export type BookImportWarningLevel = 'info' | 'warning' | 'error';
+export type BookImportExtractMode = 'tail' | 'full';
+
+export interface BookImportWarning {
+  code: string;
+  message: string;
+  level: BookImportWarningLevel;
+}
+
+export interface BookImportProjectSuggestion {
+  title: string;
+  description?: string;
+  theme?: string;
+  genre?: string;
+  narrative_perspective: string;
+  target_words: number;
+}
+
+export interface BookImportChapter {
+  title: string;
+  content: string;
+  summary?: string;
+  chapter_number: number;
+  outline_title?: string;
+}
+
+export interface BookImportOutline {
+  title: string;
+  content?: string;
+  order_index: number;
+  structure?: Record<string, unknown>;
+}
+
+export interface BookImportTask {
+  task_id: string;
+  status: BookImportTaskStatus;
+  progress: number;
+  message?: string;
+  error?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BookImportPreview {
+  task_id: string;
+  project_suggestion: BookImportProjectSuggestion;
+  chapters: BookImportChapter[];
+  outlines: BookImportOutline[];
+  warnings: BookImportWarning[];
+}
+
+export interface BookImportApplyPayload {
+  project_suggestion: BookImportProjectSuggestion;
+  chapters: BookImportChapter[];
+  outlines: BookImportOutline[];
+  import_mode?: 'append' | 'overwrite';
+}
+
+export interface BookImportCreateTaskPayload {
+  file: File;
+  extract_mode?: BookImportExtractMode;
+  tail_chapter_count?: number;
+}
+
+export interface BookImportResult {
+  success: boolean;
+  project_id: string;
+  statistics: {
+    chapters: number;
+    outlines: number;
+    generated_careers?: number;
+    generated_entities?: number;
+    generated_world_building?: number;
+  };
+  warnings: BookImportWarning[];
+}
+
+export interface BookImportStepFailure {
+  step_name: string;       // world_building / career_system / characters
+  step_label: string;      // 中文名
+  error: string;           // 错误详情
+  retry_count?: number;    // 已重试次数
+}
+
+export interface BookImportRetryResult {
+  success: boolean;
+  project_id: string;
+  retry_results: Record<string, number>;
+  still_failed: BookImportStepFailure[];
 }
 
 // ==================== 提示词工坊类型定义 ====================

@@ -45,6 +45,10 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
+      },
+      '/generated-assets': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
       }
     }
   }

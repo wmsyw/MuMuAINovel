@@ -1,4 +1,5 @@
 """提示词管理服务"""
+
 from typing import Dict, Any, Optional
 import json
 
@@ -15,7 +16,7 @@ GENRE_STRATEGIES = {
   * 300万字：必须涉及改朝换代或文明路线的分歧（如：工业革命 vs 传统皇权）。
 - 爽点来源：种田建设的成就感、运筹帷幄的智商碾压、改变历史意难平。
 - 写作风格：厚重、考究。多用侧面描写烘托大势，对话需符合时代阶级特征，权谋要草蛇灰线。
-"""
+""",
     },
     "scifi": {
         "keywords": ["科幻", "星际", "赛博朋克", "末世", "机甲", "未来"],
@@ -27,7 +28,7 @@ GENRE_STRATEGIES = {
   * 300万字：涉及维度战争、宇宙社会学或时间悖论。
   * 500万字：探讨存在意义、创世/灭世的哲学命题。
 - 写作风格：冷峻、理性。注重技术细节的逻辑自洽（Hard Sci-Fi）或社会学推演（Soft Sci-Fi）。
-"""
+""",
     },
     "supernatural": {
         "keywords": ["灵异", "惊悚", "恐怖", "神秘复苏", "克苏鲁", "怪谈"],
@@ -39,7 +40,7 @@ GENRE_STRATEGIES = {
   * 300万字：世界观彻底崩坏，从解决灵异事件变成对抗末日/旧日支配者。
 - 恐怖维持：随着主角变强，恐怖源从"具体的鬼"升级为"无法理解的规则"或"因果律"。
 - 写作风格：压抑、诡谲。多用环境描写烘托氛围，强调未知的恐惧，少用热血词汇。
-"""
+""",
     },
     "suspense": {
         "keywords": ["悬疑", "刑侦", "推理", "侦探", "犯罪"],
@@ -51,7 +52,7 @@ GENRE_STRATEGIES = {
   * 300万字：主角发现自己也是阴谋的一部分（身世之谜/记忆修改）。
 - 续航关键：永远不要让读者看到真相的全貌，每解决一个谜题，要引出两个新谜题。
 - 写作风格：紧凑、高智商。强调逻辑链条，伏笔回收必须严丝合缝，反转要震撼。
-"""
+""",
     },
     "western_fantasy": {
         "keywords": ["西幻", "奇幻", "DND", "魔法", "龙与地下城", "领主"],
@@ -63,7 +64,7 @@ GENRE_STRATEGIES = {
   * 300万字：点燃神火，参与位面战争/深渊血战。
   * 500万字：建立神系，重塑晶壁系规则。
 - 写作风格：史诗感、咏叹调。注重种族习俗、宗教历史、魔法原理的深度描写。
-"""
+""",
     },
     "eastern_fantasy": {
         "keywords": ["玄幻", "仙侠", "修真", "高武", "洪荒", "东方玄幻"],
@@ -75,10 +76,20 @@ GENRE_STRATEGIES = {
   * 300万字：在更高位面建立宗门/天庭，参与大道之争。
 - 爽点来源：境界突破、宝物争夺、跨阶杀敌、众生膜拜。
 - 写作风格：热血、宏大。强调战斗画面的破坏力，等级森严的社会结构。
-"""
+""",
     },
     "urban": {
-        "keywords": ["都市", "言情", "职场", "现实", "生活", "娱乐", "重生", "神豪", "校花"],
+        "keywords": [
+            "都市",
+            "言情",
+            "职场",
+            "现实",
+            "生活",
+            "娱乐",
+            "重生",
+            "神豪",
+            "校花",
+        ],
         "instruction": """
 【长篇驱动模式：圈层与欲望】
 - 核心动力：社会地位的提升、财富/权力的积累、情感的圆满。
@@ -90,23 +101,23 @@ GENRE_STRATEGIES = {
   * 去翻译腔：对话符合当代口语，多用潜台词。
   * 细节质感：具体描写品牌、车型、食物、穿搭，增加真实感。
   * 爽点：并非单纯打脸，而是通过"人脉网"和"资源调动"降维打击对手。
-"""
-    }
+""",
+    },
 }
 
 
 class WritingStyleManager:
     """写作风格管理器"""
-    
+
     @staticmethod
     def apply_style_to_prompt(base_prompt: str, style_content: str) -> str:
         """
         将写作风格应用到基础提示词中
-        
+
         Args:
             base_prompt: 基础提示词
             style_content: 风格要求内容
-            
+
         Returns:
             组合后的提示词
         """
@@ -116,9 +127,56 @@ class WritingStyleManager:
 
 class PromptService:
     """提示词模板管理"""
-    
+
+    NOVEL_COVER_PROMPT_TEMPLATE = """创作一幅高质量小说封面插图，适用于竖版书籍封面。
+
+小说标题是：“{title}”。
+类型为 {genre}。核心主题是 {theme}。故事摘要如下：{description}
+
+画面应具有电影感、精致、富有氛围和情感表现力，并具备清晰的视觉焦点和强烈的象征性意象。请优先展现符合小说类型的视觉叙事和情绪，而不是死板地描绘具体场景。
+
+这必须看起来像一幅专业的网络小说或实体出版物风格的封面。
+
+硬性要求：
+- 必须在画面醒目位置包含小说标题文字：“{title}”，文字排版需极具艺术感，并与小说的 {genre} 类型风格完美融合。
+- 适用于标准小说封面的竖版构图（2:3 比例）。
+- 画面中只能出现标题文字，绝不能出现作者名字、副标题或其他无关的随机字母。
+- 无标志 (Logo)。
+- 无水印。
+- 无边框。
+- 无 UI 元素。
+- 无样机展示效果 (Mockup)。
+
+最终图像必须是一张完整、专业的书籍封面艺术作品，背景插画与标题排版需相得益彰。"""
+
+    @classmethod
+    async def build_novel_cover_prompt(
+        cls,
+        project: Any,
+        user_id: str = None,
+        db=None,
+    ) -> str:
+        """基于项目基础信息构建小说封面提示词，支持用户自定义模板"""
+        title = (getattr(project, "title", "") or "未命名小说").strip()
+        genre = (getattr(project, "genre", "") or "未指定类型").strip()
+        theme = (getattr(project, "theme", "") or "未指定主题").strip()
+        description = (getattr(project, "description", "") or "无额外简介").strip()
+
+        compact_description = description[:300]
+        template = await cls.get_template_with_fallback(
+            "NOVEL_COVER_PROMPT_TEMPLATE",
+            user_id=user_id,
+            db=db,
+        )
+        return template.format(
+            title=title,
+            genre=genre,
+            theme=theme,
+            description=compact_description,
+        )
+
     # ========== V2版本提示词模板（RTCO框架）==========
-    
+
     # 世界构建提示词 V2（RTCO框架）
     WORLD_BUILDING = """<system>
 你是资深的世界观设计师，擅长为{genre}类型的小说构建真实、自洽的世界观。
@@ -528,7 +586,7 @@ class PromptService:
 ❌ 试图在开篇完结故事
 ❌ 节奏过快，信息过载
 </constraints>"""
-    
+
     # 大纲续写提示词 V2（RTCO框架 - 简化版）
     OUTLINE_CONTINUE = """<system>
 你是经验丰富的小说作家和编剧，擅长续写{genre}类型的小说大纲。
@@ -647,8 +705,6 @@ class PromptService:
 ❌ 忽略已有角色发展
 ❌ 忽略最近大纲中的情节线索
 </constraints>"""
-<<<<<<< HEAD
-
     # 分卷规划提示词 V2（RTCO框架 - 50-100万字规划）
     VOLUME_PLANNING = """<system>
 你是掌控全局的小说主编，擅长规划长篇小说的宏观结构（分卷/大篇章）。
@@ -724,18 +780,13 @@ class PromptService:
 4. **伏笔回收**：将已解决的伏笔标记为 "resolved": true。
 </actions>
 
-<output>
-返回更新后的状态JSON。仅返回有变更的字段。
-</output>
-"""
+    <output>
+    返回更新后的状态JSON。仅返回有变更的字段。
+    </output>
+    """
 
-    # 章节生成V2 - 无前置章节版本（用于第1章）
-    CHAPTER_GENERATION_V2 = """<system>
-=======
-    
     # 章节生成 - 1-N模式（第1章）
     CHAPTER_GENERATION_ONE_TO_MANY = """<system>
->>>>>>> upstream/main
 你是《{project_title}》的作者，一位专注于{genre}类型的网络小说家。
 </system>
 
@@ -1850,7 +1901,7 @@ class PromptService:
 - 如果参数名是 camelCase（如 nextThoughtNeeded），就使用 camelCase
 - 如果参数名是 snake_case（如 next_thought），就使用 snake_case
 - 保持与 schema 中定义的完全一致，包括大小写和命名风格"""
-    
+
     # 灵感模式 - 书名生成（系统提示词）
     INSPIRATION_TITLE_SYSTEM = """你是一位专业的小说创作顾问。
 用户的原始想法：{initial_idea}
@@ -1890,7 +1941,9 @@ class PromptService:
 只返回纯JSON，不要有其他文字，不要换行。"""
 
     # 灵感模式 - 简介生成（用户提示词）
-    INSPIRATION_DESCRIPTION_USER = "原始想法：{initial_idea}\n书名：{title}\n请生成6个简介选项"
+    INSPIRATION_DESCRIPTION_USER = (
+        "原始想法：{initial_idea}\n书名：{title}\n请生成6个简介选项"
+    )
 
     # 灵感模式 - 主题生成（系统提示词）
     INSPIRATION_THEME_SYSTEM = """你是一位专业的小说创作顾问。
@@ -1974,7 +2027,9 @@ class PromptService:
 
 只返回纯JSON。"""
 
-    INSPIRATION_CONFLICT_USER = "书名：{title}\n世界观：{world_setting}\n请生成6个核心冲突选项"
+    INSPIRATION_CONFLICT_USER = (
+        "书名：{title}\n世界观：{world_setting}\n请生成6个核心冲突选项"
+    )
 
     # 灵感模式 - 主角人设生成
     INSPIRATION_PROTAGONIST_SYSTEM = """你是一位专业的小说创作顾问。
@@ -1993,7 +2048,9 @@ class PromptService:
 
 只返回纯JSON。"""
 
-    INSPIRATION_PROTAGONIST_USER = "书名：{title}\n核心冲突：{core_conflict}\n请生成6个主角人设选项"
+    INSPIRATION_PROTAGONIST_USER = (
+        "书名：{title}\n核心冲突：{core_conflict}\n请生成6个主角人设选项"
+    )
 
     # 灵感模式 - 金手指/优势生成
     INSPIRATION_GOLDEN_FINGER_SYSTEM = """你是一位专业的小说创作顾问。
@@ -2012,7 +2069,9 @@ class PromptService:
 
 只返回纯JSON。"""
 
-    INSPIRATION_GOLDEN_FINGER_USER = "书名：{title}\n主角：{protagonist}\n请生成6个金手指选项"
+    INSPIRATION_GOLDEN_FINGER_USER = (
+        "书名：{title}\n主角：{protagonist}\n请生成6个金手指选项"
+    )
 
     # 灵感模式 - 动态引导代理 (Auto Mode)
     INSPIRATION_DYNAMIC_SYSTEM = """你是一位专业的小说创作顾问。你的目标是通过 8-10 轮循序渐进的对话，引导用户构建出完整且深度的小说设定方案。
@@ -2785,21 +2844,151 @@ class PromptService:
 ❌ 偏离用户的修改要求
 </constraints>"""
 
+    # 拆书导入-反向项目提炼提示词
+    BOOK_IMPORT_REVERSE_PROJECT_SUGGESTION = """<system>
+你是资深网文策划编辑，擅长从小说正文中反向提炼项目立项信息。
+</system>
+
+<task>
+【任务】
+基于提供的前3章内容，提炼该小说的核心立项信息，用于创建新项目。
+
+【目标】
+在不偏离原文的前提下，输出可直接用于项目初始化的结构化信息。
+</task>
+
+<input priority="P0">
+【输入信息】
+书名：{title}
+前3章内容：
+{sampled_text}
+</input>
+
+<output priority="P0">
+【输出格式】
+仅输出一个纯JSON对象（不要markdown、不要代码块、不要解释）：
+
+{{
+  "description": "小说简介",
+  "theme": "核心主题",
+  "genre": "小说类型",
+  "narrative_perspective": "第一人称/第三人称/全知视角",
+  "target_words": 100000
+}}
+
+【字段要求】
+1) description：120-260字，聚焦主角、核心冲突、主线目标与故事张力。
+2) theme：120-260字，提炼作品想表达的核心命题。
+3) genre：2-12字，如都市、玄幻、悬疑、科幻、言情等。
+4) narrative_perspective：只能是“第一人称”或“第三人称”或“全知视角”。
+5) target_words：整数。按网文体量合理预估；无法判断时返回100000。
+</output>
+
+<constraints>
+【必须遵守】
+✅ 严格基于已给正文内容，不凭空添加关键设定
+✅ 保持信息自洽，避免互相矛盾
+✅ 输出必须是可解析JSON对象
+✅ 小说的genre可以由多个类型组成
+
+【禁止事项】
+❌ 输出JSON以外的任何文字
+❌ 使用markdown标记或代码块包裹
+❌ narrative_perspective输出枚举值之外的内容
+❌ target_words输出非整数
+</constraints>"""
+
+    # 拆书导入-反向生成章节大纲（严格对齐 OUTLINE_CREATE 结构）
+    BOOK_IMPORT_REVERSE_OUTLINES = """<system>
+你是资深网文总编与剧情策划，擅长基于已完成章节反向提炼标准化章节大纲。
+</system>
+
+<task>
+【任务】
+基于给定的章节正文（每批最多5章），为每章反向生成对应大纲结构。
+
+【核心目标】
+输出结构必须与系统现有大纲生成结构严格一致（与 OUTLINE_CREATE 字段一致），用于直接入库。
+</task>
+
+<project priority="P0">
+【项目信息】
+书名：{title}
+类型：{genre}
+主题：{theme}
+叙事视角：{narrative_perspective}
+</project>
+
+<input priority="P0">
+【批次范围】
+第{start_chapter}章 - 第{end_chapter}章（共{expected_count}章）
+
+【章节内容】
+{chapters_text}
+</input>
+
+<output priority="P0">
+【输出格式】
+仅输出纯JSON数组（不要markdown、不要代码块、不要解释）。
+数组长度必须严格等于 {expected_count}。
+
+每个对象字段必须严格为：
+[
+  {{
+    "chapter_number": 1,
+    "title": "章节标题",
+    "summary": "章节概要（200-600字）：主要情节、角色互动、关键事件、冲突与转折",
+    "scenes": ["场景1描述", "场景2描述"],
+    "characters": [
+      {{"name": "角色名1", "type": "character"}},
+      {{"name": "组织/势力名1", "type": "organization"}}
+    ],
+    "key_points": ["情节要点1", "情节要点2"],
+    "emotion": "本章情感基调",
+    "goal": "本章叙事目标"
+  }}
+]
+
+【字段约束】
+- chapter_number：必须与输入章节号一致
+- title：必须与输入章节标题一致
+- summary：根据本章正文反向提炼，不得臆造未出现关键事件
+- scenes：2-6条
+- characters：可为空；type 仅允许 character 或 organization
+- key_points：2-6条
+- emotion：一句话
+- goal：一句话
+</output>
+
+<constraints>
+【必须遵守】
+✅ 严格一章对应一个对象，数量与顺序完全一致
+✅ 字段名、字段层级、字段类型严格一致
+✅ 仅基于输入正文提炼，不擅自扩展设定
+✅ 输出必须可被JSON直接解析
+
+【禁止事项】
+❌ 输出JSON之外任何文本
+❌ 缺失字段或新增字段
+❌ chapter_number/title 与输入不一致
+❌ 使用 markdown 或代码块
+</constraints>"""
+
     @staticmethod
     def _get_genre_strategy(genre: str) -> str:
         """根据类型获取长篇策略指令"""
         if not genre:
             return ""
-            
+
         # 标准化类型名称
         genre_lower = genre.lower()
-        
+
         # 遍历策略矩阵进行匹配
         for strategy_key, strategy_data in GENRE_STRATEGIES.items():
             # 检查是否匹配关键字
             if any(keyword in genre_lower for keyword in strategy_data["keywords"]):
                 return strategy_data["instruction"]
-                
+
         # 默认返回空或通用建议
         return ""
 
@@ -2807,34 +2996,44 @@ class PromptService:
     def format_prompt(template: str, **kwargs) -> str:
         """
         格式化提示词模板 - 自动注入类型策略
-        
+
         Args:
             template: 提示词模板
             **kwargs: 模板参数
-            
+
         Returns:
             格式化后的提示词
         """
         try:
             # 自动注入长篇策略 (如果参数中包含 genre)
             if "genre" in kwargs and "genre_strategy" not in kwargs:
-                kwargs["genre_strategy"] = PromptService._get_genre_strategy(kwargs["genre"])
-            
+                kwargs["genre_strategy"] = PromptService._get_genre_strategy(
+                    kwargs["genre"]
+                )
+
             # 如果模板中没有 {genre_strategy} 占位符，format 会忽略多余参数
             # 但为了安全起见，我们可以检查一下
             return template.format(**kwargs)
         except KeyError as e:
             raise ValueError(f"缺少必需的参数: {e}")
-    
 
     @classmethod
-    async def get_chapter_regeneration_prompt(cls, chapter_number: int, title: str, word_count: int, content: str,
-                                        modification_instructions: str, project_context: Dict[str, Any],
-                                        style_content: str, target_word_count: int,
-                                        user_id: str = None, db = None) -> str:
+    async def get_chapter_regeneration_prompt(
+        cls,
+        chapter_number: int,
+        title: str,
+        word_count: int,
+        content: str,
+        modification_instructions: str,
+        project_context: Dict[str, Any],
+        style_content: str,
+        target_word_count: int,
+        user_id: str = None,
+        db=None,
+    ) -> str:
         """
         获取章节重写提示词（支持用户自定义）
-        
+
         Args:
             chapter_number: 章节序号
             title: 章节标题
@@ -2846,18 +3045,20 @@ class PromptService:
             target_word_count: 目标字数
             user_id: 用户ID（可选，用于获取自定义模板）
             db: 数据库会话（可选，用于查询自定义模板）
-            
+
         Returns:
             完整的章节重写提示词
         """
         # 获取系统提示词模板（支持用户自定义）
         if user_id and db:
-            system_template = await cls.get_template("CHAPTER_REGENERATION_SYSTEM", user_id, db)
+            system_template = await cls.get_template(
+                "CHAPTER_REGENERATION_SYSTEM", user_id, db
+            )
         else:
             system_template = cls.CHAPTER_REGENERATION_SYSTEM
-        
+
         prompt_parts = [system_template]
-        
+
         # 原始章节信息
         prompt_parts.append(f"""## 📖 原始章节信息
 
@@ -2870,53 +3071,53 @@ class PromptService:
 
 ---
 """)
-        
+
         # 修改指令
         prompt_parts.append(modification_instructions)
         prompt_parts.append("\n---\n")
-        
+
         # 项目背景信息
         prompt_parts.append(f"""## 🌍 项目背景信息
 
-**小说标题**：{project_context.get('project_title', '未知')}
-**题材**：{project_context.get('genre', '未设定')}
-**主题**：{project_context.get('theme', '未设定')}
-**叙事视角**：{project_context.get('narrative_perspective', '第三人称')}
+**小说标题**：{project_context.get("project_title", "未知")}
+**题材**：{project_context.get("genre", "未设定")}
+**主题**：{project_context.get("theme", "未设定")}
+**叙事视角**：{project_context.get("narrative_perspective", "第三人称")}
 **世界观设定**：
-- 时代背景：{project_context.get('time_period', '未设定')}
-- 地理位置：{project_context.get('location', '未设定')}
-- 氛围基调：{project_context.get('atmosphere', '未设定')}
+- 时代背景：{project_context.get("time_period", "未设定")}
+- 地理位置：{project_context.get("location", "未设定")}
+- 氛围基调：{project_context.get("atmosphere", "未设定")}
 
 ---
 """)
-        
+
         # 角色信息
-        if project_context.get('characters_info'):
+        if project_context.get("characters_info"):
             prompt_parts.append(f"""## 👥 角色信息
 
-{project_context['characters_info']}
+{project_context["characters_info"]}
 
 ---
 """)
-        
+
         # 章节大纲
-        if project_context.get('chapter_outline'):
+        if project_context.get("chapter_outline"):
             prompt_parts.append(f"""## 📝 本章大纲
 
-{project_context['chapter_outline']}
+{project_context["chapter_outline"]}
 
 ---
 """)
-        
+
         # 前置章节上下文
-        if project_context.get('previous_context'):
+        if project_context.get("previous_context"):
             prompt_parts.append(f"""## 📚 前置章节上下文
 
-{project_context['previous_context']}
+{project_context["previous_context"]}
 
 ---
 """)
-        
+
         # 写作风格要求
         if style_content:
             prompt_parts.append(f"""## 🎨 写作风格要求
@@ -2927,7 +3128,7 @@ class PromptService:
 
 ---
 """)
-        
+
         # 创作要求
         prompt_parts.append(f"""## ✨ 创作要求
 
@@ -2936,7 +3137,7 @@ class PromptService:
 3. **提升质量**：在节奏、情感、描写等方面明显优于原版
 4. **保留精华**：保持原章节中优秀的部分和关键情节
 5. **字数控制**：目标字数约{target_word_count}字（可适当浮动±20%）
-{f'6. **风格一致**：严格按照上述写作风格进行创作' if style_content else ''}
+{f"6. **风格一致**：严格按照上述写作风格进行创作" if style_content else ""}
 
 ---
 
@@ -2952,24 +3153,21 @@ class PromptService:
 
 现在开始：
 """)
-        
+
         return "\n".join(prompt_parts)
 
     @classmethod
     async def get_mcp_tool_test_prompts(
-        cls,
-        plugin_name: str,
-        user_id: str = None,
-        db = None
+        cls, plugin_name: str, user_id: str = None, db=None
     ) -> Dict[str, str]:
         """
         获取MCP工具测试的提示词（支持自定义）
-        
+
         Args:
             plugin_name: 插件名称
             user_id: 用户ID（可选）
             db: 数据库会话（可选）
-            
+
         Returns:
             包含user和system提示词的字典
         """
@@ -2978,347 +3176,558 @@ class PromptService:
             user_template = await cls.get_template("MCP_TOOL_TEST", user_id, db)
         else:
             user_template = cls.MCP_TOOL_TEST
-        
+
         # 获取用户自定义或系统默认的system提示词
         if user_id and db:
-            system_template = await cls.get_template("MCP_TOOL_TEST_SYSTEM", user_id, db)
+            system_template = await cls.get_template(
+                "MCP_TOOL_TEST_SYSTEM", user_id, db
+            )
         else:
             system_template = cls.MCP_TOOL_TEST_SYSTEM
-        
+
         return {
             "user": cls.format_prompt(user_template, plugin_name=plugin_name),
-            "system": system_template
+            "system": system_template,
         }
 
     # ========== 自定义提示词支持 ==========
-    
+
     @classmethod
-    async def get_template_with_fallback(cls,
-                                        template_key: str,
-                                        user_id: str = None,
-                                        db = None) -> str:
+    async def get_template_with_fallback(
+        cls, template_key: str, user_id: str = None, db=None
+    ) -> str:
         """
         获取提示词模板（优先用户自定义，支持降级）
-        
+
         Args:
             template_key: 模板键名
             user_id: 用户ID（可选，如果不提供则直接返回系统默认）
             db: 数据库会话（可选）
-            
+
         Returns:
             提示词模板内容
         """
         # 如果没有提供user_id或db，直接返回系统默认
         if not user_id or not db:
             return getattr(cls, template_key, None)
-        
+
         # 尝试获取用户自定义模板
         return await cls.get_template(template_key, user_id, db)
-    
+
     @classmethod
-    async def get_template(cls,
-                          template_key: str,
-                          user_id: str,
-                          db) -> str:
+    async def get_template(cls, template_key: str, user_id: str, db) -> str:
         """
         获取提示词模板（优先用户自定义）
-        
+
         Args:
             template_key: 模板键名
             user_id: 用户ID
             db: 数据库会话
-            
+
         Returns:
             提示词模板内容
         """
         from sqlalchemy import select
         from app.models.prompt_template import PromptTemplate
         from app.logger import get_logger
-        
+
         logger = get_logger(__name__)
-        
+
         # 1. 尝试从数据库获取用户自定义模板
         result = await db.execute(
             select(PromptTemplate).where(
                 PromptTemplate.user_id == user_id,
                 PromptTemplate.template_key == template_key,
-                PromptTemplate.is_active == True
+                PromptTemplate.is_active == True,
             )
         )
         custom_template = result.scalar_one_or_none()
-        
+
         if custom_template:
-            logger.info(f"✅ 使用用户自定义提示词: user_id={user_id}, template_key={template_key}, template_name={custom_template.template_name}")
+            logger.info(
+                f"✅ 使用用户自定义提示词: user_id={user_id}, template_key={template_key}, template_name={custom_template.template_name}"
+            )
             return custom_template.template_content
-        
+
         # 2. 降级到系统默认模板
-        logger.info(f"⚪ 使用系统默认提示词: user_id={user_id}, template_key={template_key} (未找到自定义模板)")
-        
+        logger.info(
+            f"⚪ 使用系统默认提示词: user_id={user_id}, template_key={template_key} (未找到自定义模板)"
+        )
+
         # 直接从类属性获取系统默认模板
         template_content = getattr(cls, template_key, None)
-        
+
         if template_content is None:
             logger.warning(f"⚠️ 未找到系统默认模板: {template_key}")
-        
+
         return template_content
-    
+
     @classmethod
     def get_all_system_templates(cls) -> list:
         """
         获取所有系统默认模板的信息
-        
+
         Returns:
             系统模板列表
         """
         templates = []
-        
+
         # 定义所有模板及其元信息
         template_definitions = {
+            "NOVEL_COVER_PROMPT_TEMPLATE": {
+                "name": "小说封面生成",
+                "category": "封面生成",
+                "description": "根据项目基础信息生成小说封面绘制提示词，适用于竖版书籍封面",
+                "parameters": ["title", "genre", "theme", "description"],
+            },
             "WORLD_BUILDING": {
                 "name": "世界构建",
                 "category": "世界构建",
                 "description": "用于生成小说世界观设定，包括时间背景、地理位置、氛围基调和世界规则",
-                "parameters": ["title", "theme", "genre", "description"]
+                "parameters": ["title", "theme", "genre", "description"],
+            },
+            "BOOK_IMPORT_REVERSE_PROJECT_SUGGESTION": {
+                "name": "拆书导入-反向项目提炼",
+                "category": "拆书导入",
+                "description": "基于前3章内容反向提炼简介、主题、类型、叙事视角与目标字数",
+                "parameters": ["title", "sampled_text"],
+            },
+            "BOOK_IMPORT_REVERSE_OUTLINES": {
+                "name": "拆书导入-反向章节大纲",
+                "category": "拆书导入",
+                "description": "基于章节正文反向生成与OUTLINE_CREATE一致结构的大纲（单批次5章）",
+                "parameters": [
+                    "title",
+                    "genre",
+                    "theme",
+                    "narrative_perspective",
+                    "start_chapter",
+                    "end_chapter",
+                    "expected_count",
+                    "chapters_text",
+                ],
             },
             "CHARACTERS_BATCH_GENERATION": {
                 "name": "批量角色生成",
                 "category": "角色生成",
                 "description": "批量生成多个角色和组织，建立角色关系网络",
-                "parameters": ["count", "time_period", "location", "atmosphere", "rules", "theme", "genre", "requirements"]
+                "parameters": [
+                    "count",
+                    "time_period",
+                    "location",
+                    "atmosphere",
+                    "rules",
+                    "theme",
+                    "genre",
+                    "requirements",
+                ],
             },
             "SINGLE_CHARACTER_GENERATION": {
                 "name": "单个角色生成",
                 "category": "角色生成",
                 "description": "生成单个角色的详细设定",
-                "parameters": ["project_context", "user_input"]
+                "parameters": ["project_context", "user_input"],
             },
             "SINGLE_ORGANIZATION_GENERATION": {
                 "name": "组织生成",
                 "category": "角色生成",
                 "description": "生成组织/势力的详细设定",
-                "parameters": ["project_context", "user_input"]
+                "parameters": ["project_context", "user_input"],
             },
             "OUTLINE_CREATE": {
                 "name": "大纲生成",
                 "category": "大纲生成",
                 "description": "根据项目信息生成完整的章节大纲",
-                "parameters": ["title", "theme", "genre", "chapter_count", "narrative_perspective", "target_words", 
-                             "time_period", "location", "atmosphere", "rules", "characters_info", "requirements", "mcp_references"]
+                "parameters": [
+                    "title",
+                    "theme",
+                    "genre",
+                    "chapter_count",
+                    "narrative_perspective",
+                    "target_words",
+                    "time_period",
+                    "location",
+                    "atmosphere",
+                    "rules",
+                    "characters_info",
+                    "requirements",
+                    "mcp_references",
+                ],
             },
             "OUTLINE_CONTINUE": {
                 "name": "大纲续写",
                 "category": "大纲生成",
                 "description": "基于已有章节续写大纲",
-                "parameters": ["title", "theme", "genre", "narrative_perspective", "chapter_count", "time_period", 
-                             "location", "atmosphere", "rules", "characters_info", "current_chapter_count", 
-                             "all_chapters_brief", "recent_plot", "memory_context", "mcp_references", 
-                             "plot_stage_instruction", "start_chapter", "end_chapter", "story_direction", "requirements"]
+                "parameters": [
+                    "title",
+                    "theme",
+                    "genre",
+                    "narrative_perspective",
+                    "chapter_count",
+                    "time_period",
+                    "location",
+                    "atmosphere",
+                    "rules",
+                    "characters_info",
+                    "current_chapter_count",
+                    "all_chapters_brief",
+                    "recent_plot",
+                    "memory_context",
+                    "mcp_references",
+                    "plot_stage_instruction",
+                    "start_chapter",
+                    "end_chapter",
+                    "story_direction",
+                    "requirements",
+                ],
             },
             "CHAPTER_GENERATION_ONE_TO_MANY": {
                 "name": "章节创作-1-N模式（第1章）",
                 "category": "章节创作",
                 "description": "1-N模式：根据大纲创作章节内容（用于第1章，无前置章节）",
-                "parameters": ["project_title", "genre", "chapter_number", "chapter_title", "chapter_outline",
-                             "target_word_count", "narrative_perspective", "characters_info"]
+                "parameters": [
+                    "project_title",
+                    "genre",
+                    "chapter_number",
+                    "chapter_title",
+                    "chapter_outline",
+                    "target_word_count",
+                    "narrative_perspective",
+                    "characters_info",
+                ],
             },
             "CHAPTER_GENERATION_ONE_TO_MANY_NEXT": {
                 "name": "章节创作-1-N模式（第2章及以后）",
                 "category": "章节创作",
                 "description": "1-N模式：基于前置章节内容创作新章节（用于第2章及以后）",
-                "parameters": ["project_title", "genre", "chapter_number", "chapter_title", "chapter_outline",
-                             "target_word_count", "narrative_perspective", "characters_info", "continuation_point",
-                             "foreshadow_reminders", "relevant_memories", "story_skeleton", "previous_chapter_summary"]
+                "parameters": [
+                    "project_title",
+                    "genre",
+                    "chapter_number",
+                    "chapter_title",
+                    "chapter_outline",
+                    "target_word_count",
+                    "narrative_perspective",
+                    "characters_info",
+                    "continuation_point",
+                    "foreshadow_reminders",
+                    "relevant_memories",
+                    "story_skeleton",
+                    "previous_chapter_summary",
+                ],
             },
             "CHAPTER_GENERATION_ONE_TO_ONE": {
                 "name": "章节创作-1-1模式（第1章）",
                 "category": "章节创作",
                 "description": "1-1模式：章节创作（用于第1章，无前置章节）",
-                "parameters": ["project_title", "genre", "chapter_number", "chapter_title", "chapter_outline",
-                             "target_word_count", "narrative_perspective", "characters_info", "chapter_careers"]
+                "parameters": [
+                    "project_title",
+                    "genre",
+                    "chapter_number",
+                    "chapter_title",
+                    "chapter_outline",
+                    "target_word_count",
+                    "narrative_perspective",
+                    "characters_info",
+                    "chapter_careers",
+                ],
             },
             "CHAPTER_GENERATION_ONE_TO_ONE_NEXT": {
                 "name": "章节创作-1-1模式（第2章及以后）",
                 "category": "章节创作",
                 "description": "1-1模式：基于上一章内容创作新章节（用于第2章及以后）",
-                "parameters": ["project_title", "genre", "chapter_number", "chapter_title", "chapter_outline",
-                             "target_word_count", "narrative_perspective", "previous_chapter_content",
-                             "characters_info", "chapter_careers", "foreshadow_reminders", "relevant_memories"]
+                "parameters": [
+                    "project_title",
+                    "genre",
+                    "chapter_number",
+                    "chapter_title",
+                    "chapter_outline",
+                    "target_word_count",
+                    "narrative_perspective",
+                    "previous_chapter_content",
+                    "characters_info",
+                    "chapter_careers",
+                    "foreshadow_reminders",
+                    "relevant_memories",
+                ],
             },
             "CHAPTER_REGENERATION_SYSTEM": {
                 "name": "章节重写系统提示",
                 "category": "章节重写",
                 "description": "用于章节重写的系统提示词",
-                "parameters": ["chapter_number", "title", "word_count", "content", "modification_instructions",
-                             "project_context", "style_content", "target_word_count"]
+                "parameters": [
+                    "chapter_number",
+                    "title",
+                    "word_count",
+                    "content",
+                    "modification_instructions",
+                    "project_context",
+                    "style_content",
+                    "target_word_count",
+                ],
             },
             "PARTIAL_REGENERATE": {
                 "name": "局部重写",
                 "category": "章节重写",
                 "description": "根据用户修改要求重写选中的段落内容",
-                "parameters": ["context_before", "original_word_count", "selected_text", "context_after",
-                             "user_instructions", "length_requirement", "style_content"]
+                "parameters": [
+                    "context_before",
+                    "original_word_count",
+                    "selected_text",
+                    "context_after",
+                    "user_instructions",
+                    "length_requirement",
+                    "style_content",
+                ],
             },
             "PLOT_ANALYSIS": {
                 "name": "情节分析",
                 "category": "情节分析",
                 "description": "深度分析章节的剧情、钩子、伏笔等",
-                "parameters": ["chapter_number", "title", "content", "word_count"]
+                "parameters": ["chapter_number", "title", "content", "word_count"],
             },
             "OUTLINE_EXPAND_SINGLE": {
                 "name": "大纲单批次展开",
                 "category": "情节展开",
                 "description": "将大纲节点展开为详细章节规划（单批次）",
-                "parameters": ["project_title", "project_genre", "project_theme", "project_narrative_perspective", 
-                             "project_world_time_period", "project_world_location", "project_world_atmosphere", 
-                             "characters_info", "outline_order_index", "outline_title", "outline_content", 
-                             "context_info", "strategy_instruction", "target_chapter_count", "scene_instruction", "scene_field"]
+                "parameters": [
+                    "project_title",
+                    "project_genre",
+                    "project_theme",
+                    "project_narrative_perspective",
+                    "project_world_time_period",
+                    "project_world_location",
+                    "project_world_atmosphere",
+                    "characters_info",
+                    "outline_order_index",
+                    "outline_title",
+                    "outline_content",
+                    "context_info",
+                    "strategy_instruction",
+                    "target_chapter_count",
+                    "scene_instruction",
+                    "scene_field",
+                ],
             },
             "OUTLINE_EXPAND_MULTI": {
                 "name": "大纲分批展开",
                 "category": "情节展开",
                 "description": "将大纲节点展开为详细章节规划（分批）",
-                "parameters": ["project_title", "project_genre", "project_theme", "project_narrative_perspective", 
-                             "project_world_time_period", "project_world_location", "project_world_atmosphere", 
-                             "characters_info", "outline_order_index", "outline_title", "outline_content", 
-                             "context_info", "previous_context", "strategy_instruction", "start_index", 
-                             "end_index", "target_chapter_count", "scene_instruction", "scene_field"]
+                "parameters": [
+                    "project_title",
+                    "project_genre",
+                    "project_theme",
+                    "project_narrative_perspective",
+                    "project_world_time_period",
+                    "project_world_location",
+                    "project_world_atmosphere",
+                    "characters_info",
+                    "outline_order_index",
+                    "outline_title",
+                    "outline_content",
+                    "context_info",
+                    "previous_context",
+                    "strategy_instruction",
+                    "start_index",
+                    "end_index",
+                    "target_chapter_count",
+                    "scene_instruction",
+                    "scene_field",
+                ],
             },
             "MCP_TOOL_TEST": {
                 "name": "MCP工具测试(用户提示词)",
                 "category": "MCP测试",
                 "description": "用于测试MCP插件功能的用户提示词",
-                "parameters": ["plugin_name"]
+                "parameters": ["plugin_name"],
             },
             "MCP_TOOL_TEST_SYSTEM": {
                 "name": "MCP工具测试(系统提示词)",
                 "category": "MCP测试",
                 "description": "用于测试MCP插件功能的系统提示词",
-                "parameters": []
+                "parameters": [],
             },
             "MCP_WORLD_BUILDING_PLANNING": {
                 "name": "MCP世界观规划",
                 "category": "MCP增强",
                 "description": "使用MCP工具搜索资料辅助世界观设计",
-                "parameters": ["title", "genre", "theme", "description"]
+                "parameters": ["title", "genre", "theme", "description"],
             },
             "MCP_CHARACTER_PLANNING": {
                 "name": "MCP角色规划",
                 "category": "MCP增强",
                 "description": "使用MCP工具搜索资料辅助角色设计",
-                "parameters": ["title", "genre", "theme", "time_period", "location"]
+                "parameters": ["title", "genre", "theme", "time_period", "location"],
             },
             "AUTO_CHARACTER_ANALYSIS": {
                 "name": "自动角色分析",
                 "category": "自动角色引入",
                 "description": "分析新生成的大纲，判断是否需要引入新角色",
-                "parameters": ["title", "genre", "theme", "time_period", "location", "atmosphere",
-                             "existing_characters", "new_outlines", "start_chapter", "end_chapter"]
+                "parameters": [
+                    "title",
+                    "genre",
+                    "theme",
+                    "time_period",
+                    "location",
+                    "atmosphere",
+                    "existing_characters",
+                    "new_outlines",
+                    "start_chapter",
+                    "end_chapter",
+                ],
             },
             "AUTO_CHARACTER_GENERATION": {
                 "name": "自动角色生成",
                 "category": "自动角色引入",
                 "description": "根据剧情需求自动生成新角色的完整设定",
-                "parameters": ["title", "genre", "theme", "time_period", "location", "atmosphere", "rules",
-                             "existing_characters", "plot_context", "character_specification", "mcp_references"]
+                "parameters": [
+                    "title",
+                    "genre",
+                    "theme",
+                    "time_period",
+                    "location",
+                    "atmosphere",
+                    "rules",
+                    "existing_characters",
+                    "plot_context",
+                    "character_specification",
+                    "mcp_references",
+                ],
             },
             "AUTO_ORGANIZATION_ANALYSIS": {
                 "name": "自动组织分析",
                 "category": "自动组织引入",
                 "description": "分析新生成的大纲，判断是否需要引入新组织",
-                "parameters": ["title", "genre", "theme", "time_period", "location", "atmosphere",
-                             "existing_organizations", "existing_characters", "all_chapters_brief", "start_chapter", "chapter_count", "plot_stage", "story_direction"]
+                "parameters": [
+                    "title",
+                    "genre",
+                    "theme",
+                    "time_period",
+                    "location",
+                    "atmosphere",
+                    "existing_organizations",
+                    "existing_characters",
+                    "all_chapters_brief",
+                    "start_chapter",
+                    "chapter_count",
+                    "plot_stage",
+                    "story_direction",
+                ],
             },
             "AUTO_ORGANIZATION_GENERATION": {
                 "name": "自动组织生成",
                 "category": "自动组织引入",
                 "description": "根据剧情需求自动生成新组织的完整设定",
-                "parameters": ["title", "genre", "theme", "time_period", "location", "atmosphere", "rules",
-                             "existing_organizations", "existing_characters", "plot_context", "organization_specification", "mcp_references"]
+                "parameters": [
+                    "title",
+                    "genre",
+                    "theme",
+                    "time_period",
+                    "location",
+                    "atmosphere",
+                    "rules",
+                    "existing_organizations",
+                    "existing_characters",
+                    "plot_context",
+                    "organization_specification",
+                    "mcp_references",
+                ],
             },
             "CAREER_SYSTEM_GENERATION": {
                 "name": "职业体系生成",
                 "category": "世界构建",
                 "description": "根据世界观和项目简介自动生成完整的职业体系，包括主职业和副职业",
-                "parameters": ["title", "genre", "theme", "description", "time_period", "location", "atmosphere", "rules"]
+                "parameters": [
+                    "title",
+                    "genre",
+                    "theme",
+                    "description",
+                    "time_period",
+                    "location",
+                    "atmosphere",
+                    "rules",
+                ],
             },
             "INSPIRATION_TITLE_SYSTEM": {
                 "name": "灵感模式-书名生成(系统提示词)",
                 "category": "灵感模式",
                 "description": "根据用户的原始想法生成6个书名建议的系统提示词",
-                "parameters": ["initial_idea"]
+                "parameters": ["initial_idea"],
             },
             "INSPIRATION_TITLE_USER": {
                 "name": "灵感模式-书名生成(用户提示词)",
                 "category": "灵感模式",
                 "description": "根据用户的原始想法生成6个书名建议的用户提示词",
-                "parameters": ["initial_idea"]
+                "parameters": ["initial_idea"],
             },
             "INSPIRATION_DESCRIPTION_SYSTEM": {
                 "name": "灵感模式-简介生成(系统提示词)",
                 "category": "灵感模式",
                 "description": "根据用户想法和书名生成6个简介选项的系统提示词",
-                "parameters": ["initial_idea", "title"]
+                "parameters": ["initial_idea", "title"],
             },
             "INSPIRATION_DESCRIPTION_USER": {
                 "name": "灵感模式-简介生成(用户提示词)",
                 "category": "灵感模式",
                 "description": "根据用户想法和书名生成6个简介选项的用户提示词",
-                "parameters": ["initial_idea", "title"]
+                "parameters": ["initial_idea", "title"],
             },
             "INSPIRATION_THEME_SYSTEM": {
                 "name": "灵感模式-主题生成(系统提示词)",
                 "category": "灵感模式",
                 "description": "根据书名和简介生成6个深刻的主题选项的系统提示词",
-                "parameters": ["initial_idea", "title", "description"]
+                "parameters": ["initial_idea", "title", "description"],
             },
             "INSPIRATION_THEME_USER": {
                 "name": "灵感模式-主题生成(用户提示词)",
                 "category": "灵感模式",
                 "description": "根据书名和简介生成6个深刻的主题选项的用户提示词",
-                "parameters": ["initial_idea", "title", "description"]
+                "parameters": ["initial_idea", "title", "description"],
             },
             "INSPIRATION_GENRE_SYSTEM": {
                 "name": "灵感模式-类型生成(系统提示词)",
                 "category": "灵感模式",
                 "description": "根据小说信息生成6个合适的类型标签的系统提示词",
-                "parameters": ["initial_idea", "title", "description", "theme"]
+                "parameters": ["initial_idea", "title", "description", "theme"],
             },
             "INSPIRATION_GENRE_USER": {
                 "name": "灵感模式-类型生成(用户提示词)",
                 "category": "灵感模式",
                 "description": "根据小说信息生成6个合适的类型标签的用户提示词",
-                "parameters": ["initial_idea", "title", "description", "theme"]
+                "parameters": ["initial_idea", "title", "description", "theme"],
             },
             "INSPIRATION_QUICK_COMPLETE": {
                 "name": "灵感模式-智能补全",
                 "category": "灵感模式",
                 "description": "根据用户提供的部分信息智能补全完整的小说方案",
-                "parameters": ["existing"]
-            }
+                "parameters": ["existing"],
+            },
         }
-        
+
         for key, info in template_definitions.items():
             template_content = getattr(cls, key, None)
             if template_content:
-                templates.append({
-                    "template_key": key,
-                    "template_name": info["name"],
-                    "category": info["category"],
-                    "description": info["description"],
-                    "parameters": info["parameters"],
-                    "content": template_content
-                })
-        
+                templates.append(
+                    {
+                        "template_key": key,
+                        "template_name": info["name"],
+                        "category": info["category"],
+                        "description": info["description"],
+                        "parameters": info["parameters"],
+                        "content": template_content,
+                    }
+                )
+
         return templates
-    
+
     @classmethod
     def get_system_template_info(cls, template_key: str) -> dict:
         """
         获取指定系统模板的信息
-        
+
         Args:
             template_key: 模板键名
-            
+
         Returns:
             模板信息字典
         """
@@ -3327,6 +3736,7 @@ class PromptService:
             if template["template_key"] == template_key:
                 return template
         return None
+
 
 # ========== 全局实例 ==========
 prompt_service = PromptService()

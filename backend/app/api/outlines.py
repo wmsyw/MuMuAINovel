@@ -115,19 +115,37 @@ async def get_outlines(
         .order_by(Outline.order_index)
     )
     outlines = result.scalars().all()
-    
+
+    # 批量查询是否已展开章节（避免前端 N+1 请求）
+    outline_ids = [outline.id for outline in outlines]
+    outline_has_chapters_map: Dict[str, bool] = {}
+    if outline_ids:
+        chapters_count_result = await db.execute(
+            select(Chapter.outline_id, func.count(Chapter.id))
+            .where(Chapter.outline_id.in_(outline_ids))
+            .group_by(Chapter.outline_id)
+        )
+        outline_has_chapters_map = {
+            str(outline_id): count > 0
+            for outline_id, count in chapters_count_result.all()
+            if outline_id
+        }
+
     # 🔧 优化：后端完全解析structure，提取所有字段填充到outline对象
     for outline in outlines:
+        # 动态附加是否已有章节展开状态，供前端直接使用
+        setattr(outline, "has_chapters", outline_has_chapters_map.get(outline.id, False))
+
         if outline.structure:
             try:
                 structure_data = json.loads(outline.structure)
-                
+
                 # 从structure中提取所有字段填充到outline对象
                 outline.title = structure_data.get("title", f"第{outline.order_index}章")
                 outline.content = structure_data.get("summary") or structure_data.get("content", "")
-                
+
                 # structure字段保持不变，供前端使用其他字段（如characters、scenes等）
-                
+
             except json.JSONDecodeError:
                 logger.warning(f"解析大纲 {outline.id} 的structure失败")
                 outline.title = f"第{outline.order_index}章"
@@ -136,7 +154,7 @@ async def get_outlines(
             # 没有structure的异常情况
             outline.title = f"第{outline.order_index}章"
             outline.content = "暂无内容"
-    
+
     return OutlineListResponse(total=total, items=outlines)
 
 
@@ -1722,7 +1740,7 @@ async def generate_outline_stream(
     
     # 获取用户ID
     user_id = getattr(request.state, "user_id", "system")
-    
+    data["user_id"] = user_id
     # 根据模式选择生成器
     if mode == "new":
         return create_sse_response(new_outline_generator(data, db, user_ai_service))

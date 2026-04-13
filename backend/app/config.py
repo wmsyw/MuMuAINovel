@@ -106,6 +106,21 @@ class Settings(BaseSettings):
     # 会话配置
     SESSION_EXPIRE_MINUTES: int = 120  # 会话过期时间（分钟），默认2小时
     SESSION_REFRESH_THRESHOLD_MINUTES: int = 30  # 会话刷新阈值（分钟），剩余时间少于此值时可刷新
+
+    # 系统 SMTP 默认配置（可被管理员系统设置覆盖）
+    SMTP_PROVIDER: str = "qq"
+    SMTP_HOST: Optional[str] = "smtp.qq.com"
+    SMTP_PORT: int = 465
+    SMTP_USERNAME: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    SMTP_USE_TLS: bool = False
+    SMTP_USE_SSL: bool = True
+    SMTP_FROM_EMAIL: Optional[str] = None
+    SMTP_FROM_NAME: str = "MuMuAINovel"
+    EMAIL_AUTH_ENABLED: bool = True
+    EMAIL_REGISTER_ENABLED: bool = True
+    EMAIL_VERIFICATION_CODE_TTL_MINUTES: int = 10
+    EMAIL_VERIFICATION_RESEND_INTERVAL_SECONDS: int = 60
     
     # 提示词工坊配置
     WORKSHOP_MODE: str = "client"  # client: 本地部署实例, server: 云端中央服务器

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Modal, Spin, Alert, Tabs, Card, Tag, List, Empty, Statistic, Row, Col, Button } from 'antd';
+import { Modal, Spin, Alert, Tabs, Card, Tag, List, Empty, Statistic, Row, Col, Button, theme } from 'antd';
 import {
   ThunderboltOutlined,
   BulbOutlined,
@@ -27,6 +27,7 @@ interface ChapterAnalysisProps {
 }
 
 export default function ChapterAnalysis({ chapterId, visible, onClose }: ChapterAnalysisProps) {
+  const { token } = theme.useToken();
   const [task, setTask] = useState<AnalysisTask | null>(null);
   const [analysis, setAnalysis] = useState<ChapterAnalysisResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -258,7 +259,7 @@ export default function ChapterAnalysis({ chapterId, visible, onClose }: Chapter
               transition: 'all 0.3s ease',
               borderRadius: 6,
               boxShadow: task.progress > 0 && task.status !== 'failed'
-                ? '0 0 10px rgba(24, 144, 255, 0.3)'
+                ? `0 0 10px color-mix(in srgb, ${token.colorPrimary} 30%, transparent)`
                 : 'none'
             }} />
           </div>
@@ -332,7 +333,14 @@ export default function ChapterAnalysis({ chapterId, visible, onClose }: Chapter
   const renderAnalysisResult = () => {
     if (!analysis) return null;
 
-    const { analysis: analysis_data, memories } = analysis;
+    const { analysis: analysis_data, memories, entity_changes } = analysis;
+    const hasEntityChanges = Boolean(
+      entity_changes && (
+        (entity_changes.careers?.changes?.length || 0) > 0 ||
+        (entity_changes.character_states?.changes?.length || 0) > 0 ||
+        (entity_changes.organization_states?.changes?.length || 0) > 0
+      )
+    );
 
     return (
       <Tabs
@@ -407,6 +415,71 @@ export default function ChapterAnalysis({ chapterId, visible, onClose }: Chapter
                     <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: isMobile ? 13 : 14 }}>
                       {analysis_data.analysis_report}
                     </pre>
+                  </Card>
+                )}
+
+                {hasEntityChanges && entity_changes && (
+                  <Card title="实体联动更新" style={{ marginBottom: 16 }} size={isMobile ? 'small' : 'default'}>
+                    <Row gutter={isMobile ? 8 : 16} style={{ marginBottom: 16 }}>
+                      <Col span={isMobile ? 24 : 8}>
+                        <Statistic
+                          title="职业更新"
+                          value={entity_changes.careers?.updated_count || 0}
+                        />
+                      </Col>
+                      <Col span={isMobile ? 24 : 8}>
+                        <Statistic
+                          title="角色状态/关系更新"
+                          value={
+                            (entity_changes.character_states?.state_updated_count || 0) +
+                            (entity_changes.character_states?.relationship_created_count || 0) +
+                            (entity_changes.character_states?.relationship_updated_count || 0) +
+                            (entity_changes.character_states?.org_updated_count || 0)
+                          }
+                        />
+                      </Col>
+                      <Col span={isMobile ? 24 : 8}>
+                        <Statistic
+                          title="组织状态更新"
+                          value={entity_changes.organization_states?.updated_count || 0}
+                        />
+                      </Col>
+                    </Row>
+
+                    {entity_changes.careers?.changes?.length ? (
+                      <div style={{ marginBottom: 12 }}>
+                        <strong>职业变化：</strong>
+                        <div style={{ marginTop: 8 }}>
+                          {entity_changes.careers.changes.map((change, index) => (
+                            <Tag key={`career-${index}`} color="blue" style={{ marginBottom: 8 }}>
+                              {change}
+                            </Tag>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {entity_changes.character_states?.changes?.length ? (
+                      <div style={{ marginBottom: 12 }}>
+                        <strong>角色/关系变化：</strong>
+                        <List
+                          size="small"
+                          dataSource={entity_changes.character_states.changes}
+                          renderItem={(item) => <List.Item>{item}</List.Item>}
+                        />
+                      </div>
+                    ) : null}
+
+                    {entity_changes.organization_states?.changes?.length ? (
+                      <div>
+                        <strong>组织状态变化：</strong>
+                        <List
+                          size="small"
+                          dataSource={entity_changes.organization_states.changes}
+                          renderItem={(item) => <List.Item>{item}</List.Item>}
+                        />
+                      </div>
+                    ) : null}
                   </Card>
                 )}
 
