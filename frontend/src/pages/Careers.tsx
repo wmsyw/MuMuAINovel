@@ -1,38 +1,24 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Button, Modal, Form, Input, Select, message, Row, Col, Empty, Tabs, Card, Tag, Space, Divider, Typography, InputNumber } from 'antd';
+import { Alert, Button, Modal, Form, Input, Select, message, Row, Col, Empty, Tabs, Card, Tag, Space, Divider, Typography, InputNumber } from 'antd';
 import { ThunderboltOutlined, PlusOutlined, EditOutlined, DeleteOutlined, TrophyOutlined } from '@ant-design/icons';
 import { useParams } from 'react-router-dom';
-import api from '../services/api';
+import { careerApi, characterApi, settingsApi } from '../services/api';
 import SSEProgressModal from '../components/SSEProgressModal';
+import ExtractionCandidateReviewPanel from '../components/ExtractionCandidateReviewPanel';
+import ProfessionTimelinePanel from '../components/ProfessionTimelinePanel';
+import type { Career, CareerCreateRequest, CareerStage, Character, ExtractionCandidateType } from '../types';
 
 const { TextArea } = Input;
 const { Title, Text, Paragraph } = Typography;
 
-interface CareerStage {
-    level: number;
-    name: string;
-    description?: string;
-}
-
-interface Career {
-    id: string;
-    project_id: string;
-    name: string;
-    type: 'main' | 'sub';
-    description?: string;
-    category?: string;
-    stages: CareerStage[];
-    max_stage: number;
-    requirements?: string;
-    special_abilities?: string;
-    worldview_rules?: string;
-    source: string;
-}
+const CAREER_REVIEW_TYPES: ExtractionCandidateType[] = ['profession', 'profession_assignment'];
+const ENTITY_GENERATION_POLICY_COPY = ExtractionCandidateReviewPanel.__testUtils.AI_ENTITY_GENERATION_POLICY_COPY;
 
 export default function Careers() {
     const { projectId } = useParams<{ projectId: string }>();
     const [mainCareers, setMainCareers] = useState<Career[]>([]);
     const [subCareers, setSubCareers] = useState<Career[]>([]);
+    const [characters, setCharacters] = useState<Character[]>([]);
     const [, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isAIModalOpen, setIsAIModalOpen] = useState(false);
@@ -45,13 +31,17 @@ export default function Careers() {
     const [aiGenerating, setAiGenerating] = useState(false);
     const [aiProgress, setAiProgress] = useState(0);
     const [aiMessage, setAiMessage] = useState('');
+    const [allowAIGenerationOverride, setAllowAIGenerationOverride] = useState(false);
 
     const fetchCareers = useCallback(async () => {
+        if (!projectId) return;
         try {
             setLoading(true);
-            const response = await api.get('/careers', {
-                params: { project_id: projectId }
-            }) as { main_careers?: Career[]; sub_careers?: Career[] };
+            const response = await careerApi.getCareers(projectId, {
+                include_candidate_counts: true,
+                include_policy_status: true,
+                include_timeline: true,
+            });
             setMainCareers(response.main_careers || []);
             setSubCareers(response.sub_careers || []);
         } catch (error: unknown) {
@@ -61,11 +51,33 @@ export default function Careers() {
         }
     }, [projectId]);
 
+    const fetchCharacters = useCallback(async () => {
+        if (!projectId) return;
+        try {
+            const data = await characterApi.getCharacters(projectId);
+            setCharacters(data.filter(character => !character.is_organization));
+        } catch (error) {
+            console.error('获取角色列表失败:', error);
+        }
+    }, [projectId]);
+
+    const fetchPolicy = useCallback(async () => {
+        try {
+            const settings = await settingsApi.getSettings();
+            setAllowAIGenerationOverride(ExtractionCandidateReviewPanel.__testUtils.isAiGenerationOverrideEnabled(settings));
+        } catch (error) {
+            console.error('获取实体生成策略失败:', error);
+            setAllowAIGenerationOverride(false);
+        }
+    }, []);
+
     useEffect(() => {
         if (projectId) {
             fetchCareers();
+            fetchCharacters();
+            fetchPolicy();
         }
-    }, [projectId, fetchCareers]);
+    }, [projectId, fetchCareers, fetchCharacters, fetchPolicy]);
 
     const handleOpenModal = (career?: Career) => {
         if (career) {
@@ -121,14 +133,16 @@ export default function Careers() {
             };
 
             if (editingCareer) {
-                await api.put(`/careers/${editingCareer.id}`, data);
+                await careerApi.updateCareer(editingCareer.id, data);
                 message.success('职业更新成功');
             } else {
-                await api.post('/careers', {
+                if (!projectId) return;
+                const createPayload: CareerCreateRequest = {
                     ...data,
                     project_id: projectId,
                     source: 'manual'
-                });
+                };
+                await careerApi.createCareer(createPayload);
                 message.success('职业创建成功');
             }
 
@@ -148,7 +162,7 @@ export default function Careers() {
             centered: true,
             onOk: async () => {
                 try {
-                    await api.delete(`/careers/${id}`);
+                    await careerApi.deleteCareer(id);
                     message.success('职业删除成功');
                     fetchCareers();
                 } catch (error: unknown) {
@@ -264,7 +278,9 @@ export default function Careers() {
         </Card>
     );
 
-    const tabItems = [
+    const allCareers = [...mainCareers, ...subCareers];
+
+    const canonicalCareerTabs = [
         {
             key: 'main',
             label: `主职业 (${mainCareers.length})`,
@@ -283,6 +299,14 @@ export default function Careers() {
                 <Empty description="还没有副职业" />
             )
         }
+    ];
+
+    const reviewExtraTabs = [
+        {
+            key: 'profession-timeline',
+            label: '职业时间线',
+            children: <ProfessionTimelinePanel projectId={projectId} careers={allCareers} characters={characters} />,
+        },
     ];
 
     return (
@@ -312,16 +336,18 @@ export default function Careers() {
                         职业管理
                     </Title>
                     <Space wrap>
-                        <Button
-                            type="dashed"
-                            icon={<ThunderboltOutlined />}
-                            onClick={() => {
-                                aiForm.resetFields();
-                                setIsAIModalOpen(true);
-                            }}
-                        >
-                            AI生成新职业
-                        </Button>
+                        {allowAIGenerationOverride && (
+                            <Button
+                                type="dashed"
+                                icon={<ThunderboltOutlined />}
+                                onClick={() => {
+                                    aiForm.resetFields();
+                                    setIsAIModalOpen(true);
+                                }}
+                            >
+                                AI生成新职业
+                            </Button>
+                        )}
                         <Button
                             type="primary"
                             icon={<PlusOutlined />}
@@ -331,6 +357,15 @@ export default function Careers() {
                         </Button>
                     </Space>
                 </div>
+                {!allowAIGenerationOverride && (
+                    <Alert
+                        type="info"
+                        showIcon
+                        message="职业默认从正文抽取"
+                        description={ENTITY_GENERATION_POLICY_COPY}
+                        style={{ marginBottom: 16 }}
+                    />
+                )}
             </div>
 
             {/* 可滚动的内容区域 */}
@@ -339,7 +374,24 @@ export default function Careers() {
                 overflow: 'auto',
                 padding: '0 16px 16px 16px'
             }}>
-                <Tabs items={tabItems} />
+                <ExtractionCandidateReviewPanel
+                    projectId={projectId}
+                    entityLabel="职业"
+                    candidateTypes={CAREER_REVIEW_TYPES}
+                    canonicalTargetType="career"
+                    canonicalOptions={allCareers.map(career => ({
+                        id: career.id,
+                        name: career.name,
+                        description: career.type === 'main' ? '主职业' : '副职业',
+                    }))}
+                    canonicalCount={allCareers.length}
+                    canonicalChildren={<Tabs items={canonicalCareerTabs} />}
+                    extraTabs={reviewExtraTabs}
+                    onCanonicalChanged={async () => {
+                        await fetchCareers();
+                        await fetchCharacters();
+                    }}
+                />
             </div>
 
             {/* 创建/编辑对话框 */}
