@@ -75,3 +75,8 @@
 - Organization compatibility routes resolve either bridge `Organization.id`, canonical `OrganizationEntity.id`, or legacy character/organization IDs and return old `OrganizationResponse`/detail shapes from canonical organization fields; organization members now write both legacy `organization_id` bridge and required `organization_entity_id`.
 - Optional enrichment flags (`include_provenance`, `include_aliases`, `include_candidate_counts`, `include_timeline`, `include_policy_status`) add provenance/alias/candidate/timeline/policy metadata only when explicitly requested; default responses intentionally omit those extraction internals.
 - Career/profession APIs keep `Career` as the profession taxonomy and append `RelationshipTimelineEvent(event_type="profession")` rows for direct main/sub/stage assignment routes, allowing chapter-specific profession projections through the existing timeline service/API.
+
+## 2026-04-27 — Task 13 Settings reasoning UI
+- Frontend settings now consumes `/settings/reasoning-capabilities` and keeps the UI state normalized to `default_reasoning_intensity` (`auto/off/low/medium/high/maximum`); provider-native payload names are displayed only as backend metadata and are not submitted as frontend state.
+- Settings capability matching mirrors backend behavior for wildcard model patterns and the `mumu -> openai` provider alias, disabling unsupported intensities and preflighting unsupported current/preset selections before save/test calls.
+- The entity-generation override is a backend-backed `allow_ai_entity_generation` form field, normalized to default `false`, with the required warning copy preserved exactly in the Settings page and tests.

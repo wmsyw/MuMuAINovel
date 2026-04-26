@@ -90,3 +90,8 @@
 ## 2026-04-27 — Task 12 QA export/enrichment fix
 - Atlas QA found character export still validated only `Character.id`, so canonical organization IDs from the updated list/detail compatibility layer could 404. The route now resolves normal characters plus canonical/bridge/legacy organization IDs, verifies project ownership for each, and emits the legacy export contract (`version`, `export_type`, `count`, `data`) with canonical organizations represented as `is_organization: true`.
 - `GET /api/organizations/{org_id}` now accepts the same explicit enrichment flags as the organization list; default detail responses remain old `OrganizationResponse`-compatible, while requested metadata is additive. Targeted Task 12 pytest rerun passed with `4 passed, 4 warnings`; forbidden-marker grep found no new `TODO`/`FIXME`/`HACK`/suppression markers, and the Goldfinger artifact glob remained empty.
+
+## 2026-04-27 — Task 13 verification notes
+- Initial frontend lint failed because `Settings.tsx` exported test helpers directly, triggering `react-refresh/only-export-components`; helpers now remain file-local and are exposed only as a static `__testUtils` property on the default Settings component for Vitest coverage.
+- `npm run build` still emits the known Vite chunk-size warnings and writes built assets to `backend/static` per the existing frontend build configuration; targeted Settings tests, build, and lint all passed after the lint fix.
+- Follow-up glob for `.sisyphus/**/goldfinger-relationship-sync.md` returned no files; no new Goldfinger artifact was created.

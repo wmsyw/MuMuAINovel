@@ -765,7 +765,7 @@ Wave 4: Tasks 15, 16, 17, 18 — inspiration/world UI, timeline UI, cleanup/docs
 
   **Commit**: YES | Message: `api: keep entity APIs compatible with extraction canon` | Files: [`backend/app/api/characters.py`, `backend/app/api/organizations.py`, `backend/app/api/careers.py`, `backend/app/schemas/character.py`, `backend/tests/test_entity_api_compatibility.py`, `backend/tests/test_profession_timeline_api.py`]
 
-- [ ] 13. Add frontend settings for reasoning capabilities and advanced entity-generation override
+- [x] 13. Add frontend settings for reasoning capabilities and advanced entity-generation override
 
   **What to do**: Update shared frontend types/API wrappers and Settings UI for normalized reasoning intensity. Display provider/model capability metadata from backend and disable unsupported intensity options instead of allowing invalid submissions. Add backend-backed advanced/admin setting for `allow_ai_entity_generation`, default off, with warning copy: “默认从正文自动提取角色/组织/职业；开启后才允许 AI 直接生成入库”. Settings save/test must call backend preflight and surface deterministic validation messages for unsupported OpenAI/Claude/Gemini combinations. Preserve current model fetch/API test/preset/MCP behaviors.
   **Must NOT do**: Do not hardcode provider-native reasoning fields as primary UI state. Do not make advanced override frontend-only. Do not break current Settings page model fetch/preset flows.
