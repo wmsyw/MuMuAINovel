@@ -714,6 +714,7 @@ async def _check_and_create_missing_characters_from_outlines(
     db: AsyncSession,
     user_ai_service: AIService,
     user_id: str = None,
+    is_admin: bool = False,
     enable_mcp: bool = True,
     tracker = None
 ) -> dict:
@@ -749,6 +750,7 @@ async def _check_and_create_missing_characters_from_outlines(
             outline_data_list=outline_data,
             db=db,
             user_id=user_id,
+            is_admin=is_admin,
             enable_mcp=enable_mcp,
             progress_callback=progress_cb
         )
@@ -772,6 +774,7 @@ async def _check_and_create_missing_organizations_from_outlines(
     db: AsyncSession,
     user_ai_service: AIService,
     user_id: str = None,
+    is_admin: bool = False,
     enable_mcp: bool = True,
     tracker = None
 ) -> dict:
@@ -806,6 +809,7 @@ async def _check_and_create_missing_organizations_from_outlines(
             outline_data_list=outline_data,
             db=db,
             user_id=user_id,
+            is_admin=is_admin,
             enable_mcp=enable_mcp,
             progress_callback=progress_cb
         )
@@ -1234,6 +1238,7 @@ async def new_outline_generator(
                 db=db,
                 user_ai_service=user_ai_service,
                 user_id=data.get("user_id"),
+                is_admin=bool(data.get("is_admin", False)),
                 enable_mcp=data.get("enable_mcp", True),
                 tracker=tracker
             )
@@ -1255,6 +1260,7 @@ async def new_outline_generator(
                 db=db,
                 user_ai_service=user_ai_service,
                 user_id=data.get("user_id"),
+                is_admin=bool(data.get("is_admin", False)),
                 enable_mcp=data.get("enable_mcp", True),
                 tracker=tracker
             )
@@ -1579,6 +1585,7 @@ async def continue_outline_generator(
                     db=db,
                     user_ai_service=user_ai_service,
                     user_id=user_id,
+                    is_admin=bool(data.get("is_admin", False)),
                     enable_mcp=data.get("enable_mcp", True),
                     tracker=tracker
                 )
@@ -1602,6 +1609,7 @@ async def continue_outline_generator(
                     db=db,
                     user_ai_service=user_ai_service,
                     user_id=user_id,
+                    is_admin=bool(data.get("is_admin", False)),
                     enable_mcp=data.get("enable_mcp", True),
                     tracker=tracker
                 )
@@ -1741,6 +1749,7 @@ async def generate_outline_stream(
     # 获取用户ID
     user_id = getattr(request.state, "user_id", "system")
     data["user_id"] = user_id
+    data["is_admin"] = bool(getattr(request.state, "is_admin", False))
     # 根据模式选择生成器
     if mode == "new":
         return create_sse_response(new_outline_generator(data, db, user_ai_service))

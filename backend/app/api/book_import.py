@@ -116,6 +116,7 @@ async def apply_book_import(
     return await book_import_service.apply_import(
         task_id=task_id,
         user_id=user_id,
+        is_admin=bool(getattr(request.state, "is_admin", False)),
         payload=payload,
         db=db,
     )
@@ -164,6 +165,7 @@ async def apply_book_import_stream(
             result = await book_import_service.apply_import_stream(
                 task_id=task_id,
                 user_id=user_id,
+                is_admin=bool(getattr(request.state, "is_admin", False)),
                 payload=payload,
                 db=db,
                 progress_callback=_progress_callback,
@@ -237,6 +239,7 @@ async def retry_failed_steps_stream(
             result = await book_import_service.retry_failed_steps_stream(
                 task_id=task_id,
                 user_id=user_id,
+                is_admin=bool(getattr(request.state, "is_admin", False)),
                 steps_to_retry=payload.steps,
                 db=db,
                 progress_callback=_progress_callback,
