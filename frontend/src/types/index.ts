@@ -71,6 +71,24 @@ export interface SystemSMTPSettingsUpdate {
 }
 
 // 设置类型定义
+export type ReasoningIntensity = 'auto' | 'off' | 'low' | 'medium' | 'high' | 'maximum';
+
+export interface ReasoningCapability {
+  provider: string;
+  model_pattern: string;
+  supported_intensities: ReasoningIntensity[];
+  default_intensity: ReasoningIntensity;
+  provider_native: string;
+  provider_payload_mappings: Record<string, Record<string, unknown>>;
+  last_verified_date: string;
+  notes: string;
+}
+
+export interface ReasoningCapabilitiesResponse {
+  intensities: ReasoningIntensity[];
+  capabilities: ReasoningCapability[];
+}
+
 export interface Settings {
   id: string;
   user_id: string;
@@ -81,6 +99,9 @@ export interface Settings {
   temperature: number;
   max_tokens: number;
   system_prompt?: string;
+  default_reasoning_intensity?: ReasoningIntensity;
+  reasoning_overrides?: string;
+  allow_ai_entity_generation?: boolean;
   cover_api_provider?: string;
   cover_api_key?: string;
   cover_api_base_url?: string;
@@ -99,6 +120,9 @@ export interface SettingsUpdate {
   temperature?: number;
   max_tokens?: number;
   system_prompt?: string;
+  default_reasoning_intensity?: ReasoningIntensity;
+  reasoning_overrides?: string;
+  allow_ai_entity_generation?: boolean;
   cover_api_provider?: string;
   cover_api_key?: string;
   cover_api_base_url?: string;
@@ -116,6 +140,7 @@ export interface APIKeyPresetConfig {
   temperature: number;
   max_tokens: number;
   system_prompt?: string;
+  default_reasoning_intensity?: ReasoningIntensity;
 }
 
 export interface APIKeyPreset {

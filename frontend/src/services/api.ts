@@ -29,6 +29,8 @@ import type {
   GenerateOutlineResponse,
   Settings,
   SettingsUpdate,
+  ReasoningCapabilitiesResponse,
+  ReasoningIntensity,
   WritingStyle,
   WritingStyleCreate,
   WritingStyleUpdate,
@@ -230,10 +232,13 @@ export const settingsApi = {
 
   deleteSettings: () => api.delete<unknown, { message: string; user_id: string }>('/settings'),
 
+  getReasoningCapabilities: () =>
+    api.get<unknown, ReasoningCapabilitiesResponse>('/settings/reasoning-capabilities'),
+
   getAvailableModels: (params: { api_key: string; api_base_url: string; provider: string }) =>
     api.get<unknown, { provider: string; models: Array<{ value: string; label: string; description: string }>; count?: number }>('/settings/models', { params }),
 
-  testApiConnection: (params: { api_key: string; api_base_url: string; provider: string; llm_model: string; temperature?: number; max_tokens?: number }) =>
+  testApiConnection: (params: { api_key: string; api_base_url: string; provider: string; llm_model: string; temperature?: number; max_tokens?: number; default_reasoning_intensity?: ReasoningIntensity }) =>
     api.post<unknown, {
       success: boolean;
       message: string;
