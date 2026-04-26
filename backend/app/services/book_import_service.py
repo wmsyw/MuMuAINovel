@@ -43,6 +43,7 @@ from app.schemas.book_import import (
     ProjectSuggestion,
 )
 from app.services.ai_service import AIService, create_user_ai_service_with_mcp
+from app.services.entity_generation_policy_service import entity_generation_policy_service
 from app.services.prompt_service import PromptService
 from app.services.txt_parser_service import txt_parser_service
 
@@ -153,6 +154,7 @@ class BookImportService:
         user_id: str,
         payload: BookImportApplyRequest,
         db: AsyncSession,
+        is_admin: bool = False,
     ) -> BookImportApplyResponse:
         task = await self._get_task(task_id=task_id, user_id=user_id)
         if task.status != "completed":
@@ -215,6 +217,7 @@ class BookImportService:
             generated_world, generated_careers, generated_entities = await self._run_post_import_wizard_generation(
                 db=db,
                 user_id=user_id,
+                is_admin=is_admin,
                 project=project,
                 character_count=max(project.character_count or 0, 8),
             )
@@ -248,6 +251,7 @@ class BookImportService:
         user_id: str,
         payload: BookImportApplyRequest,
         db: AsyncSession,
+        is_admin: bool = False,
         progress_callback: Any = None,
     ) -> BookImportApplyResponse:
         """
@@ -332,6 +336,7 @@ class BookImportService:
                 generated_world = await self._generate_world_building_from_project(
                     db=db,
                     user_id=user_id,
+                    is_admin=is_admin,
                     project=project,
                     progress_callback=progress_callback,
                     progress_range=(22, 40),
@@ -354,6 +359,7 @@ class BookImportService:
                 generated_careers = await self._generate_career_system_from_project(
                     db=db,
                     user_id=user_id,
+                    is_admin=is_admin,
                     project=project,
                     progress_callback=progress_callback,
                     progress_range=(42, 65),
@@ -376,6 +382,7 @@ class BookImportService:
                 generated_entities = await self._generate_characters_and_organizations_from_project(
                     db=db,
                     user_id=user_id,
+                    is_admin=is_admin,
                     project=project,
                     count=character_count_target,
                     progress_callback=progress_callback,
@@ -446,6 +453,7 @@ class BookImportService:
         user_id: str,
         steps_to_retry: list[str],
         db: AsyncSession,
+        is_admin: bool = False,
         progress_callback: Any = None,
     ) -> dict:
         """
@@ -492,6 +500,7 @@ class BookImportService:
                         result = await self._generate_world_building_from_project(
                             db=db,
                             user_id=user_id,
+                            is_admin=is_admin,
                             project=project,
                             progress_callback=progress_callback,
                             progress_range=(step_start_pct, step_end_pct),
@@ -515,6 +524,7 @@ class BookImportService:
                         result = await self._generate_career_system_from_project(
                             db=db,
                             user_id=user_id,
+                            is_admin=is_admin,
                             project=project,
                             progress_callback=progress_callback,
                             progress_range=(step_start_pct, step_end_pct),
@@ -538,6 +548,7 @@ class BookImportService:
                         result = await self._generate_characters_and_organizations_from_project(
                             db=db,
                             user_id=user_id,
+                            is_admin=is_admin,
                             project=project,
                             count=character_count_target,
                             progress_callback=progress_callback,
@@ -1636,6 +1647,7 @@ class BookImportService:
         user_id: str,
         project: Project,
         character_count: int,
+        is_admin: bool = False,
     ) -> tuple[int, int, int]:
         """
         走“向导前3步”的核心链路：
@@ -1647,18 +1659,21 @@ class BookImportService:
         generated_world = await self._generate_world_building_from_project(
             db=db,
             user_id=user_id,
+            is_admin=is_admin,
             project=project,
         )
 
         generated_careers = await self._generate_career_system_from_project(
             db=db,
             user_id=user_id,
+            is_admin=is_admin,
             project=project,
         )
 
         generated_entities = await self._generate_characters_and_organizations_from_project(
             db=db,
             user_id=user_id,
+            is_admin=is_admin,
             project=project,
             count=character_count,
         )
@@ -1678,6 +1693,7 @@ class BookImportService:
         project: Project,
         progress_callback: Any = None,
         progress_range: tuple[int, int] = (0, 100),
+        is_admin: bool = False,
         raise_on_error: bool = False,
     ) -> int:
         """根据反向生成的项目基础信息，优先生成并写入世界观。"""
@@ -1746,6 +1762,7 @@ class BookImportService:
         project: Project,
         progress_callback: Any = None,
         progress_range: tuple[int, int] = (0, 100),
+        is_admin: bool = False,
     ) -> int:
         """根据项目世界观生成职业体系（3主2副）。"""
 
@@ -1753,6 +1770,25 @@ class BookImportService:
             if progress_callback:
                 p = progress_range[0] + int((progress_range[1] - progress_range[0]) * sub)
                 await progress_callback(msg, p)
+
+        settings_result = await db.execute(select(Settings).where(Settings.user_id == user_id))
+        user_settings = settings_result.scalar_one_or_none()
+        policy_decision = await entity_generation_policy_service.evaluate_for_user(
+            db,
+            actor_user_id=user_id,
+            project_id=project.id,
+            entity_type="career",
+            source_endpoint="services.book_import_service._generate_career_system_from_project",
+            action_type="ai_generation",
+            is_admin=is_admin,
+            provider=getattr(user_settings, "api_provider", None) or app_settings.default_ai_provider,
+            model=getattr(user_settings, "llm_model", None) or app_settings.default_model,
+            reason="拆书导入向导职业体系生成创建规范职业",
+        )
+        if not policy_decision.allowed:
+            await _notify(f"💼 {policy_decision.message}", 1.0)
+            logger.info("🛡️ 拆书导入职业体系生成被实体生成策略阻止")
+            return 0
 
         await _notify("💼 正在初始化AI服务...", 0.1)
         ai_service = await self._build_user_ai_service(db=db, user_id=user_id)
@@ -1777,6 +1813,8 @@ class BookImportService:
             max_retries=3,
             expected_type="object",
         )
+        if not isinstance(career_data, dict):
+            return 0
 
         await _notify("💼 正在解析职业数据...", 0.7)
         main_careers = career_data.get("main_careers", [])
@@ -1794,6 +1832,7 @@ class BookImportService:
             await db.execute(delete(Career).where(Career.project_id == project.id))
 
         created = 0
+        created_career_models: list[Career] = []
 
         def _to_career_model(item: dict[str, Any], career_type: str, idx: int) -> Career:
             stages = item.get("stages", [])
@@ -1824,16 +1863,26 @@ class BookImportService:
         for idx, item in enumerate(main_careers):
             if not isinstance(item, dict):
                 continue
-            db.add(_to_career_model(item, "main", idx))
+            career = _to_career_model(item, "main", idx)
+            db.add(career)
+            created_career_models.append(career)
             created += 1
 
         for idx, item in enumerate(sub_careers):
             if not isinstance(item, dict):
                 continue
-            db.add(_to_career_model(item, "sub", idx))
+            career = _to_career_model(item, "sub", idx)
+            db.add(career)
+            created_career_models.append(career)
             created += 1
 
         await db.flush()
+        entity_generation_policy_service.record_override_audit(
+            db,
+            policy_decision,
+            [career.id for career in created_career_models],
+            extra_payload={"generated_count": created},
+        )
         return created
 
     async def _generate_characters_and_organizations_from_project(
@@ -1845,6 +1894,7 @@ class BookImportService:
         count: int,
         progress_callback: Any = None,
         progress_range: tuple[int, int] = (0, 100),
+        is_admin: bool = False,
     ) -> int:
         """根据世界观+职业体系生成角色/组织，并补全职业和组织成员关系。"""
 
@@ -1858,6 +1908,40 @@ class BookImportService:
                 return int(value)
             except (TypeError, ValueError):
                 return default
+
+        settings_result = await db.execute(select(Settings).where(Settings.user_id == user_id))
+        user_settings = settings_result.scalar_one_or_none()
+        provider = getattr(user_settings, "api_provider", None) or app_settings.default_ai_provider
+        model = getattr(user_settings, "llm_model", None) or app_settings.default_model
+        character_policy_decision = await entity_generation_policy_service.evaluate_for_user(
+            db,
+            actor_user_id=user_id,
+            project_id=project.id,
+            entity_type="character",
+            source_endpoint="services.book_import_service._generate_characters_and_organizations_from_project",
+            action_type="ai_generation",
+            is_admin=is_admin,
+            provider=provider,
+            model=model,
+            reason="拆书导入向导角色生成创建规范角色",
+        )
+        organization_policy_decision = await entity_generation_policy_service.evaluate_for_user(
+            db,
+            actor_user_id=user_id,
+            project_id=project.id,
+            entity_type="organization",
+            source_endpoint="services.book_import_service._generate_characters_and_organizations_from_project",
+            action_type="ai_generation",
+            is_admin=is_admin,
+            provider=provider,
+            model=model,
+            reason="拆书导入向导组织生成创建规范组织",
+        )
+        if not character_policy_decision.allowed or not organization_policy_decision.allowed:
+            blocked_decision = character_policy_decision if not character_policy_decision.allowed else organization_policy_decision
+            await _notify(f"👥 {blocked_decision.message}", 1.0)
+            logger.info("🛡️ 拆书导入角色/组织生成被实体生成策略阻止")
+            return 0
 
         await _notify("👥 正在初始化AI服务...", 0.05)
         ai_service = await self._build_user_ai_service(db=db, user_id=user_id)
@@ -1956,6 +2040,7 @@ class BookImportService:
 
         created = 0
         created_items: list[tuple[Character, dict[str, Any]]] = []
+        created_organization_ids: list[str] = []
 
         # 第一阶段：创建 Character / Organization 实体
         for item in generated_entities:
@@ -2000,6 +2085,7 @@ class BookImportService:
                 )
                 db.add(organization)
                 await db.flush()
+                created_organization_ids.append(organization.id)
                 organization_name_to_obj[character.name] = organization
 
             created_items.append((character, item))
@@ -2221,6 +2307,18 @@ class BookImportService:
                 org.member_count = (org.member_count or 0) + 1
 
         await db.flush()
+        entity_generation_policy_service.record_override_audit(
+            db,
+            character_policy_decision,
+            [character.id for character, _ in created_items if not character.is_organization],
+            extra_payload={"generated_count": len([1 for character, _ in created_items if not character.is_organization])},
+        )
+        entity_generation_policy_service.record_override_audit(
+            db,
+            organization_policy_decision,
+            created_organization_ids,
+            extra_payload={"generated_count": len(created_organization_ids)},
+        )
         return created
 
     def _build_summary(self, content: str, max_len: int = 120) -> Optional[str]:
