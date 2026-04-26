@@ -26,8 +26,13 @@ from app.schemas.extraction import (
     ExtractionRunListResponse,
     ExtractionRunResponse,
     ExtractionRunStatus,
+    ManualReextractChapterRequest,
+    ManualReextractProjectRequest,
+    ManualReextractRangeRequest,
+    ManualReextractResponse,
 )
 from app.services.candidate_merge_service import CandidateMergeService, MergeResult
+from app.services.extraction_service import ExtractionTriggerService
 
 router = APIRouter(prefix="/extraction", tags=["抽取评审"])
 
@@ -222,6 +227,110 @@ async def get_extraction_candidate(
 ) -> ExtractionCandidateResponse:
     user_id = _current_user_id(request)
     return ExtractionCandidateResponse.model_validate(await _get_candidate_for_user(candidate_id, user_id, db))
+
+
+@router.post("/reextract/project", response_model=ManualReextractResponse, summary="手动重新抽取整个项目")
+async def manual_reextract_project(
+    payload: ManualReextractProjectRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> ManualReextractResponse:
+    user_id = _current_user_id(request)
+    _ = await verify_project_access(payload.project_id, user_id, db)
+    runs = await db.run_sync(
+        lambda session: [
+            session.get(ExtractionRun, result.run_id)
+            for result in ExtractionTriggerService(session).trigger_project(
+                project_id=payload.project_id,
+                user_id=user_id,
+                trigger_source="manual_project",
+                force=True,
+                enabled=True,
+                supersede_prior=False,
+            )
+        ]
+    )
+    await db.commit()
+    concrete_runs = [run for run in runs if run is not None]
+    return ManualReextractResponse(
+        project_id=payload.project_id,
+        scope="project",
+        total_runs=len(concrete_runs),
+        runs=[ExtractionRunResponse.model_validate(run) for run in concrete_runs],
+    )
+
+
+@router.post("/reextract/chapter", response_model=ManualReextractResponse, summary="手动重新抽取单章")
+async def manual_reextract_chapter(
+    payload: ManualReextractChapterRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> ManualReextractResponse:
+    user_id = _current_user_id(request)
+    _ = await verify_project_access(payload.project_id, user_id, db)
+    run = await db.run_sync(
+        lambda session: (
+            session.get(ExtractionRun, result.run_id)
+            if (
+                result := ExtractionTriggerService(session).trigger_chapter(
+                    project_id=payload.project_id,
+                    chapter_id=payload.chapter_id,
+                    user_id=user_id,
+                    trigger_source="manual_chapter",
+                    force=True,
+                    enabled=True,
+                    supersede_prior=False,
+                    source_metadata={"manual_scope": "chapter"},
+                )
+            )
+            is not None
+            else None
+        )
+    )
+    await db.commit()
+    if run is None:
+        _structured_error(404, code="manual_reextract_failed", message="章节不存在或抽取未创建运行")
+    return ManualReextractResponse(
+        project_id=payload.project_id,
+        scope="chapter",
+        total_runs=1,
+        runs=[ExtractionRunResponse.model_validate(run)],
+    )
+
+
+@router.post("/reextract/range", response_model=ManualReextractResponse, summary="手动重新抽取章节范围")
+async def manual_reextract_range(
+    payload: ManualReextractRangeRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> ManualReextractResponse:
+    user_id = _current_user_id(request)
+    _ = await verify_project_access(payload.project_id, user_id, db)
+    if payload.end_chapter_number < payload.start_chapter_number:
+        _structured_error(400, code="invalid_chapter_range", message="结束章节不能小于起始章节")
+    runs = await db.run_sync(
+        lambda session: [
+            session.get(ExtractionRun, result.run_id)
+            for result in ExtractionTriggerService(session).trigger_chapter_range(
+                project_id=payload.project_id,
+                user_id=user_id,
+                start_chapter_number=payload.start_chapter_number,
+                end_chapter_number=payload.end_chapter_number,
+                trigger_source="manual_range",
+                force=True,
+                enabled=True,
+                supersede_prior=False,
+            )
+        ]
+    )
+    await db.commit()
+    concrete_runs = [run for run in runs if run is not None]
+    return ManualReextractResponse(
+        project_id=payload.project_id,
+        scope="range",
+        total_runs=len(concrete_runs),
+        runs=[ExtractionRunResponse.model_validate(run) for run in concrete_runs],
+    )
 
 
 @router.post("/candidates/{candidate_id}/accept", response_model=CandidateReviewResponse, summary="接受抽取候选")

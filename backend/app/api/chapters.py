@@ -64,6 +64,7 @@ from app.services.plot_analyzer import PlotAnalyzer
 from app.services.memory_service import memory_service
 from app.services.foreshadow_service import foreshadow_service
 from app.services.chapter_regenerator import ChapterRegenerator
+from app.services.extraction_service import run_extraction_trigger_after_commit
 from app.logger import get_logger
 from app.api.settings import get_user_ai_service
 from app.utils.sse_response import SSEResponse, create_sse_response
@@ -90,6 +91,8 @@ async def create_chapter(
     """创建新的章节"""
     # 验证用户权限和项目是否存在
     user_id = getattr(request.state, "user_id", None)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="未登录")
     project = await verify_project_access(chapter.project_id, user_id, db)
 
     # 计算字数(处理content可能为None的情况)
@@ -103,6 +106,15 @@ async def create_chapter(
 
     await db.commit()
     await db.refresh(db_chapter)
+    if db_chapter.content and db_chapter.content.strip():
+        _ = await run_extraction_trigger_after_commit(
+            db,
+            project_id=db_chapter.project_id,
+            chapter_id=db_chapter.id,
+            user_id=str(user_id),
+            trigger_source="chapter_save",
+            source_metadata={"operation": "create_chapter"},
+        )
     return db_chapter
 
 
@@ -188,6 +200,8 @@ async def get_chapter(
 
     # 验证用户权限
     user_id = getattr(request.state, "user_id", None)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="未登录")
     await verify_project_access(chapter.project_id, user_id, db)
 
     return chapter
@@ -356,6 +370,16 @@ async def update_chapter(
 
     await db.commit()
     await db.refresh(chapter)
+
+    if "content" in update_data and chapter.content and chapter.content.strip():
+        _ = await run_extraction_trigger_after_commit(
+            db,
+            project_id=chapter.project_id,
+            chapter_id=chapter.id,
+            user_id=str(user_id),
+            trigger_source="chapter_save",
+            source_metadata={"operation": "update_chapter"},
+        )
 
     chapter_dict = {
         "id": chapter.id,
@@ -1947,6 +1971,15 @@ async def generate_chapter_content_stream(
                 await db_session.commit()
                 db_committed = True
                 await db_session.refresh(current_chapter)
+
+                _ = await run_extraction_trigger_after_commit(
+                    db_session,
+                    project_id=project.id,
+                    chapter_id=current_chapter.id,
+                    user_id=current_user_id,
+                    trigger_source="chapter_generation",
+                    source_metadata={"operation": "generate_chapter_content_stream"},
+                )
 
                 logger.info(f"成功创作章节 {chapter_id}，共 {new_word_count} 字")
 
