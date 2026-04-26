@@ -1,18 +1,21 @@
 import { useState, useEffect, useRef } from 'react';
-import { Button, Modal, Form, Input, Select, message, Row, Col, Empty, Tabs, Divider, Typography, Space, InputNumber, Checkbox, theme } from 'antd';
+import { Alert, Button, Modal, Form, Input, Select, message, Row, Col, Empty, Tabs, Divider, Typography, Space, InputNumber, Checkbox, theme } from 'antd';
 import { ThunderboltOutlined, UserOutlined, TeamOutlined, PlusOutlined, ExportOutlined, ImportOutlined, DownloadOutlined } from '@ant-design/icons';
 import { useStore } from '../store';
 import { useCharacterSync } from '../store/hooks';
 import { charactersPageGridConfig } from '../components/CardStyles';
 import { CharacterCard } from '../components/CharacterCard';
 import { SSELoadingOverlay } from '../components/SSELoadingOverlay';
-import type { Character, ApiError } from '../types';
-import { characterApi } from '../services/api';
+import ExtractionCandidateReviewPanel from '../components/ExtractionCandidateReviewPanel';
+import type { Character, ApiError, ExtractionCandidateType } from '../types';
+import { characterApi, careerApi, settingsApi } from '../services/api';
 import { SSEPostClient } from '../utils/sseClient';
-import api from '../services/api';
 
 const { Title } = Typography;
 const { TextArea } = Input;
+
+const CHARACTER_REVIEW_TYPES: ExtractionCandidateType[] = ['character', 'character_state'];
+const ENTITY_GENERATION_POLICY_COPY = ExtractionCandidateReviewPanel.__testUtils.AI_ENTITY_GENERATION_POLICY_COPY;
 
 interface Career {
   id: string;
@@ -112,6 +115,7 @@ export default function Characters() {
   const [subCareers, setSubCareers] = useState<Career[]>([]);
   const [selectedCharacters, setSelectedCharacters] = useState<string[]>([]);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [allowAIGenerationOverride, setAllowAIGenerationOverride] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const {
@@ -123,6 +127,7 @@ export default function Characters() {
     if (currentProject?.id) {
       refreshCharacters();
       fetchCareers();
+      fetchPolicy();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentProject?.id]);
@@ -131,13 +136,21 @@ export default function Characters() {
   const fetchCareers = async () => {
     if (!currentProject?.id) return;
     try {
-      const response = await api.get<unknown, { main_careers: Career[]; sub_careers: Career[] }>('/careers', {
-        params: { project_id: currentProject.id }
-      });
+      const response = await careerApi.getCareers(currentProject.id);
       setMainCareers(response.main_careers || []);
       setSubCareers(response.sub_careers || []);
     } catch (error) {
       console.error('获取职业列表失败:', error);
+    }
+  };
+
+  const fetchPolicy = async () => {
+    try {
+      const settings = await settingsApi.getSettings();
+      setAllowAIGenerationOverride(ExtractionCandidateReviewPanel.__testUtils.isAiGenerationOverrideEnabled(settings));
+    } catch (error) {
+      console.error('获取实体生成策略失败:', error);
+      setAllowAIGenerationOverride(false);
     }
   };
 
@@ -665,24 +678,28 @@ export default function Characters() {
           >
             创建组织
           </Button>
-          <Button
-            type="dashed"
-            icon={<ThunderboltOutlined />}
-            onClick={showGenerateModal}
-            loading={isGenerating}
-            size={isMobile ? 'small' : 'middle'}
-          >
-            AI生成角色
-          </Button>
-          <Button
-            type="dashed"
-            icon={<ThunderboltOutlined />}
-            onClick={showGenerateOrgModal}
-            loading={isGenerating}
-            size={isMobile ? 'small' : 'middle'}
-          >
-            AI生成组织
-          </Button>
+          {allowAIGenerationOverride && (
+            <>
+              <Button
+                type="dashed"
+                icon={<ThunderboltOutlined />}
+                onClick={showGenerateModal}
+                loading={isGenerating}
+                size={isMobile ? 'small' : 'middle'}
+              >
+                AI生成角色
+              </Button>
+              <Button
+                type="dashed"
+                icon={<ThunderboltOutlined />}
+                onClick={showGenerateOrgModal}
+                loading={isGenerating}
+                size={isMobile ? 'small' : 'middle'}
+              >
+                AI生成组织
+              </Button>
+            </>
+          )}
           <Button
             icon={<ImportOutlined />}
             onClick={() => setIsImportModalOpen(true)}
@@ -702,6 +719,32 @@ export default function Characters() {
         </Space>
       </div>
 
+      {!allowAIGenerationOverride && (
+        <Alert
+          type="info"
+          showIcon
+          message="角色与组织默认从正文抽取"
+          description={ENTITY_GENERATION_POLICY_COPY}
+          style={{ marginBottom: isMobile ? 12 : 16 }}
+        />
+      )}
+
+      <ExtractionCandidateReviewPanel
+        projectId={currentProject.id}
+        entityLabel="角色"
+        candidateTypes={CHARACTER_REVIEW_TYPES}
+        canonicalTargetType="character"
+        canonicalOptions={characterList.map(character => ({
+          id: character.id,
+          name: character.name,
+          description: character.role_type,
+        }))}
+        canonicalCount={characterList.length}
+        onCanonicalChanged={async () => {
+          await refreshCharacters();
+        }}
+        canonicalChildren={(
+          <>
       {characters.length > 0 && (
         <div style={{
           position: 'sticky',
@@ -926,6 +969,9 @@ export default function Characters() {
           </>
         )}
       </div>
+          </>
+        )}
+      />
 
       <Modal
         title={editingCharacter?.is_organization ? '编辑组织' : '编辑角色'}

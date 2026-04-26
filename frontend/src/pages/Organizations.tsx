@@ -1,43 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { Card, Table, Tag, Button, Space, message, Modal, Form, Select, InputNumber, Input, Descriptions, Drawer, theme } from 'antd';
+import { Alert, Card, Table, Tag, Button, Space, message, Modal, Form, Select, InputNumber, Input, Descriptions, Drawer, theme } from 'antd';
 import { PlusOutlined, UserOutlined, EditOutlined, DeleteOutlined, UnorderedListOutlined, BankOutlined } from '@ant-design/icons';
 import { useStore } from '../store';
 import { useCharacterSync } from '../store/hooks';
-import axios from 'axios';
+import ExtractionCandidateReviewPanel from '../components/ExtractionCandidateReviewPanel';
+import { characterApi, organizationApi } from '../services/api';
+import type { Character, ExtractionCandidateType, Organization, OrganizationMember, OrganizationMemberPayload } from '../types';
 
-interface Organization {
-  id: string;
-  character_id: string;
-  name: string;
-  type: string;
-  purpose: string;
-  member_count: number;
-  power_level: number;
-  location?: string;
-  motto?: string;
-  color?: string;
-}
-
-interface OrganizationMember {
-  id: string;
-  character_id: string;
-  character_name: string;
-  position: string;
-  rank: number;
-  loyalty: number;
-  contribution: number;
-  status: string;
-  joined_at?: string;
-  left_at?: string;
-  notes?: string;
-}
-
-interface Character {
-  id: string;
-  name: string;
-  is_organization: boolean;
-}
+const ORGANIZATION_REVIEW_TYPES: ExtractionCandidateType[] = ['organization', 'organization_affiliation'];
+const ENTITY_GENERATION_POLICY_COPY = ExtractionCandidateReviewPanel.__testUtils.AI_ENTITY_GENERATION_POLICY_COPY;
 
 export default function Organizations() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -70,13 +42,18 @@ export default function Organizations() {
   }, []);
 
   const loadOrganizations = useCallback(async () => {
+    if (!projectId) return;
     setLoading(true);
     try {
-      const res = await axios.get(`/api/organizations/project/${projectId}`);
-      setOrganizations(res.data);
-      if (res.data.length > 0 && !selectedOrg) {
-        setSelectedOrg(res.data[0]);
-        loadMembers(res.data[0].id);
+      const data = await organizationApi.getProjectOrganizations(projectId, {
+        include_candidate_counts: true,
+        include_policy_status: true,
+        include_timeline: true,
+      });
+      setOrganizations(data);
+      if (data.length > 0 && !selectedOrg) {
+        setSelectedOrg(data[0]);
+        loadMembers(data[0].id);
       }
     } catch (error) {
       message.error('加载组织列表失败');
@@ -88,9 +65,10 @@ export default function Organizations() {
   }, [projectId]);
 
   const loadCharacters = useCallback(async () => {
+    if (!projectId) return;
     try {
-      const res = await axios.get(`/api/characters?project_id=${projectId}`);
-      setCharacters(res.data.items || []);
+      const data = await characterApi.getCharacters(projectId);
+      setCharacters(data || []);
     } catch (error) {
       console.error('加载角色列表失败', error);
     }
@@ -105,8 +83,8 @@ export default function Organizations() {
 
   const loadMembers = async (orgId: string) => {
     try {
-      const res = await axios.get(`/api/organizations/${orgId}/members`);
-      setMembers(res.data);
+      const data = await organizationApi.getMembers(orgId);
+      setMembers(data);
     } catch (error) {
       message.error('加载成员列表失败');
       console.error(error);
@@ -118,11 +96,11 @@ export default function Organizations() {
     loadMembers(org.id);
   };
 
-  const handleAddMember = async (values: Record<string, unknown>) => {
+  const handleAddMember = async (values: OrganizationMemberPayload) => {
     if (!selectedOrg) return;
 
     try {
-      await axios.post(`/api/organizations/${selectedOrg.id}/members`, values);
+      await organizationApi.addMember(selectedOrg.id, values);
       message.success('成员添加成功');
       setIsAddMemberModalOpen(false);
       form.resetFields();
@@ -142,9 +120,9 @@ export default function Organizations() {
       okText: '移除',
       okType: 'danger',
       cancelText: '取消',
-      onOk: async () => {
+        onOk: async () => {
         try {
-          await axios.delete(`/api/organizations/members/${memberId}`);
+          await organizationApi.removeMember(memberId);
           message.success('成员移除成功');
           if (selectedOrg) {
             loadMembers(selectedOrg.id);
@@ -172,11 +150,11 @@ export default function Organizations() {
     setIsEditMemberModalOpen(true);
   };
 
-  const handleUpdateMember = async (values: Record<string, unknown>) => {
+  const handleUpdateMember = async (values: OrganizationMemberPayload) => {
     if (!editingMember) return;
 
     try {
-      await axios.put(`/api/organizations/members/${editingMember.id}`, values);
+      await organizationApi.updateMember(editingMember.id, values);
       message.success('成员信息更新成功');
       setIsEditMemberModalOpen(false);
       editMemberForm.resetFields();
@@ -319,7 +297,35 @@ export default function Organizations() {
           </h2>
         </div>
       )}
-      
+
+      <Alert
+        type="info"
+        showIcon
+        message="组织默认从正文抽取"
+        description={ENTITY_GENERATION_POLICY_COPY}
+        style={{ marginBottom: isMobile ? 8 : 16 }}
+      />
+       
+      <ExtractionCandidateReviewPanel
+        projectId={projectId}
+        entityLabel="组织"
+        candidateTypes={ORGANIZATION_REVIEW_TYPES}
+        canonicalTargetType="organization"
+        canonicalOptions={organizations.map(org => ({
+          id: org.organization_entity_id || org.character_id || org.id,
+          name: org.name,
+          description: org.type,
+        }))}
+        canonicalCount={organizations.length}
+        onCanonicalChanged={async () => {
+          await loadOrganizations();
+          await loadCharacters();
+          if (selectedOrg) {
+            await loadMembers(selectedOrg.id);
+          }
+        }}
+        canonicalChildren={(
+          <>
       <div style={{
         flex: 1,
         display: 'flex',
@@ -332,7 +338,7 @@ export default function Organizations() {
         <Card
           title={`组织列表 (${organizations.length})`}
           style={{ width: 300, height: '100%', overflow: 'hidden' }}
-          bodyStyle={{ padding: 0, height: 'calc(100% - 57px)', overflow: 'auto' }}
+          styles={{ body: { padding: 0, height: 'calc(100% - 57px)', overflow: 'auto' } }}
           loading={loading}
         >
           {organizations.length === 0 ? (
@@ -463,7 +469,7 @@ export default function Organizations() {
             }}>
               <Card
                 style={{ flex: 1, overflow: 'auto' }}
-                bodyStyle={{ padding: isMobile ? '12px' : '24px' }}
+                styles={{ body: { padding: isMobile ? '12px' : '24px' } }}
               >
                 <Space direction="vertical" style={{ width: '100%' }} size={isMobile ? 'middle' : 'large'}>
                 <Card
@@ -563,6 +569,9 @@ export default function Organizations() {
         )}
         </div>
       </div>
+          </>
+        )}
+      />
 
       {/* 添加成员模态框 */}
       <Modal
@@ -623,7 +632,7 @@ export default function Organizations() {
             label="初始忠诚度"
             initialValue={50}
           >
-            <InputNumber min={0} max={100} style={{ width: '100%' }} addonAfter="%" />
+            <InputNumber min={0} max={100} style={{ width: '100%' }} suffix="%" />
           </Form.Item>
 
           <Form.Item
@@ -705,14 +714,14 @@ export default function Organizations() {
             name="loyalty"
             label="忠诚度"
           >
-            <InputNumber min={0} max={100} style={{ width: '100%' }} addonAfter="%" />
+            <InputNumber min={0} max={100} style={{ width: '100%' }} suffix="%" />
           </Form.Item>
 
           <Form.Item
             name="contribution"
             label="贡献度"
           >
-            <InputNumber min={0} max={100} style={{ width: '100%' }} addonAfter="%" />
+            <InputNumber min={0} max={100} style={{ width: '100%' }} suffix="%" />
           </Form.Item>
 
           <Form.Item
@@ -778,17 +787,17 @@ export default function Organizations() {
           onFinish={async (values) => {
             if (!selectedOrg) return;
             try {
-              await axios.put(`/api/organizations/${selectedOrg.id}`, values);
+              await organizationApi.updateOrganization(selectedOrg.id, values);
               message.success('组织信息更新成功');
               setIsEditOrgModalOpen(false);
               editOrgForm.resetFields();
 
               // 重新获取更新后的组织列表
-              const res = await axios.get(`/api/organizations/project/${projectId}`);
-              setOrganizations(res.data);
+              const data = projectId ? await organizationApi.getProjectOrganizations(projectId) : [];
+              setOrganizations(data);
 
               // 更新当前选中的组织详情
-              const updatedOrg = res.data.find((org: Organization) => org.id === selectedOrg.id);
+              const updatedOrg = data.find((org: Organization) => org.id === selectedOrg.id);
               if (updatedOrg) {
                 setSelectedOrg(updatedOrg);
               }
