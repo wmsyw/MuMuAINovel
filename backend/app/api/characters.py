@@ -20,6 +20,7 @@ from app.schemas.character import (
     CharacterGenerateRequest
 )
 from app.services.ai_service import AIService
+from app.services.entity_generation_policy_service import entity_generation_policy_service
 from app.services.prompt_service import prompt_service, PromptService
 from app.services.import_export_service import ImportExportService
 from app.schemas.import_export import CharactersExportRequest, CharactersImportResult
@@ -827,6 +828,23 @@ async def generate_character_stream(
             # 验证用户权限和项目是否存在
             user_id = getattr(http_request.state, 'user_id', None)
             project = await verify_project_access(request.project_id, user_id, db)
+            policy_decision = await entity_generation_policy_service.evaluate_for_user(
+                db,
+                actor_user_id=user_id,
+                project_id=request.project_id,
+                entity_type="character",
+                source_endpoint="api.characters.generate_character_stream",
+                action_type="ai_generation",
+                is_admin=bool(getattr(http_request.state, "is_admin", False)),
+                provider=getattr(user_ai_service, "api_provider", None),
+                model=getattr(user_ai_service, "default_model", None),
+                reason="AI角色生成流式接口创建规范角色",
+            )
+            if not policy_decision.allowed:
+                yield await tracker.error(policy_decision.message, 403)
+                yield await tracker.result(policy_decision.to_response())
+                yield await tracker.done()
+                return
             
             yield await tracker.start()
             
@@ -1335,7 +1353,13 @@ async def generate_character_stream(
                 model=user_ai_service.default_model
             )
             db.add(history)
-            
+            entity_generation_policy_service.record_override_audit(
+                db,
+                policy_decision,
+                [character.id],
+                extra_payload={"history_model": user_ai_service.default_model},
+            )
+             
             await db.commit()
             await db.refresh(character)
             

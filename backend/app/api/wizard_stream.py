@@ -16,6 +16,7 @@ from app.models.relationship import CharacterRelationship, Organization, Organiz
 from app.models.writing_style import WritingStyle
 from app.models.project_default_style import ProjectDefaultStyle
 from app.services.ai_service import AIService
+from app.services.entity_generation_policy_service import entity_generation_policy_service
 from app.services.prompt_service import prompt_service, PromptService
 from app.services.plot_expansion_service import PlotExpansionService
 from app.logger import get_logger
@@ -342,6 +343,23 @@ async def career_system_generator(
         if not project:
             yield await tracker.error("项目不存在或无权访问", 404)
             return
+        policy_decision = await entity_generation_policy_service.evaluate_for_user(
+            db,
+            actor_user_id=user_id,
+            project_id=project_id,
+            entity_type="career",
+            source_endpoint="api.wizard_stream.career_system_generator",
+            action_type="ai_generation",
+            is_admin=bool(data.get("is_admin", False)),
+            provider=provider or getattr(user_ai_service, "api_provider", None),
+            model=model or getattr(user_ai_service, "default_model", None),
+            reason="向导职业体系生成创建规范职业",
+        )
+        if not policy_decision.allowed:
+            yield await tracker.error(policy_decision.message, 403)
+            yield await tracker.result(policy_decision.to_response())
+            yield await tracker.done()
+            return
         
         # 设置用户信息以启用MCP
         if user_id:
@@ -440,6 +458,7 @@ async def career_system_generator(
                     
                     # 保存主职业
                     main_careers_created = []
+                    created_career_ids = []
                     for idx, career_info in enumerate(career_data.get("main_careers", [])):
                         try:
                             stages_json = json.dumps(career_info.get("stages", []), ensure_ascii=False)
@@ -462,6 +481,7 @@ async def career_system_generator(
                             )
                             db.add(career)
                             await db.flush()
+                            created_career_ids.append(career.id)
                             main_careers_created.append(career.name)
                             logger.info(f"  ✅ 创建主职业：{career.name}")
                         except Exception as e:
@@ -492,6 +512,7 @@ async def career_system_generator(
                             )
                             db.add(career)
                             await db.flush()
+                            created_career_ids.append(career.id)
                             sub_careers_created.append(career.name)
                             logger.info(f"  ✅ 创建副职业：{career.name}")
                         except Exception as e:
@@ -501,6 +522,15 @@ async def career_system_generator(
                     # 更新向导步骤状态为2（职业体系已完成）
                     # wizard_step: 0=未开始, 1=世界观已完成, 2=职业体系已完成, 3=角色已完成, 4=大纲已完成
                     project.wizard_step = 2
+                    entity_generation_policy_service.record_override_audit(
+                        db,
+                        policy_decision,
+                        created_career_ids,
+                        extra_payload={
+                            "main_careers_created": main_careers_created,
+                            "sub_careers_created": sub_careers_created,
+                        },
+                    )
                     
                     await db.commit()
                     db_committed = True
@@ -578,6 +608,7 @@ async def generate_career_system_stream(
     # 从中间件注入user_id到data中
     if hasattr(request.state, 'user_id'):
         data['user_id'] = request.state.user_id
+    data['is_admin'] = bool(getattr(request.state, 'is_admin', False))
     
     return create_sse_response(career_system_generator(data, db, user_ai_service))
 
@@ -611,6 +642,23 @@ async def characters_generator(
         project = await get_owned_project(db, project_id, user_id)
         if not project:
             yield await tracker.error("项目不存在或无权访问", 404)
+            return
+        policy_decision = await entity_generation_policy_service.evaluate_for_user(
+            db,
+            actor_user_id=user_id,
+            project_id=project_id,
+            entity_type="character",
+            source_endpoint="api.wizard_stream.characters_generator",
+            action_type="ai_generation",
+            is_admin=bool(data.get("is_admin", False)),
+            provider=provider or getattr(user_ai_service, "api_provider", None),
+            model=model or getattr(user_ai_service, "default_model", None),
+            reason="向导批量角色生成创建规范角色/组织",
+        )
+        if not policy_decision.allowed:
+            yield await tracker.error(policy_decision.message, 403)
+            yield await tracker.result(policy_decision.to_response())
+            yield await tracker.done()
             return
         
         project.wizard_step = 2
@@ -1180,6 +1228,12 @@ async def characters_generator(
         project.character_count = len(created_characters)
         project.wizard_step = 3
         logger.info(f"✅ 更新项目角色数量: {project.character_count}")
+        entity_generation_policy_service.record_override_audit(
+            db,
+            policy_decision,
+            [character.id for character, _ in created_characters],
+            extra_payload={"generated_count": len(created_characters)},
+        )
         
         await db.commit()
         db_committed = True
@@ -1246,6 +1300,7 @@ async def generate_characters_stream(
     # 从中间件注入user_id到data中
     if hasattr(request.state, 'user_id'):
         data['user_id'] = request.state.user_id
+    data['is_admin'] = bool(getattr(request.state, 'is_admin', False))
     
     return create_sse_response(characters_generator(data, db, user_ai_service))
 
@@ -1401,6 +1456,7 @@ async def outline_generator(
                 outline_data_list=outline_data[:outline_count],
                 db=db,
                 user_id=user_id,
+                is_admin=bool(data.get("is_admin", False)),
                 enable_mcp=enable_mcp
             )
             if char_check_result["created_count"] > 0:
@@ -1424,6 +1480,7 @@ async def outline_generator(
                 outline_data_list=outline_data[:outline_count],
                 db=db,
                 user_id=user_id,
+                is_admin=bool(data.get("is_admin", False)),
                 enable_mcp=enable_mcp
             )
             if org_check_result["created_count"] > 0:
@@ -1544,6 +1601,7 @@ async def generate_outline_stream(
     # 从中间件注入user_id到data中，供outline_generator进行项目归属校验
     if hasattr(request.state, 'user_id'):
         data['user_id'] = request.state.user_id
+    data['is_admin'] = bool(getattr(request.state, 'is_admin', False))
 
     return create_sse_response(outline_generator(data, db, user_ai_service))
 

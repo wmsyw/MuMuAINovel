@@ -25,6 +25,7 @@ from app.schemas.career import (
     CareerStage
 )
 from app.services.ai_service import AIService
+from app.services.entity_generation_policy_service import entity_generation_policy_service
 from app.logger import get_logger
 from app.api.settings import get_user_ai_service
 from app.api.common import verify_project_access
@@ -177,6 +178,23 @@ async def generate_career_system(
             # 验证用户权限和项目是否存在
             user_id = getattr(http_request.state, 'user_id', None)
             project = await verify_project_access(project_id, user_id, db)
+            policy_decision = await entity_generation_policy_service.evaluate_for_user(
+                db,
+                actor_user_id=user_id,
+                project_id=project_id,
+                entity_type="career",
+                source_endpoint="api.careers.generate_career_system",
+                action_type="ai_generation",
+                is_admin=bool(getattr(http_request.state, "is_admin", False)),
+                provider=getattr(user_ai_service, "api_provider", None),
+                model=getattr(user_ai_service, "default_model", None),
+                reason="AI职业体系生成接口创建规范职业",
+            )
+            if not policy_decision.allowed:
+                yield await tracker.error(policy_decision.message, 403)
+                yield await tracker.result(policy_decision.to_response())
+                yield await tracker.done()
+                return
             
             yield await tracker.start()
             
@@ -357,6 +375,7 @@ async def generate_career_system(
             
             # 保存主职业
             main_careers_created = []
+            created_career_ids = []
             for idx, career_info in enumerate(career_data.get("main_careers", [])):
                 try:
                     stages_json = json.dumps(career_info.get("stages", []), ensure_ascii=False)
@@ -379,6 +398,7 @@ async def generate_career_system(
                     )
                     db.add(career)
                     await db.flush()
+                    created_career_ids.append(career.id)
                     main_careers_created.append(career.name)
                     logger.info(f"  ✅ 创建主职业：{career.name}")
                 except Exception as e:
@@ -411,12 +431,22 @@ async def generate_career_system(
                     )
                     db.add(career)
                     await db.flush()
+                    created_career_ids.append(career.id)
                     sub_careers_created.append(career.name)
                     logger.info(f"  ✅ 创建副职业：{career.name}")
                 except Exception as e:
                     logger.error(f"  ❌ 创建副职业失败：{str(e)}")
                     continue
             
+            entity_generation_policy_service.record_override_audit(
+                db,
+                policy_decision,
+                created_career_ids,
+                extra_payload={
+                    "main_careers_created": main_careers_created,
+                    "sub_careers_created": sub_careers_created,
+                },
+            )
             await db.commit()
             
             total_main = len(existing_main_careers) + len(main_careers_created)
