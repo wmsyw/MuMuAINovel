@@ -69,3 +69,10 @@
 
 ## 2026-04-27 — Task 10a QA typing cleanup
 - Cleaned `backend/tests/test_extraction_api.py` by adding narrow local result/session `Protocol`s and `TypeVar`-based `run_sync` typing, assigning intentional `sys.modules.setdefault(...)` results, and keeping test/API semantics unchanged. Targeted verification passed with `uv run --python python3.11 ... python -m pytest tests/test_extraction_api.py -q` (`5 passed, 4 warnings`); grep found no `type: ignore`, `pyright`, `TODO`, `FIXME`, or `HACK`, and the Goldfinger artifact glob remained empty.
+
+## 2026-04-27 — Task 10b verification environment
+- Task 10b verification used the established minimal uv Python 3.11 dependency command because the checked-in backend environment remains unsuitable for bare pytest. The required targeted command passed with `8 passed, 4 warnings`; focused timeline and world-result QA outputs were appended to `.sisyphus/evidence/task-10b-timeline-api.log` and `.sisyphus/evidence/task-10b-world-api.log`.
+- LSP diagnostics on changed Task 10b files still show the known local basedpyright environment/import noise (`fastapi`/`sqlalchemy`/`pydantic`/`pytest` unresolved and implicit `app.*` import warnings). No broad suppressions were added; runtime API verification and OpenAPI generation passed.
+
+## 2026-04-27 — Task 10b QA world-result status fix
+- Atlas Phase 1 found the Task 10b world-setting API schema had reintroduced `rolled_back` into `WorldSettingResultStatus`, contradicting the Task 8 rollback decision. Narrowed the API status enum back to `pending | accepted | rejected | superseded` and added OpenAPI regression coverage while preserving rollback behavior (`current=superseded`, previous=`accepted`). Targeted Task 10b verification passed again with `8 passed, 4 warnings`, with output appended to `.sisyphus/evidence/task-10b-world-api.log`.
