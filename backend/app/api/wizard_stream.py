@@ -26,6 +26,18 @@ router = APIRouter(prefix="/wizard-stream", tags=["项目创建向导(流式)"])
 logger = get_logger(__name__)
 
 
+async def get_owned_project(db: AsyncSession, project_id: str, user_id: str | None) -> Project | None:
+    if not project_id or not user_id:
+        return None
+    result = await db.execute(
+        select(Project).where(
+            Project.id == project_id,
+            Project.user_id == user_id,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
 async def world_building_generator(
     data: Dict[str, Any],
     db: AsyncSession,
@@ -326,12 +338,9 @@ async def career_system_generator(
         
         # 获取项目信息
         yield await tracker.loading("加载项目信息...")
-        result = await db.execute(
-            select(Project).where(Project.id == project_id)
-        )
-        project = result.scalar_one_or_none()
+        project = await get_owned_project(db, project_id, user_id)
         if not project:
-            yield await tracker.error("项目不存在", 404)
+            yield await tracker.error("项目不存在或无权访问", 404)
             return
         
         # 设置用户信息以启用MCP
@@ -599,12 +608,9 @@ async def characters_generator(
         
         # 验证项目
         yield await tracker.loading("验证项目...", 0.3)
-        result = await db.execute(
-            select(Project).where(Project.id == project_id)
-        )
-        project = result.scalar_one_or_none()
+        project = await get_owned_project(db, project_id, user_id)
         if not project:
-            yield await tracker.error("项目不存在", 404)
+            yield await tracker.error("项目不存在或无权访问", 404)
             return
         
         project.wizard_step = 2
@@ -1270,13 +1276,15 @@ async def outline_generator(
         
         # 获取项目信息
         yield await tracker.loading("加载项目信息...", 0.3)
-        result = await db.execute(
-            select(Project).where(Project.id == project_id)
-        )
-        project = result.scalar_one_or_none()
+        project = await get_owned_project(db, project_id, user_id)
         if not project:
-            yield await tracker.error("项目不存在", 404)
+            yield await tracker.error("项目不存在或无权访问", 404)
             return
+
+        # 设置用户信息以启用MCP，并确保后续自动角色/组织补全使用当前请求的AI服务上下文
+        if user_id:
+            user_ai_service.user_id = user_id
+            user_ai_service.db_session = db
         
         # 获取角色信息
         yield await tracker.loading("加载角色信息...", 0.8)
@@ -1525,6 +1533,7 @@ async def outline_generator(
 
 @router.post("/outline", summary="流式生成完整大纲")
 async def generate_outline_stream(
+    request: Request,
     data: Dict[str, Any],
     db: AsyncSession = Depends(get_db),
     user_ai_service: AIService = Depends(get_user_ai_service)
@@ -1532,6 +1541,10 @@ async def generate_outline_stream(
     """
     使用SSE流式生成完整大纲，避免超时
     """
+    # 从中间件注入user_id到data中，供outline_generator进行项目归属校验
+    if hasattr(request.state, 'user_id'):
+        data['user_id'] = request.state.user_id
+
     return create_sse_response(outline_generator(data, db, user_ai_service))
 
 
@@ -1549,21 +1562,18 @@ async def world_building_regenerate_generator(
     try:
         yield await tracker.start("开始重新生成世界观...")
         
-        # 获取项目信息
-        yield await tracker.loading("加载项目信息...")
-        result = await db.execute(
-            select(Project).where(Project.id == project_id)
-        )
-        project = result.scalar_one_or_none()
-        if not project:
-            yield await tracker.error("项目不存在", 404)
-            return
-        
         # 提取参数
         provider = data.get("provider")
         model = data.get("model")
         enable_mcp = data.get("enable_mcp", True)
         user_id = data.get("user_id")
+
+        # 获取项目信息
+        yield await tracker.loading("加载项目信息...")
+        project = await get_owned_project(db, project_id, user_id)
+        if not project:
+            yield await tracker.error("项目不存在或无权访问", 404)
+            return
         
         # 获取基础提示词（支持自定义）
         yield await tracker.preparing("准备AI提示词...")
