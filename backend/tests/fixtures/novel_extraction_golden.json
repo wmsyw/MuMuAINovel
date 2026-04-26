@@ -1,0 +1,127 @@
+{
+  "fixture_id": "novel_extraction_chinese_golden_v1",
+  "description": "用于后续正文抽取的确定性中文黄金样例，覆盖别名、组织、职业、关系、世界事实、重名歧义与矛盾证据。",
+  "chapters": [
+    {
+      "chapter": 1,
+      "order": 1,
+      "title": "雨夜青石巷",
+      "content": "第一章：雨夜的青石巷里，林青岚被街坊称作青岚，也被师父私下唤作阿岚。她初入摘星阁，身份只是抄书学徒。沈砚在码头救下青岚，两人约定结伴追查失踪的星图。旁人说城里还有一位林青岚，是开药铺的同名女子，常被误认为她。"
+    },
+    {
+      "chapter": 2,
+      "order": 2,
+      "title": "巡星司调令",
+      "content": "第二章：三个月后，林青岚离开摘星阁，转投巡星司，成为巡星司外勤。她不再抄书，而以星图测绘师的职业随队出城。霁月城依靠城心的潮汐钟维持昼夜结界，这是所有居民都知道的规矩。沈砚因隐瞒线索与青岚决裂，结伴关系变成互不信任的临时盟友。"
+    },
+    {
+      "chapter": 3,
+      "order": 3,
+      "title": "矛盾卷宗",
+      "content": "第三章：决战前夜，沈砚交出伪造的星图，林青岚宣布与他恩断义绝，追查同盟到此结束。卷宗甲记载青岚当夜在北门点燃信号，卷宗乙却说青岚同一时刻仍被关在摘星阁地牢，两份证据无法同时成立。"
+    }
+  ],
+  "expected": {
+    "characters": [
+      {
+        "canonical_name": "林青岚",
+        "aliases": ["青岚", "阿岚"],
+        "assertion": "同一角色存在两个别名",
+        "evidence_text": "林青岚被街坊称作青岚，也被师父私下唤作阿岚",
+        "confidence": 0.96,
+        "source": { "chapter": 1, "order": 1, "offset_start": 12, "offset_end": 33 }
+      }
+    ],
+    "organization_affiliations": [
+      {
+        "character": "林青岚",
+        "previous_organization": "摘星阁",
+        "current_organization": "巡星司",
+        "change": "离开摘星阁并转投巡星司",
+        "evidence_text": "林青岚离开摘星阁，转投巡星司，成为巡星司外勤",
+        "confidence": 0.95,
+        "source": { "chapter": 2, "order": 2, "offset_start": 9, "offset_end": 31 }
+      }
+    ],
+    "profession_changes": [
+      {
+        "character": "林青岚",
+        "profession": "抄书学徒",
+        "state": "initial",
+        "evidence_text": "她初入摘星阁，身份只是抄书学徒",
+        "confidence": 0.93,
+        "source": { "chapter": 1, "order": 1, "offset_start": 34, "offset_end": 49 }
+      },
+      {
+        "character": "林青岚",
+        "profession": "星图测绘师",
+        "state": "changed",
+        "evidence_text": "以星图测绘师的职业随队出城",
+        "confidence": 0.94,
+        "source": { "chapter": 2, "order": 2, "offset_start": 39, "offset_end": 52 }
+      }
+    ],
+    "relationships": [
+      {
+        "participants": ["林青岚", "沈砚"],
+        "relationship": "追查同盟",
+        "state": "started",
+        "evidence_text": "沈砚在码头救下青岚，两人约定结伴追查失踪的星图",
+        "confidence": 0.91,
+        "source": { "chapter": 1, "order": 1, "offset_start": 50, "offset_end": 73 }
+      },
+      {
+        "participants": ["林青岚", "沈砚"],
+        "relationship": "互不信任的临时盟友",
+        "state": "changed",
+        "evidence_text": "沈砚因隐瞒线索与青岚决裂，结伴关系变成互不信任的临时盟友",
+        "confidence": 0.92,
+        "source": { "chapter": 2, "order": 2, "offset_start": 84, "offset_end": 112 }
+      },
+      {
+        "participants": ["林青岚", "沈砚"],
+        "relationship": "追查同盟",
+        "state": "ended",
+        "evidence_text": "林青岚宣布与他恩断义绝，追查同盟到此结束",
+        "confidence": 0.94,
+        "source": { "chapter": 3, "order": 3, "offset_start": 19, "offset_end": 39 }
+      }
+    ],
+    "world_facts": [
+      {
+        "fact_type": "city_rule",
+        "subject": "霁月城",
+        "fact": "霁月城依靠城心的潮汐钟维持昼夜结界",
+        "evidence_text": "霁月城依靠城心的潮汐钟维持昼夜结界",
+        "confidence": 0.9,
+        "source": { "chapter": 2, "order": 2, "offset_start": 53, "offset_end": 70 }
+      }
+    ],
+    "ambiguous_duplicate_names": [
+      {
+        "name": "林青岚",
+        "ambiguity": "主角与开药铺的同名女子可能被混淆",
+        "resolution": "requires_manual_review",
+        "evidence_text": "城里还有一位林青岚，是开药铺的同名女子，常被误认为她",
+        "confidence": 0.88,
+        "source": { "chapter": 1, "order": 1, "offset_start": 77, "offset_end": 103 }
+      }
+    ],
+    "contradictory_evidence": [
+      {
+        "contradiction_group": "青岚第三章所在位置",
+        "claim": "青岚当夜在北门点燃信号",
+        "evidence_text": "卷宗甲记载青岚当夜在北门点燃信号",
+        "confidence": 0.76,
+        "source": { "chapter": 3, "order": 3, "offset_start": 40, "offset_end": 56 }
+      },
+      {
+        "contradiction_group": "青岚第三章所在位置",
+        "claim": "青岚同一时刻被关在摘星阁地牢",
+        "evidence_text": "卷宗乙却说青岚同一时刻仍被关在摘星阁地牢",
+        "confidence": 0.74,
+        "source": { "chapter": 3, "order": 3, "offset_start": 57, "offset_end": 77 }
+      }
+    ]
+  }
+}
