@@ -670,7 +670,7 @@ Wave 4: Tasks 15, 16, 17, 18 — inspiration/world UI, timeline UI, cleanup/docs
 
   **Commit**: YES | Message: `api: expose timeline and world-setting result endpoints` | Files: [`backend/app/api/*timeline*`, `backend/app/api/*world*`, `backend/app/schemas/**`, `backend/app/main.py`, `backend/tests/test_timeline_api.py`, `backend/tests/test_world_setting_results_api.py`]
 
-- [ ] 11. Integrate automatic and manual extraction triggers
+- [x] 11. Integrate automatic and manual extraction triggers
 
   **What to do**: Hook extraction after persisted chapter save/update, after generated chapter content is successfully persisted, and after TXT import apply completes. All triggers must check `EXTRACTION_PIPELINE_ENABLED` feature flag and skip extraction when disabled.
 
