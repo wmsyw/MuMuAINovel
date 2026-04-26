@@ -23,7 +23,9 @@ from app.database import Base
 from app.models import (
     Project, Outline, Character, Chapter, GenerationHistory,
     Settings, WritingStyle, ProjectDefaultStyle,
-    RelationshipType, CharacterRelationship, Organization, OrganizationMember,
+    RelationshipType, CharacterRelationship, EntityRelationship, Organization, OrganizationEntity, OrganizationMember,
+    ExtractionRun, ExtractionCandidate, EntityAlias, EntityProvenance,
+    RelationshipTimelineEvent, WorldSettingResult,
     StoryMemory, PlotAnalysis, AnalysisTask, BatchGenerationTask,
     RegenerationTask, Career, CharacterCareer, User, MCPPlugin, PromptTemplate
 )
