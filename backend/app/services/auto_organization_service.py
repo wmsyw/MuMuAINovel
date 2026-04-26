@@ -8,6 +8,7 @@ from app.models.character import Character
 from app.models.relationship import Organization, OrganizationMember
 from app.models.project import Project
 from app.services.ai_service import AIService
+from app.services.entity_generation_policy_service import entity_generation_policy_service
 from app.services.prompt_service import PromptService
 from app.logger import get_logger
 
@@ -232,6 +233,7 @@ class AutoOrganizationService:
         outline_data_list: list,
         db: AsyncSession,
         user_id: str = None,
+        is_admin: bool = False,
         enable_mcp: bool = True,
         progress_callback: Optional[Callable[[str], Awaitable[None]]] = None
     ) -> Dict[str, Any]:
@@ -326,6 +328,28 @@ class AutoOrganizationService:
                 "created_organizations": [],
                 "missing_names": list(missing_names),
                 "created_count": 0
+            }
+        policy_decision = await entity_generation_policy_service.evaluate_for_user(
+            db,
+            actor_user_id=user_id,
+            project_id=project_id,
+            entity_type="organization",
+            source_endpoint="services.auto_organization_service.check_and_create_missing_organizations",
+            action_type="auto_create",
+            is_admin=is_admin,
+            provider=getattr(self.ai_service, "api_provider", None),
+            model=getattr(self.ai_service, "default_model", None),
+            reason="大纲生成/续写后自动补全缺失组织",
+        )
+        if not policy_decision.allowed:
+            logger.info("🛡️ 【组织校验】AI实体生成策略阻止自动创建组织")
+            if progress_callback:
+                await progress_callback(policy_decision.message)
+            return {
+                "created_organizations": [],
+                "missing_names": list(missing_names),
+                "created_count": 0,
+                "policy": policy_decision.to_response(),
             }
         
         # 5. 获取现有角色和组织信息
@@ -443,13 +467,20 @@ class AutoOrganizationService:
         # 7. flush 到数据库（让调用方 commit）
         if created_organizations:
             await db.flush()
+            entity_generation_policy_service.record_override_audit(
+                db,
+                policy_decision,
+                [organization.id for organization in created_organizations],
+                extra_payload={"missing_names": list(missing_names)},
+            )
         
         logger.info(f"🎉 【组织校验】完成: 发现 {len(missing_names)} 个缺失组织，成功创建 {len(created_organizations)} 个")
         
         return {
             "created_organizations": created_organizations,
             "missing_names": list(missing_names),
-            "created_count": len(created_organizations)
+            "created_count": len(created_organizations),
+            "policy": policy_decision.to_response(),
         }
 
 

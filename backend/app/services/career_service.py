@@ -7,6 +7,10 @@ import json
 from app.models.project import Project
 from app.models.career import Career
 from app.services.ai_service import AIService
+from app.services.entity_generation_policy_service import (
+    EntityGenerationPolicyInput,
+    entity_generation_policy_service,
+)
 from app.logger import get_logger
 
 logger = get_logger(__name__)
@@ -110,8 +114,16 @@ class CareerService:
     async def parse_and_save_careers(
         career_data: Dict[str, Any],
         project_id: str,
-        db: AsyncSession
-    ) -> Dict[str, List[str]]:
+        db: AsyncSession,
+        *,
+        actor_user_id: str | None = None,
+        is_admin: bool = False,
+        allow_ai_entity_generation: bool = False,
+        provider: str | None = None,
+        model: str | None = None,
+        source_endpoint: str = "services.career_service.parse_and_save_careers",
+        reason: str = "AI职业体系服务创建规范职业",
+    ) -> Dict[str, Any]:
         """
         解析AI返回的职业数据并保存到数据库
         
@@ -127,6 +139,25 @@ class CareerService:
             "main_careers": [],
             "sub_careers": []
         }
+        policy_decision = entity_generation_policy_service.evaluate(
+            EntityGenerationPolicyInput(
+                actor_user_id=actor_user_id,
+                project_id=project_id,
+                entity_type="career",
+                source_endpoint=source_endpoint,
+                action_type="ai_generation",
+                is_admin=is_admin,
+                allow_ai_entity_generation=allow_ai_entity_generation,
+                provider=provider,
+                model=model,
+                reason=reason,
+            )
+        )
+        if not policy_decision.allowed:
+            logger.info("🛡️ 职业生成策略阻止 parse_and_save_careers 创建规范职业")
+            result["policy"] = policy_decision.to_response()
+            return result
+        created_career_ids = []
         
         # 保存主职业
         for idx, career_info in enumerate(career_data.get("main_careers", [])):
@@ -151,6 +182,7 @@ class CareerService:
                 )
                 db.add(career)
                 await db.flush()
+                created_career_ids.append(career.id)
                 result["main_careers"].append(career.name)
                 logger.info(f"  ✅ 创建主职业：{career.name}")
             except Exception as e:
@@ -180,12 +212,22 @@ class CareerService:
                 )
                 db.add(career)
                 await db.flush()
+                created_career_ids.append(career.id)
                 result["sub_careers"].append(career.name)
                 logger.info(f"  ✅ 创建副职业：{career.name}")
             except Exception as e:
                 logger.error(f"  ❌ 创建副职业失败：{str(e)}")
                 continue
         
+        entity_generation_policy_service.record_override_audit(
+            db,
+            policy_decision,
+            created_career_ids,
+            extra_payload={
+                "main_careers_created": result["main_careers"],
+                "sub_careers_created": result["sub_careers"],
+            },
+        )
         await db.commit()
         
         return result
