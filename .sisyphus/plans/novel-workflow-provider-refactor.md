@@ -630,7 +630,7 @@ Wave 4: Tasks 15, 16, 17, 18 — inspiration/world UI, timeline UI, cleanup/docs
 
   **Commit**: YES | Message: `api: expose extraction candidate review endpoints` | Files: [`backend/app/api/*extraction*`, `backend/app/schemas/**`, `backend/app/main.py`, `backend/tests/test_extraction_api.py`]
 
-- [ ] 10b. Expose timeline query and world-setting result APIs
+- [x] 10b. Expose timeline query and world-setting result APIs
 
   **What to do**: Add thin FastAPI routers/schemas for timeline and world-setting result queries. Required endpoints: list/query timeline relationships by project and optional chapter/order; list/get/accept/reject/rollback world-setting results. Register router(s) in `backend/app/main.py`.
   **Must NOT do**: Do not put timeline projection or world-setting business logic in router functions.
