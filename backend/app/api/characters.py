@@ -1,17 +1,16 @@
 """角色管理API"""
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select
 import json
 from typing import AsyncGenerator
 
 from app.database import get_db
 from app.utils.sse_response import SSEResponse, create_sse_response, WizardProgressTracker
 from app.models.character import Character
-from app.models.project import Project
 from app.models.generation_history import GenerationHistory
-from app.models.relationship import CharacterRelationship, Organization, OrganizationMember, RelationshipType
+from app.models.relationship import CharacterRelationship, Organization, OrganizationEntity, OrganizationMember, RelationshipType
 from app.schemas.character import (
     CharacterCreate,
     CharacterUpdate,
@@ -21,12 +20,13 @@ from app.schemas.character import (
 )
 from app.services.ai_service import AIService
 from app.services.entity_generation_policy_service import entity_generation_policy_service
-from app.services.prompt_service import prompt_service, PromptService
+from app.services.prompt_service import PromptService
 from app.services.import_export_service import ImportExportService
 from app.schemas.import_export import CharactersExportRequest, CharactersImportResult
 from app.logger import get_logger
 from app.api.settings import get_user_ai_service
 from app.api.common import verify_project_access
+from app.api.entity_compat import build_optional_entity_enrichment, candidate_policy_payload, normalized_name, safe_json_loads
 
 router = APIRouter(prefix="/characters", tags=["角色管理"])
 logger = get_logger(__name__)
@@ -81,20 +81,13 @@ async def _build_relationships_summary(character_id: str, project_id: str, db: A
     return "；".join(parts)
 
 
-async def _build_org_members_summary(character_id: str, db: AsyncSession) -> str:
+async def _build_org_members_summary(organization_entity_id: str, db: AsyncSession) -> str:
     """从 organization_members 表构建组织成员JSON字符串（与schema契约保持一致）"""
-    # 先查找该角色对应的 Organization 记录
-    org_result = await db.execute(
-        select(Organization).where(Organization.character_id == character_id)
-    )
-    org = org_result.scalar_one_or_none()
-    if not org:
-        return ""
 
     # 查询该组织的所有成员（按职级倒序，保证展示顺序稳定）
     members_result = await db.execute(
         select(OrganizationMember)
-        .where(OrganizationMember.organization_id == org.id)
+        .where(OrganizationMember.organization_entity_id == organization_entity_id)
         .order_by(OrganizationMember.rank.desc(), OrganizationMember.created_at)
     )
     members = members_result.scalars().all()
@@ -118,197 +111,75 @@ async def _build_org_members_summary(character_id: str, db: AsyncSession) -> str
     return json.dumps(member_items, ensure_ascii=False)
 
 
-@router.get("", response_model=CharacterListResponse, summary="获取角色列表")
-async def get_characters(
-    project_id: str,
-    request: Request,
-    db: AsyncSession = Depends(get_db)
-):
-    """获取指定项目的所有角色（query参数版本）"""
-    # 验证用户权限
-    user_id = getattr(request.state, 'user_id', None)
-    await verify_project_access(project_id, user_id, db)
-    
-    # 获取总数
-    count_result = await db.execute(
-        select(func.count(Character.id)).where(Character.project_id == project_id)
+async def _get_organization_entity(entity_id: str, db: AsyncSession) -> OrganizationEntity | None:
+    """Resolve canonical org entity from current ID or legacy bridge identifiers."""
+    result = await db.execute(select(OrganizationEntity).where(OrganizationEntity.id == entity_id))
+    entity = result.scalar_one_or_none()
+    if entity:
+        return entity
+
+    bridge_result = await db.execute(
+        select(Organization).where(
+            (Organization.id == entity_id)
+            | (Organization.character_id == entity_id)
+            | (Organization.organization_entity_id == entity_id)
+        )
     )
-    total = count_result.scalar_one()
-    
-    # 获取角色列表
-    result = await db.execute(
-        select(Character)
-        .where(Character.project_id == project_id)
-        .order_by(Character.created_at.desc())
+    bridge = bridge_result.scalar_one_or_none()
+    if bridge and bridge.organization_entity_id:
+        result = await db.execute(select(OrganizationEntity).where(OrganizationEntity.id == bridge.organization_entity_id))
+        return result.scalar_one_or_none()
+
+    legacy_result = await db.execute(
+        select(OrganizationEntity).where(
+            (OrganizationEntity.legacy_character_id == entity_id) | (OrganizationEntity.legacy_organization_id == entity_id)
+        )
     )
-    characters = result.scalars().all()
-    
-    # 为角色填充关系摘要、组织额外字段、职业信息
-    enriched_characters = []
-    for char in characters:
-        # 从 character_relationships 表动态生成关系摘要
-        rel_summary = await _build_relationships_summary(char.id, project_id, db)
-        
-        char_dict = {
-            "id": char.id,
-            "project_id": char.project_id,
-            "name": char.name,
-            "age": char.age,
-            "gender": char.gender,
-            "is_organization": char.is_organization,
-            "role_type": char.role_type,
-            "personality": char.personality,
-            "background": char.background,
-            "appearance": char.appearance,
-            "relationships": rel_summary,
-            "organization_type": char.organization_type,
-            "organization_purpose": char.organization_purpose,
-            "organization_members": await _build_org_members_summary(char.id, db) if char.is_organization else "",
-            "traits": char.traits,
-            "avatar_url": char.avatar_url,
-            "created_at": char.created_at,
-            "updated_at": char.updated_at,
-            "power_level": None,
-            "location": None,
-            "motto": None,
-            "color": None,
-            "main_career_id": char.main_career_id,
-            "main_career_stage": char.main_career_stage,
-            "sub_careers": json.loads(char.sub_careers) if char.sub_careers else None
-        }
-        
-        if char.is_organization:
-            org_result = await db.execute(
-                select(Organization).where(Organization.character_id == char.id)
-            )
-            org = org_result.scalar_one_or_none()
-            if org:
-                char_dict.update({
-                    "power_level": org.power_level,
-                    "location": org.location,
-                    "motto": org.motto,
-                    "color": org.color
-                })
-        
-        enriched_characters.append(char_dict)
-    
-    return CharacterListResponse(total=total, items=enriched_characters)
+    return legacy_result.scalar_one_or_none()
 
 
-@router.get("/project/{project_id}", response_model=CharacterListResponse, summary="获取项目的所有角色")
-async def get_project_characters(
-    project_id: str,
-    request: Request,
-    db: AsyncSession = Depends(get_db)
-):
-    """获取指定项目的所有角色（路径参数版本）"""
-    # 验证用户权限
-    user_id = getattr(request.state, 'user_id', None)
-    await verify_project_access(project_id, user_id, db)
-    
-    # 获取总数
-    count_result = await db.execute(
-        select(func.count(Character.id)).where(Character.project_id == project_id)
+async def _ensure_organization_bridge(org_entity: OrganizationEntity, db: AsyncSession) -> Organization:
+    result = await db.execute(select(Organization).where(Organization.organization_entity_id == org_entity.id))
+    bridge = result.scalar_one_or_none()
+    if bridge:
+        return bridge
+    bridge = Organization(
+        character_id=org_entity.legacy_character_id,
+        project_id=org_entity.project_id,
+        organization_entity_id=org_entity.id,
     )
-    total = count_result.scalar_one()
-    
-    # 获取角色列表
-    result = await db.execute(
-        select(Character)
-        .where(Character.project_id == project_id)
-        .order_by(Character.created_at.desc())
-    )
-    characters = result.scalars().all()
-    
-    # 为角色填充关系摘要、组织额外字段、职业信息
-    enriched_characters = []
-    for char in characters:
-        # 从 character_relationships 表动态生成关系摘要
-        rel_summary = await _build_relationships_summary(char.id, project_id, db)
-        
-        char_dict = {
-            "id": char.id,
-            "project_id": char.project_id,
-            "name": char.name,
-            "age": char.age,
-            "gender": char.gender,
-            "is_organization": char.is_organization,
-            "role_type": char.role_type,
-            "personality": char.personality,
-            "background": char.background,
-            "appearance": char.appearance,
-            "relationships": rel_summary,
-            "organization_type": char.organization_type,
-            "organization_purpose": char.organization_purpose,
-            "organization_members": await _build_org_members_summary(char.id, db) if char.is_organization else "",
-            "traits": char.traits,
-            "avatar_url": char.avatar_url,
-            "created_at": char.created_at,
-            "updated_at": char.updated_at,
-            "power_level": None,
-            "location": None,
-            "motto": None,
-            "color": None,
-            "main_career_id": char.main_career_id,
-            "main_career_stage": char.main_career_stage,
-            "sub_careers": json.loads(char.sub_careers) if char.sub_careers else None
-        }
-        
-        if char.is_organization:
-            org_result = await db.execute(
-                select(Organization).where(Organization.character_id == char.id)
-            )
-            org = org_result.scalar_one_or_none()
-            if org:
-                char_dict.update({
-                    "power_level": org.power_level,
-                    "location": org.location,
-                    "motto": org.motto,
-                    "color": org.color
-                })
-        
-        enriched_characters.append(char_dict)
-    
-    return CharacterListResponse(total=total, items=enriched_characters)
+    db.add(bridge)
+    await db.flush()
+    return bridge
 
 
-@router.get("/{character_id}", response_model=CharacterResponse, summary="获取角色详情")
-async def get_character(
-    character_id: str,
-    request: Request,
-    db: AsyncSession = Depends(get_db)
-):
-    """根据ID获取角色详情"""
-    result = await db.execute(
-        select(Character).where(Character.id == character_id)
-    )
-    character = result.scalar_one_or_none()
-    
-    if not character:
-        raise HTTPException(status_code=404, detail="角色不存在")
-    
-    # 验证用户权限
-    user_id = getattr(request.state, 'user_id', None)
-    await verify_project_access(character.project_id, user_id, db)
-    
-    # 从 character_relationships 表动态生成关系摘要
+async def _character_response_dict(
+    character: Character,
+    db: AsyncSession,
+    request: Request | None = None,
+    *,
+    include_provenance: bool = False,
+    include_aliases: bool = False,
+    include_candidate_counts: bool = False,
+    include_timeline: bool = False,
+    include_policy_status: bool = False,
+) -> dict:
     rel_summary = await _build_relationships_summary(character.id, character.project_id, db)
-    
-    char_dict = {
+    data = {
         "id": character.id,
         "project_id": character.project_id,
         "name": character.name,
         "age": character.age,
         "gender": character.gender,
-        "is_organization": character.is_organization,
+        "is_organization": False,
         "role_type": character.role_type,
         "personality": character.personality,
         "background": character.background,
         "appearance": character.appearance,
         "relationships": rel_summary,
-        "organization_type": character.organization_type,
-        "organization_purpose": character.organization_purpose,
-        "organization_members": await _build_org_members_summary(character.id, db) if character.is_organization else "",
+        "organization_type": None,
+        "organization_purpose": None,
+        "organization_members": "",
         "traits": character.traits,
         "avatar_url": character.avatar_url,
         "created_at": character.created_at,
@@ -319,23 +190,292 @@ async def get_character(
         "color": None,
         "main_career_id": character.main_career_id,
         "main_career_stage": character.main_career_stage,
-        "sub_careers": json.loads(character.sub_careers) if character.sub_careers else None
+        "sub_careers": safe_json_loads(character.sub_careers),
+        "status": character.status,
+        "status_changed_chapter": character.status_changed_chapter,
+        "current_state": character.current_state,
+        "state_updated_chapter": character.state_updated_chapter,
     }
+    if request is not None:
+        data.update(await build_optional_entity_enrichment(
+            db=db,
+            request=request,
+            project_id=character.project_id,
+            entity_type="character",
+            entity_id=character.id,
+            include_provenance=include_provenance,
+            include_aliases=include_aliases,
+            include_candidate_counts=include_candidate_counts,
+            include_timeline=include_timeline,
+            include_policy_status=include_policy_status,
+        ))
+    return data
+
+
+async def _organization_as_character_response_dict(
+    org_entity: OrganizationEntity,
+    db: AsyncSession,
+    request: Request | None = None,
+    *,
+    include_provenance: bool = False,
+    include_aliases: bool = False,
+    include_candidate_counts: bool = False,
+    include_timeline: bool = False,
+    include_policy_status: bool = False,
+) -> dict:
+    data = {
+        "id": org_entity.id,
+        "project_id": org_entity.project_id,
+        "name": org_entity.name,
+        "age": None,
+        "gender": None,
+        "is_organization": True,
+        "role_type": "organization",
+        "personality": org_entity.personality,
+        "background": org_entity.background,
+        "appearance": None,
+        "relationships": "",
+        "organization_type": org_entity.organization_type,
+        "organization_purpose": org_entity.organization_purpose,
+        "organization_members": await _build_org_members_summary(org_entity.id, db),
+        "traits": org_entity.traits,
+        "avatar_url": org_entity.avatar_url,
+        "created_at": org_entity.created_at,
+        "updated_at": org_entity.updated_at,
+        "power_level": org_entity.power_level,
+        "location": org_entity.location,
+        "motto": org_entity.motto,
+        "color": org_entity.color,
+        "main_career_id": None,
+        "main_career_stage": None,
+        "sub_careers": None,
+        "status": org_entity.status,
+        "status_changed_chapter": None,
+        "current_state": org_entity.current_state,
+        "state_updated_chapter": None,
+    }
+    if request is not None:
+        data.update(await build_optional_entity_enrichment(
+            db=db,
+            request=request,
+            project_id=org_entity.project_id,
+            entity_type="organization",
+            entity_id=org_entity.id,
+            include_provenance=include_provenance,
+            include_aliases=include_aliases,
+            include_candidate_counts=include_candidate_counts,
+            include_timeline=include_timeline,
+            include_policy_status=include_policy_status,
+        ))
+    return data
+
+
+def _parse_json_field(value):
+    parsed = safe_json_loads(value)
+    return parsed if parsed is not None else value
+
+
+async def _export_character_payload(character: Character) -> dict:
+    return {
+        "name": character.name,
+        "age": character.age,
+        "gender": character.gender,
+        "is_organization": False,
+        "role_type": character.role_type,
+        "personality": character.personality,
+        "background": character.background,
+        "appearance": character.appearance,
+        "traits": _parse_json_field(character.traits),
+        "organization_type": None,
+        "organization_purpose": None,
+        "avatar_url": character.avatar_url,
+        "main_career_id": character.main_career_id,
+        "main_career_stage": character.main_career_stage,
+        "sub_careers": character.sub_careers,
+        "created_at": character.created_at.isoformat() if character.created_at else None,
+    }
+
+
+async def _export_organization_payload(org_entity: OrganizationEntity, db: AsyncSession) -> dict:
+    bridge = await _ensure_organization_bridge(org_entity, db)
+    org_data = {
+        "name": org_entity.name,
+        "age": None,
+        "gender": None,
+        "is_organization": True,
+        "role_type": "organization",
+        "personality": org_entity.personality,
+        "background": org_entity.background,
+        "appearance": None,
+        "traits": _parse_json_field(org_entity.traits),
+        "organization_type": org_entity.organization_type,
+        "organization_purpose": org_entity.organization_purpose,
+        "avatar_url": org_entity.avatar_url,
+        "main_career_id": None,
+        "main_career_stage": None,
+        "sub_careers": None,
+        "created_at": org_entity.created_at.isoformat() if org_entity.created_at else None,
+        "power_level": org_entity.power_level,
+        "location": org_entity.location,
+        "motto": org_entity.motto,
+        "color": org_entity.color,
+        "organization_entity_id": org_entity.id,
+        "organization_id": bridge.id,
+    }
+    members = (await db.execute(
+        select(OrganizationMember).where(OrganizationMember.organization_entity_id == org_entity.id)
+    )).scalars().all()
+    if members:
+        org_data["organization_members_data"] = [
+            {
+                "character_id": member.character_id,
+                "position": member.position,
+                "rank": member.rank,
+                "loyalty": member.loyalty,
+                "contribution": member.contribution,
+                "status": member.status,
+                "joined_at": member.joined_at,
+                "source": member.source,
+            }
+            for member in members
+        ]
+    return org_data
+
+
+@router.get("", response_model=CharacterListResponse, summary="获取角色列表")
+async def get_characters(
+    project_id: str,
+    request: Request,
+    include_provenance: bool = Query(False),
+    include_aliases: bool = Query(False),
+    include_candidate_counts: bool = Query(False),
+    include_timeline: bool = Query(False),
+    include_policy_status: bool = Query(False),
+    db: AsyncSession = Depends(get_db)
+):
+    """获取指定项目的所有角色（query参数版本）"""
+    # 验证用户权限
+    user_id = getattr(request.state, 'user_id', None)
+    await verify_project_access(project_id, user_id, db)
     
-    if character.is_organization:
-        org_result = await db.execute(
-            select(Organization).where(Organization.character_id == character.id)
+    # 获取角色列表
+    result = await db.execute(
+        select(Character)
+        .where(Character.project_id == project_id)
+        .order_by(Character.created_at.desc())
+    )
+    characters = result.scalars().all()
+    org_result = await db.execute(
+        select(OrganizationEntity)
+        .where(OrganizationEntity.project_id == project_id)
+        .order_by(OrganizationEntity.created_at.desc())
+    )
+    organizations = org_result.scalars().all()
+
+    items = []
+    for char in characters:
+        items.append(await _character_response_dict(
+            char,
+            db,
+            request,
+            include_provenance=include_provenance,
+            include_aliases=include_aliases,
+            include_candidate_counts=include_candidate_counts,
+            include_timeline=include_timeline,
+            include_policy_status=include_policy_status,
+        ))
+    for org in organizations:
+        items.append(await _organization_as_character_response_dict(
+            org,
+            db,
+            request,
+            include_provenance=include_provenance,
+            include_aliases=include_aliases,
+            include_candidate_counts=include_candidate_counts,
+            include_timeline=include_timeline,
+            include_policy_status=include_policy_status,
+        ))
+
+    items.sort(key=lambda item: item.get("created_at") or item.get("updated_at"), reverse=True)
+    return CharacterListResponse(total=len(items), items=items)
+
+
+@router.get("/project/{project_id}", response_model=CharacterListResponse, summary="获取项目的所有角色")
+async def get_project_characters(
+    project_id: str,
+    request: Request,
+    include_provenance: bool = Query(False),
+    include_aliases: bool = Query(False),
+    include_candidate_counts: bool = Query(False),
+    include_timeline: bool = Query(False),
+    include_policy_status: bool = Query(False),
+    db: AsyncSession = Depends(get_db)
+):
+    """获取指定项目的所有角色（路径参数版本）"""
+    # 验证用户权限
+    user_id = getattr(request.state, 'user_id', None)
+    await verify_project_access(project_id, user_id, db)
+    
+    return await get_characters(
+        project_id=project_id,
+        request=request,
+        include_provenance=include_provenance,
+        include_aliases=include_aliases,
+        include_candidate_counts=include_candidate_counts,
+        include_timeline=include_timeline,
+        include_policy_status=include_policy_status,
+        db=db,
+    )
+
+
+@router.get("/{character_id}", response_model=CharacterResponse, summary="获取角色详情")
+async def get_character(
+    character_id: str,
+    request: Request,
+    include_provenance: bool = Query(False),
+    include_aliases: bool = Query(False),
+    include_candidate_counts: bool = Query(False),
+    include_timeline: bool = Query(False),
+    include_policy_status: bool = Query(False),
+    db: AsyncSession = Depends(get_db)
+):
+    """根据ID获取角色详情"""
+    result = await db.execute(
+        select(Character).where(Character.id == character_id)
+    )
+    character = result.scalar_one_or_none()
+    
+    if not character:
+        org_entity = await _get_organization_entity(character_id, db)
+        if not org_entity:
+            raise HTTPException(status_code=404, detail="角色不存在")
+        user_id = getattr(request.state, 'user_id', None)
+        await verify_project_access(org_entity.project_id, user_id, db)
+        return await _organization_as_character_response_dict(
+            org_entity,
+            db,
+            request,
+            include_provenance=include_provenance,
+            include_aliases=include_aliases,
+            include_candidate_counts=include_candidate_counts,
+            include_timeline=include_timeline,
+            include_policy_status=include_policy_status,
         )
-        org = org_result.scalar_one_or_none()
-        if org:
-            char_dict.update({
-                "power_level": org.power_level,
-                "location": org.location,
-                "motto": org.motto,
-                "color": org.color
-            })
     
-    return char_dict
+    # 验证用户权限
+    user_id = getattr(request.state, 'user_id', None)
+    await verify_project_access(character.project_id, user_id, db)
+    
+    return await _character_response_dict(
+        character,
+        db,
+        request,
+        include_provenance=include_provenance,
+        include_aliases=include_aliases,
+        include_candidate_counts=include_candidate_counts,
+        include_timeline=include_timeline,
+        include_policy_status=include_policy_status,
+    )
 
 
 @router.put("/{character_id}", response_model=CharacterResponse, summary="更新角色")
@@ -354,7 +494,32 @@ async def update_character(
     character = result.scalar_one_or_none()
     
     if not character:
-        raise HTTPException(status_code=404, detail="角色不存在")
+        org_entity = await _get_organization_entity(character_id, db)
+        if not org_entity:
+            raise HTTPException(status_code=404, detail="角色不存在")
+        user_id = getattr(request.state, 'user_id', None)
+        await verify_project_access(org_entity.project_id, user_id, db)
+        update_data = character_update.model_dump(exclude_unset=True)
+        org_field_map = {
+            "name": "name",
+            "personality": "personality",
+            "background": "background",
+            "traits": "traits",
+            "organization_type": "organization_type",
+            "organization_purpose": "organization_purpose",
+            "power_level": "power_level",
+            "location": "location",
+            "motto": "motto",
+            "color": "color",
+        }
+        for source_field, target_field in org_field_map.items():
+            if source_field in update_data:
+                setattr(org_entity, target_field, update_data[source_field])
+        if "name" in update_data:
+            org_entity.normalized_name = normalized_name(update_data["name"])
+        await db.commit()
+        await db.refresh(org_entity)
+        return await _organization_as_character_response_dict(org_entity, db)
     
     # 验证用户权限
     user_id = getattr(request.state, 'user_id', None)
@@ -363,18 +528,11 @@ async def update_character(
     # 更新字段
     update_data = character_update.model_dump(exclude_unset=True)
     
-    # 如果是组织，需要同步更新 Organization 表的字段
-    org_fields = {}
-    if character.is_organization:
-        # 提取需要同步到 Organization 表的字段
-        if 'power_level' in update_data:
-            org_fields['power_level'] = update_data.pop('power_level')
-        if 'location' in update_data:
-            org_fields['location'] = update_data.pop('location')
-        if 'motto' in update_data:
-            org_fields['motto'] = update_data.pop('motto')
-        if 'color' in update_data:
-            org_fields['color'] = update_data.pop('color')
+    for org_only_field in (
+        'power_level', 'location', 'motto', 'color', 'organization_type',
+        'organization_purpose', 'organization_members', 'is_organization'
+    ):
+        update_data.pop(org_only_field, None)
     
     # 处理主职业和副职业更新
     main_career_id = update_data.pop('main_career_id', None)
@@ -515,78 +673,12 @@ async def update_character(
     for field, value in update_data.items():
         setattr(character, field, value)
     
-    # 如果是组织且有需要同步的字段，更新 Organization 表
-    if character.is_organization and org_fields:
-        org_result = await db.execute(
-            select(Organization).where(Organization.character_id == character_id)
-        )
-        org = org_result.scalar_one_or_none()
-        
-        if org:
-            for field, value in org_fields.items():
-                setattr(org, field, value)
-            logger.info(f"同步更新组织详情：{character.name}")
-        else:
-            # 如果 Organization 记录不存在，自动创建
-            org = Organization(
-                character_id=character_id,
-                project_id=character.project_id,
-                member_count=0,
-                **org_fields
-            )
-            db.add(org)
-            logger.info(f"自动创建组织详情：{character.name}")
-    
     await db.commit()
     await db.refresh(character)
     
     logger.info(f"更新角色/组织成功：{character.name} (ID: {character_id})")
     
-    # 构建响应，从关系表动态生成 relationships
-    rel_summary = await _build_relationships_summary(character_id, character.project_id, db)
-    response_data = {
-        "id": character.id,
-        "project_id": character.project_id,
-        "name": character.name,
-        "age": character.age,
-        "gender": character.gender,
-        "is_organization": character.is_organization,
-        "role_type": character.role_type,
-        "personality": character.personality,
-        "background": character.background,
-        "appearance": character.appearance,
-        "relationships": rel_summary,
-        "organization_type": character.organization_type,
-        "organization_purpose": character.organization_purpose,
-        "organization_members": await _build_org_members_summary(character.id, db) if character.is_organization else "",
-        "traits": character.traits,
-        "avatar_url": character.avatar_url,
-        "created_at": character.created_at,
-        "updated_at": character.updated_at,
-        "main_career_id": character.main_career_id,
-        "main_career_stage": character.main_career_stage,
-        "sub_careers": json.loads(character.sub_careers) if character.sub_careers else None,
-        "power_level": None,
-        "location": None,
-        "motto": None,
-        "color": None
-    }
-    
-    # 如果是组织，添加组织额外字段
-    if character.is_organization:
-        org_result = await db.execute(
-            select(Organization).where(Organization.character_id == character_id)
-        )
-        org = org_result.scalar_one_or_none()
-        if org:
-            response_data.update({
-                "power_level": org.power_level,
-                "location": org.location,
-                "motto": org.motto,
-                "color": org.color
-            })
-    
-    return response_data
+    return await _character_response_dict(character, db)
 
 
 @router.delete("/{character_id}", summary="删除角色")
@@ -604,7 +696,25 @@ async def delete_character(
     character = result.scalar_one_or_none()
     
     if not character:
-        raise HTTPException(status_code=404, detail="角色不存在")
+        org_entity = await _get_organization_entity(character_id, db)
+        if not org_entity:
+            raise HTTPException(status_code=404, detail="角色不存在")
+        user_id = getattr(request.state, 'user_id', None)
+        await verify_project_access(org_entity.project_id, user_id, db)
+        members = (await db.execute(
+            select(OrganizationMember).where(OrganizationMember.organization_entity_id == org_entity.id)
+        )).scalars().all()
+        for member in members:
+            await db.delete(member)
+        bridges = (await db.execute(
+            select(Organization).where(Organization.organization_entity_id == org_entity.id)
+        )).scalars().all()
+        for bridge in bridges:
+            await db.delete(bridge)
+        await db.delete(org_entity)
+        await db.commit()
+        logger.info(f"删除组织成功：{org_entity.name} (ID: {character_id})")
+        return {"message": "角色删除成功"}
     
     # 验证用户权限
     user_id = getattr(request.state, 'user_id', None)
@@ -650,19 +760,41 @@ async def create_character(
     await verify_project_access(character_data.project_id, user_id, db)
     
     try:
+        if character_data.is_organization:
+            org_entity = OrganizationEntity(
+                project_id=character_data.project_id,
+                name=character_data.name,
+                normalized_name=normalized_name(character_data.name),
+                personality=character_data.personality,
+                background=character_data.background,
+                traits=character_data.traits,
+                avatar_url=character_data.avatar_url,
+                organization_type=character_data.organization_type,
+                organization_purpose=character_data.organization_purpose,
+                power_level=character_data.power_level or 50,
+                location=character_data.location,
+                motto=character_data.motto,
+                color=character_data.color,
+                source="manual",
+            )
+            db.add(org_entity)
+            await db.flush()
+            await _ensure_organization_bridge(org_entity, db)
+            await db.commit()
+            await db.refresh(org_entity)
+            logger.info(f"✅ 手动创建组织成功：{org_entity.name} (ID: {org_entity.id})")
+            return await _organization_as_character_response_dict(org_entity, db)
+
         # 创建角色（不再写入 relationships 文本字段，关系统一由 character_relationships 表管理）
         character = Character(
             project_id=character_data.project_id,
             name=character_data.name,
             age=character_data.age,
             gender=character_data.gender,
-            is_organization=character_data.is_organization,
             role_type=character_data.role_type or "supporting",
             personality=character_data.personality,
             background=character_data.background,
             appearance=character_data.appearance,
-            organization_type=character_data.organization_type,
-            organization_purpose=character_data.organization_purpose,
             traits=character_data.traits,
             avatar_url=character_data.avatar_url,
             main_career_id=character_data.main_career_id,
@@ -672,10 +804,10 @@ async def create_character(
         db.add(character)
         await db.flush()  # 获取character.id
         
-        logger.info(f"✅ 手动创建角色成功：{character.name} (ID: {character.id}, 是否组织: {character.is_organization})")
+        logger.info(f"✅ 手动创建角色成功：{character.name} (ID: {character.id})")
         
         # 处理主职业关联
-        if character_data.main_career_id and not character.is_organization:
+        if character_data.main_career_id:
             # 验证职业存在
             career_result = await db.execute(
                 select(Career).where(
@@ -701,7 +833,7 @@ async def create_character(
                 logger.warning(f"⚠️ 主职业ID不存在或类型错误: {character_data.main_career_id}")
         
         # 处理副职业关联
-        if character_data.sub_careers and not character.is_organization:
+        if character_data.sub_careers:
             try:
                 sub_careers_data = json.loads(character_data.sub_careers) if isinstance(character_data.sub_careers, str) else character_data.sub_careers
                 
@@ -736,74 +868,12 @@ async def create_character(
             except Exception as e:
                 logger.warning(f"⚠️ 解析副职业数据失败: {e}")
         
-        # 如果是组织，且提供了组织额外字段，自动创建Organization详情记录
-        if character.is_organization and (
-            character_data.power_level is not None or
-            character_data.location or
-            character_data.motto or
-            character_data.color
-        ):
-            organization = Organization(
-                character_id=character.id,
-                project_id=character_data.project_id,
-                member_count=0,
-                power_level=character_data.power_level or 50,
-                location=character_data.location,
-                motto=character_data.motto,
-                color=character_data.color
-            )
-            db.add(organization)
-            await db.flush()
-            logger.info(f"✅ 自动创建组织详情：{character.name} (Org ID: {organization.id})")
-        
         await db.commit()
         await db.refresh(character)
         
         logger.info(f"🎉 成功手动创建角色/组织: {character.name}")
         
-        # 构建响应（relationships 从关系表动态生成）
-        char_dict = {
-            "id": character.id,
-            "project_id": character.project_id,
-            "name": character.name,
-            "age": character.age,
-            "gender": character.gender,
-            "is_organization": character.is_organization,
-            "role_type": character.role_type,
-            "personality": character.personality,
-            "background": character.background,
-            "appearance": character.appearance,
-            "relationships": "",
-            "organization_type": character.organization_type,
-            "organization_purpose": character.organization_purpose,
-            "organization_members": await _build_org_members_summary(character.id, db) if character.is_organization else "",
-            "traits": character.traits,
-            "avatar_url": character.avatar_url,
-            "created_at": character.created_at,
-            "updated_at": character.updated_at,
-            "power_level": None,
-            "location": None,
-            "motto": None,
-            "color": None,
-            "main_career_id": character.main_career_id,
-            "main_career_stage": character.main_career_stage,
-            "sub_careers": json.loads(character.sub_careers) if character.sub_careers else None
-        }
-        
-        if character.is_organization:
-            org_result = await db.execute(
-                select(Organization).where(Organization.character_id == character.id)
-            )
-            org = org_result.scalar_one_or_none()
-            if org:
-                char_dict.update({
-                    "power_level": org.power_level,
-                    "location": org.location,
-                    "motto": org.motto,
-                    "color": org.color
-                })
-        
-        return char_dict
+        return await _character_response_dict(character, db)
         
     except Exception as e:
         logger.error(f"手动创建角色失败: {str(e)}")
@@ -842,7 +912,7 @@ async def generate_character_stream(
             )
             if not policy_decision.allowed:
                 yield await tracker.error(policy_decision.message, 403)
-                yield await tracker.result(policy_decision.to_response())
+                yield await tracker.result(candidate_policy_payload(policy_decision.to_response()))
                 yield await tracker.done()
                 return
             
@@ -865,10 +935,16 @@ async def generate_character_stream(
             
             if existing_characters:
                 for c in existing_characters[:10]:
-                    if c.is_organization:
-                        organization_list.append(f"- {c.name} [{c.organization_type or '组织'}]")
-                    else:
-                        character_list.append(f"- {c.name}（{c.role_type or '未知'}）")
+                    character_list.append(f"- {c.name}（{c.role_type or '未知'}）")
+
+                existing_orgs_result = await db.execute(
+                    select(OrganizationEntity)
+                    .where(OrganizationEntity.project_id == request.project_id)
+                    .order_by(OrganizationEntity.created_at.desc())
+                    .limit(10)
+                )
+                for org in existing_orgs_result.scalars().all():
+                    organization_list.append(f"- {org.name} [{org.organization_type or '组织'}]")
                 
                 if character_list:
                     existing_chars_info += "\n已有角色：\n" + "\n".join(character_list)
@@ -1074,6 +1150,53 @@ async def generate_character_stream(
                                 logger.info(f"✅ 副职业名称匹配成功: {career_name} -> ID: {matched_career.id}")
                             else:
                                 logger.warning(f"⚠️ AI返回的副职业名称未找到: {career_name}")
+
+            if is_organization:
+                org_entity = OrganizationEntity(
+                    project_id=request.project_id,
+                    name=character_data.get("name", request.name or "未命名组织"),
+                    normalized_name=normalized_name(character_data.get("name", request.name or "未命名组织")),
+                    personality=character_data.get("personality", ""),
+                    background=character_data.get("background", ""),
+                    organization_type=character_data.get("organization_type"),
+                    organization_purpose=character_data.get("organization_purpose"),
+                    traits=traits_json,
+                    power_level=character_data.get("power_level", 50),
+                    location=character_data.get("location"),
+                    motto=character_data.get("motto"),
+                    color=character_data.get("color"),
+                    source="ai",
+                )
+                db.add(org_entity)
+                await db.flush()
+                await _ensure_organization_bridge(org_entity, db)
+
+                history = GenerationHistory(
+                    project_id=request.project_id,
+                    prompt=prompt,
+                    generated_content=ai_response,
+                    model=user_ai_service.default_model
+                )
+                db.add(history)
+                entity_generation_policy_service.record_override_audit(
+                    db,
+                    policy_decision,
+                    [org_entity.id],
+                    extra_payload={"history_model": user_ai_service.default_model},
+                )
+                await db.commit()
+                await db.refresh(org_entity)
+                yield await tracker.complete("组织生成完成！")
+                yield await tracker.result({
+                    "character": {
+                        "id": org_entity.id,
+                        "name": org_entity.name,
+                        "role_type": "organization",
+                        "is_organization": True
+                    }
+                })
+                yield await tracker.done()
+                return
             
             # 创建角色（不再写入 relationships 文本字段，关系统一由 character_relationships 表管理）
             character = Character(
@@ -1081,13 +1204,10 @@ async def generate_character_stream(
                 name=character_data.get("name", request.name or "未命名角色"),
                 age=str(character_data.get("age", "")),
                 gender=character_data.get("gender"),
-                is_organization=is_organization,
                 role_type=request.role_type or "supporting",
                 personality=character_data.get("personality", ""),
                 background=character_data.get("background", ""),
                 appearance=character_data.get("appearance", ""),
-                organization_type=character_data.get("organization_type") if is_organization else None,
-                organization_purpose=character_data.get("organization_purpose") if is_organization else None,
                 traits=traits_json,
                 main_career_id=main_career_id,
                 main_career_stage=main_career_stage if main_career_id else None,
@@ -1174,32 +1294,9 @@ async def generate_character_stream(
                     else:
                         logger.warning(f"⚠️ AI返回的副职业ID不存在: {career_id} (项目ID: {request.project_id})")
             
-            # 如果是组织，创建Organization详情
-            if is_organization:
-                yield await tracker.saving("创建组织详情...", 0.6)
-                
-                org_check = await db.execute(
-                    select(Organization).where(Organization.character_id == character.id)
-                )
-                existing_org = org_check.scalar_one_or_none()
-                
-                if not existing_org:
-                    organization = Organization(
-                        character_id=character.id,
-                        project_id=request.project_id,
-                        member_count=0,
-                        power_level=character_data.get("power_level", 50),
-                        location=character_data.get("location"),
-                        motto=character_data.get("motto"),
-                        color=character_data.get("color")
-                    )
-                    db.add(organization)
-                    await db.flush()
-            
             # 处理结构化关系数据（仅针对非组织角色）
-            if not is_organization:
-                relationships_data = character_data.get("relationships", [])
-                if relationships_data and isinstance(relationships_data, list):
+            relationships_data = character_data.get("relationships", [])
+            if relationships_data and isinstance(relationships_data, list):
                     logger.info(f"📊 开始处理 {len(relationships_data)} 条关系数据")
                     created_rels = 0
                     
@@ -1265,9 +1362,8 @@ async def generate_character_stream(
                     logger.info(f"✅ 成功创建 {created_rels} 条关系记录")
             
             # 处理组织成员关系（仅针对非组织角色）
-            if not is_organization:
-                org_memberships = character_data.get("organization_memberships", [])
-                if org_memberships and isinstance(org_memberships, list):
+            org_memberships = character_data.get("organization_memberships", [])
+            if org_memberships and isinstance(org_memberships, list):
                     logger.info(f"🏢 开始处理 {len(org_memberships)} 条组织成员关系")
                     created_members = 0
                     
@@ -1278,37 +1374,22 @@ async def generate_character_stream(
                                 logger.debug(f"  ⚠️  组织成员关系缺少organization_name，跳过")
                                 continue
                             
-                            org_char_result = await db.execute(
-                                select(Character).where(
-                                    Character.project_id == request.project_id,
-                                    Character.name == org_name,
-                                    Character.is_organization == True
+                            org_entity_result = await db.execute(
+                                select(OrganizationEntity).where(
+                                    OrganizationEntity.project_id == request.project_id,
+                                    OrganizationEntity.name == org_name,
                                 )
                             )
-                            org_char = org_char_result.scalar_one_or_none()
+                            org_entity = org_entity_result.scalar_one_or_none()
                             
-                            if org_char:
-                                # 获取或创建Organization记录
-                                org_result = await db.execute(
-                                    select(Organization).where(Organization.character_id == org_char.id)
-                                )
-                                org = org_result.scalar_one_or_none()
-                                
-                                if not org:
-                                    # 如果组织Character存在但Organization不存在，自动创建
-                                    org = Organization(
-                                        character_id=org_char.id,
-                                        project_id=request.project_id,
-                                        member_count=0
-                                    )
-                                    db.add(org)
-                                    await db.flush()
-                                    logger.info(f"  ℹ️  自动创建缺失的组织详情：{org_name}")
+                            if org_entity:
+                                org = await _ensure_organization_bridge(org_entity, db)
                                 
                                 # 检查是否已存在成员关系
                                 existing_member = await db.execute(
                                     select(OrganizationMember).where(
                                         OrganizationMember.organization_id == org.id,
+                                        OrganizationMember.organization_entity_id == org_entity.id,
                                         OrganizationMember.character_id == character.id
                                     )
                                 )
@@ -1319,6 +1400,7 @@ async def generate_character_stream(
                                 # 创建成员关系
                                 member = OrganizationMember(
                                     organization_id=org.id,
+                                    organization_entity_id=org_entity.id,
                                     character_id=character.id,
                                     position=membership.get("position", "成员"),
                                     rank=membership.get("rank", 0),
@@ -1330,7 +1412,7 @@ async def generate_character_stream(
                                 db.add(member)
                                 
                                 # 更新组织成员计数
-                                org.member_count += 1
+                                org_entity.member_count = (org_entity.member_count or 0) + 1
                                 
                                 created_members += 1
                                 logger.info(f"  ✅ 添加成员：{character.name} -> {org_name} ({membership.get('position')})")
@@ -1373,7 +1455,7 @@ async def generate_character_stream(
                     "id": character.id,
                     "name": character.name,
                     "role_type": character.role_type,
-                    "is_organization": character.is_organization
+                    "is_organization": False
                 }
             })
             
@@ -1410,27 +1492,35 @@ async def export_characters(
         raise HTTPException(status_code=400, detail="请至少选择一个角色/组织")
     
     try:
-        # 验证所有角色的权限
+        exported_items = []
+        # 验证所有角色/组织的权限，并按请求顺序构建兼容导出载荷
         for char_id in export_request.character_ids:
             result = await db.execute(
                 select(Character).where(Character.id == char_id)
             )
             character = result.scalar_one_or_none()
-            
-            if not character:
+            if character:
+                await verify_project_access(character.project_id, user_id, db)
+                exported_items.append(await _export_character_payload(character))
+                continue
+
+            org_entity = await _get_organization_entity(char_id, db)
+            if not org_entity:
                 raise HTTPException(status_code=404, detail=f"角色不存在: {char_id}")
-            
-            # 验证项目权限
-            await verify_project_access(character.project_id, user_id, db)
-        
-        # 执行导出
-        export_data = await ImportExportService.export_characters(
-            character_ids=export_request.character_ids,
-            db=db
-        )
-        
-        # 生成文件名
+
+            await verify_project_access(org_entity.project_id, user_id, db)
+            exported_items.append(await _export_organization_payload(org_entity, db))
+
         from datetime import datetime
+        export_data = {
+            "version": ImportExportService.CURRENT_VERSION,
+            "export_time": datetime.utcnow().isoformat(),
+            "export_type": "characters",
+            "count": len(exported_items),
+            "data": exported_items,
+        }
+
+        # 生成文件名
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         count = len(export_request.character_ids)
         filename = f"characters_export_{count}_{timestamp}.json"

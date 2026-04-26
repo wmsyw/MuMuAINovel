@@ -1,5 +1,5 @@
 """组织管理API"""
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from typing import List, Optional, AsyncGenerator
@@ -8,9 +8,8 @@ import json
 
 from app.database import get_db
 from app.utils.sse_response import SSEResponse, create_sse_response, WizardProgressTracker
-from app.models.relationship import Organization, OrganizationMember
+from app.models.relationship import Organization, OrganizationEntity, OrganizationMember
 from app.models.character import Character
-from app.models.project import Project
 from app.models.generation_history import GenerationHistory
 from app.schemas.relationship import (
     OrganizationCreate,
@@ -22,16 +21,116 @@ from app.schemas.relationship import (
     OrganizationMemberResponse,
     OrganizationMemberDetailResponse
 )
-from app.schemas.character import CharacterResponse
 from app.services.ai_service import AIService
 from app.services.entity_generation_policy_service import entity_generation_policy_service
-from app.services.prompt_service import prompt_service, PromptService
+from app.services.prompt_service import PromptService
 from app.logger import get_logger
 from app.api.settings import get_user_ai_service
 from app.api.common import verify_project_access
+from app.api.entity_compat import build_optional_entity_enrichment, candidate_policy_payload, normalized_name
 
 router = APIRouter(prefix="/organizations", tags=["组织管理"])
 logger = get_logger(__name__)
+
+
+async def _get_organization_entity(org_id: str, db: AsyncSession) -> OrganizationEntity | None:
+    result = await db.execute(select(OrganizationEntity).where(OrganizationEntity.id == org_id))
+    entity = result.scalar_one_or_none()
+    if entity:
+        return entity
+    bridge_result = await db.execute(
+        select(Organization).where(
+            (Organization.id == org_id)
+            | (Organization.character_id == org_id)
+            | (Organization.organization_entity_id == org_id)
+        )
+    )
+    bridge = bridge_result.scalar_one_or_none()
+    if bridge and bridge.organization_entity_id:
+        result = await db.execute(select(OrganizationEntity).where(OrganizationEntity.id == bridge.organization_entity_id))
+        return result.scalar_one_or_none()
+    legacy_result = await db.execute(
+        select(OrganizationEntity).where(
+            (OrganizationEntity.legacy_character_id == org_id) | (OrganizationEntity.legacy_organization_id == org_id)
+        )
+    )
+    return legacy_result.scalar_one_or_none()
+
+
+async def _ensure_organization_bridge(entity: OrganizationEntity, db: AsyncSession) -> Organization:
+    result = await db.execute(select(Organization).where(Organization.organization_entity_id == entity.id))
+    bridge = result.scalar_one_or_none()
+    if bridge:
+        return bridge
+    bridge = Organization(
+        character_id=entity.legacy_character_id,
+        project_id=entity.project_id,
+        organization_entity_id=entity.id,
+    )
+    db.add(bridge)
+    await db.flush()
+    return bridge
+
+
+async def _organization_response_dict(entity: OrganizationEntity, db: AsyncSession) -> dict:
+    bridge = await _ensure_organization_bridge(entity, db)
+    return {
+        "id": bridge.id,
+        "character_id": entity.id,
+        "project_id": entity.project_id,
+        "parent_org_id": entity.parent_org_id,
+        "level": entity.level or 0,
+        "power_level": entity.power_level or 50,
+        "location": entity.location,
+        "motto": entity.motto,
+        "color": entity.color,
+        "member_count": entity.member_count or 0,
+        "created_at": bridge.created_at or entity.created_at,
+        "updated_at": bridge.updated_at or entity.updated_at,
+        "organization_entity_id": entity.id,
+        "name": entity.name,
+    }
+
+
+async def _organization_detail_dict(
+    entity: OrganizationEntity,
+    db: AsyncSession,
+    request: Request | None = None,
+    *,
+    include_provenance: bool = False,
+    include_aliases: bool = False,
+    include_candidate_counts: bool = False,
+    include_timeline: bool = False,
+    include_policy_status: bool = False,
+) -> dict:
+    bridge = await _ensure_organization_bridge(entity, db)
+    data = {
+        "id": bridge.id,
+        "character_id": entity.id,
+        "name": entity.name,
+        "type": entity.organization_type,
+        "purpose": entity.organization_purpose,
+        "member_count": entity.member_count or 0,
+        "power_level": entity.power_level or 50,
+        "location": entity.location,
+        "motto": entity.motto,
+        "color": entity.color,
+        "organization_entity_id": entity.id,
+    }
+    if request is not None:
+        data.update(await build_optional_entity_enrichment(
+            db=db,
+            request=request,
+            project_id=entity.project_id,
+            entity_type="organization",
+            entity_id=entity.id,
+            include_provenance=include_provenance,
+            include_aliases=include_aliases,
+            include_candidate_counts=include_candidate_counts,
+            include_timeline=include_timeline,
+            include_policy_status=include_policy_status,
+        ))
+    return data
 
 
 class OrganizationGenerateRequest(BaseModel):
@@ -48,6 +147,11 @@ class OrganizationGenerateRequest(BaseModel):
 async def get_project_organizations(
     project_id: str,
     request: Request,
+    include_provenance: bool = Query(False),
+    include_aliases: bool = Query(False),
+    include_candidate_counts: bool = Query(False),
+    include_timeline: bool = Query(False),
+    include_policy_status: bool = Query(False),
     db: AsyncSession = Depends(get_db)
 ):
     # 验证用户权限
@@ -60,31 +164,23 @@ async def get_project_organizations(
     返回组织的基本信息和统计数据
     """
     result = await db.execute(
-        select(Organization).where(Organization.project_id == project_id)
+        select(OrganizationEntity).where(OrganizationEntity.project_id == project_id)
     )
     organizations = result.scalars().all()
     
     # 获取每个组织的角色信息
     org_list = []
     for org in organizations:
-        char_result = await db.execute(
-            select(Character).where(Character.id == org.character_id)
-        )
-        char = char_result.scalar_one_or_none()
-        
-        if char:
-            org_list.append(OrganizationDetailResponse(
-                id=org.id,
-                character_id=org.character_id,
-                name=char.name,
-                type=char.organization_type,
-                purpose=char.organization_purpose,
-                member_count=org.member_count,
-                power_level=org.power_level,
-                location=org.location,
-                motto=org.motto,
-                color=org.color
-            ))
+        org_list.append(await _organization_detail_dict(
+            org,
+            db,
+            request,
+            include_provenance=include_provenance,
+            include_aliases=include_aliases,
+            include_candidate_counts=include_candidate_counts,
+            include_timeline=include_timeline,
+            include_policy_status=include_policy_status,
+        ))
     
     logger.info(f"获取项目 {project_id} 的组织列表，共 {len(org_list)} 个")
     return org_list
@@ -94,13 +190,15 @@ async def get_project_organizations(
 async def get_organization(
     org_id: str,
     request: Request,
+    include_provenance: bool = Query(False),
+    include_aliases: bool = Query(False),
+    include_candidate_counts: bool = Query(False),
+    include_timeline: bool = Query(False),
+    include_policy_status: bool = Query(False),
     db: AsyncSession = Depends(get_db)
 ):
     """获取组织的详细信息"""
-    result = await db.execute(
-        select(Organization).where(Organization.id == org_id)
-    )
-    org = result.scalar_one_or_none()
+    org = await _get_organization_entity(org_id, db)
     
     if not org:
         raise HTTPException(status_code=404, detail="组织不存在")
@@ -109,7 +207,20 @@ async def get_organization(
     user_id = getattr(request.state, 'user_id', None)
     await verify_project_access(org.project_id, user_id, db)
     
-    return org
+    response_data = await _organization_response_dict(org, db)
+    response_data.update(await build_optional_entity_enrichment(
+        db=db,
+        request=request,
+        project_id=org.project_id,
+        entity_type="organization",
+        entity_id=org.id,
+        include_provenance=include_provenance,
+        include_aliases=include_aliases,
+        include_candidate_counts=include_candidate_counts,
+        include_timeline=include_timeline,
+        include_policy_status=include_policy_status,
+    ))
+    return response_data
 
 
 @router.post("", response_model=OrganizationResponse, summary="创建组织")
@@ -128,32 +239,46 @@ async def create_organization(
     user_id = getattr(request.state, 'user_id', None)
     await verify_project_access(organization.project_id, user_id, db)
     
-    # 验证角色是否存在且是组织
-    char_result = await db.execute(
-        select(Character).where(Character.id == organization.character_id)
-    )
-    char = char_result.scalar_one_or_none()
-    
-    if not char:
-        raise HTTPException(status_code=404, detail="关联的角色不存在")
-    if not char.is_organization:
-        raise HTTPException(status_code=400, detail="关联的角色不是组织类型")
+    entity = await _get_organization_entity(organization.character_id, db)
+    if not entity:
+        char_result = await db.execute(select(Character).where(Character.id == organization.character_id))
+        char = char_result.scalar_one_or_none()
+        if not char:
+            raise HTTPException(status_code=404, detail="关联的角色或组织不存在")
+        entity = OrganizationEntity(
+            project_id=organization.project_id,
+            name=char.name,
+            normalized_name=normalized_name(char.name),
+            personality=char.personality,
+            background=char.background,
+            avatar_url=char.avatar_url,
+            traits=char.traits,
+            legacy_character_id=char.id,
+            source="manual",
+        )
+        db.add(entity)
+        await db.flush()
     
     # 检查是否已存在
     existing = await db.execute(
-        select(Organization).where(Organization.character_id == organization.character_id)
+        select(Organization).where(Organization.organization_entity_id == entity.id)
     )
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="该角色已有组织详情记录")
     
-    # 创建组织
-    db_org = Organization(**organization.model_dump())
+    entity.parent_org_id = organization.parent_org_id
+    entity.level = organization.level
+    entity.power_level = organization.power_level
+    entity.location = organization.location
+    entity.motto = organization.motto
+    entity.color = organization.color
+    db_org = Organization(project_id=organization.project_id, character_id=entity.legacy_character_id, organization_entity_id=entity.id)
     db.add(db_org)
     await db.commit()
-    await db.refresh(db_org)
+    await db.refresh(entity)
     
-    logger.info(f"创建组织成功：{db_org.id} - {char.name}")
-    return db_org
+    logger.info(f"创建组织成功：{db_org.id} - {entity.name}")
+    return await _organization_response_dict(entity, db)
 
 
 @router.put("/{org_id}", response_model=OrganizationResponse, summary="更新组织")
@@ -164,10 +289,7 @@ async def update_organization(
     db: AsyncSession = Depends(get_db)
 ):
     """更新组织的属性"""
-    result = await db.execute(
-        select(Organization).where(Organization.id == org_id)
-    )
-    db_org = result.scalar_one_or_none()
+    db_org = await _get_organization_entity(org_id, db)
     
     if not db_org:
         raise HTTPException(status_code=404, detail="组织不存在")
@@ -185,7 +307,7 @@ async def update_organization(
     await db.refresh(db_org)
     
     logger.info(f"更新组织成功：{org_id}")
-    return db_org
+    return await _organization_response_dict(db_org, db)
 
 
 @router.delete("/{org_id}", summary="删除组织")
@@ -195,10 +317,7 @@ async def delete_organization(
     db: AsyncSession = Depends(get_db)
 ):
     """删除组织（会级联删除所有成员关系）"""
-    result = await db.execute(
-        select(Organization).where(Organization.id == org_id)
-    )
-    db_org = result.scalar_one_or_none()
+    db_org = await _get_organization_entity(org_id, db)
     
     if not db_org:
         raise HTTPException(status_code=404, detail="组织不存在")
@@ -207,6 +326,12 @@ async def delete_organization(
     user_id = getattr(request.state, 'user_id', None)
     await verify_project_access(db_org.project_id, user_id, db)
     
+    members = (await db.execute(select(OrganizationMember).where(OrganizationMember.organization_entity_id == db_org.id))).scalars().all()
+    for member in members:
+        await db.delete(member)
+    bridges = (await db.execute(select(Organization).where(Organization.organization_entity_id == db_org.id))).scalars().all()
+    for bridge in bridges:
+        await db.delete(bridge)
     await db.delete(db_org)
     await db.commit()
     
@@ -228,10 +353,7 @@ async def get_organization_members(
     按职位等级（rank）降序排列
     """
     # 验证组织存在
-    org_result = await db.execute(
-        select(Organization).where(Organization.id == org_id)
-    )
-    org = org_result.scalar_one_or_none()
+    org = await _get_organization_entity(org_id, db)
     if not org:
         raise HTTPException(status_code=404, detail="组织不存在")
     
@@ -242,7 +364,7 @@ async def get_organization_members(
     # 获取成员列表
     result = await db.execute(
         select(OrganizationMember)
-        .where(OrganizationMember.organization_id == org_id)
+        .where(OrganizationMember.organization_entity_id == org.id)
         .order_by(OrganizationMember.rank.desc(), OrganizationMember.created_at)
     )
     members = result.scalars().all()
@@ -288,10 +410,7 @@ async def add_organization_member(
     - 会自动更新组织的成员计数
     """
     # 验证组织存在
-    org_result = await db.execute(
-        select(Organization).where(Organization.id == org_id)
-    )
-    org = org_result.scalar_one_or_none()
+    org = await _get_organization_entity(org_id, db)
     if not org:
         raise HTTPException(status_code=404, detail="组织不存在")
     
@@ -306,14 +425,11 @@ async def add_organization_member(
     char = char_result.scalar_one_or_none()
     if not char:
         raise HTTPException(status_code=404, detail="角色不存在")
-    if char.is_organization:
-        raise HTTPException(status_code=400, detail="不能将组织添加为成员")
-    
     # 检查是否已存在
     existing = await db.execute(
         select(OrganizationMember).where(
             and_(
-                OrganizationMember.organization_id == org_id,
+                OrganizationMember.organization_entity_id == org.id,
                 OrganizationMember.character_id == member.character_id
             )
         )
@@ -322,15 +438,17 @@ async def add_organization_member(
         raise HTTPException(status_code=400, detail="该角色已在组织中")
     
     # 创建成员关系
+    bridge = await _ensure_organization_bridge(org, db)
     db_member = OrganizationMember(
-        organization_id=org_id,
+        organization_id=bridge.id,
+        organization_entity_id=org.id,
         **member.model_dump(),
         source="manual"
     )
     db.add(db_member)
     
     # 更新组织成员计数
-    org.member_count += 1
+    org.member_count = (org.member_count or 0) + 1
     
     await db.commit()
     await db.refresh(db_member)
@@ -356,10 +474,9 @@ async def update_organization_member(
         raise HTTPException(status_code=404, detail="成员记录不存在")
     
     # 通过成员所属的组织验证用户权限
-    org_result = await db.execute(
-        select(Organization).where(Organization.id == db_member.organization_id)
-    )
-    org = org_result.scalar_one()
+    org = await _get_organization_entity(db_member.organization_entity_id or db_member.organization_id, db)
+    if not org:
+        raise HTTPException(status_code=404, detail="组织不存在")
     user_id = getattr(request.state, 'user_id', None)
     await verify_project_access(org.project_id, user_id, db)
     
@@ -395,15 +512,14 @@ async def remove_organization_member(
         raise HTTPException(status_code=404, detail="成员记录不存在")
     
     # 更新组织成员计数
-    org_result = await db.execute(
-        select(Organization).where(Organization.id == db_member.organization_id)
-    )
-    org = org_result.scalar_one()
+    org = await _get_organization_entity(db_member.organization_entity_id or db_member.organization_id, db)
+    if not org:
+        raise HTTPException(status_code=404, detail="组织不存在")
     
     # 验证用户权限
     user_id = getattr(request.state, 'user_id', None)
     await verify_project_access(org.project_id, user_id, db)
-    org.member_count = max(0, org.member_count - 1)
+    org.member_count = max(0, (org.member_count or 0) - 1)
     
     await db.delete(db_member)
     await db.commit()
@@ -443,7 +559,7 @@ async def generate_organization_stream(
             )
             if not policy_decision.allowed:
                 yield await tracker.error(policy_decision.message, 403)
-                yield await tracker.result(policy_decision.to_response())
+                yield await tracker.result(candidate_policy_payload(policy_decision.to_response()))
                 yield await tracker.done()
                 return
             
@@ -466,10 +582,16 @@ async def generate_organization_stream(
             
             if existing_characters:
                 for c in existing_characters[:10]:
-                    if c.is_organization:
-                        organization_list.append(f"- {c.name} [{c.organization_type or '组织'}]")
-                    else:
-                        character_list.append(f"- {c.name}（{c.role_type or '未知'}）")
+                    character_list.append(f"- {c.name}（{c.role_type or '未知'}）")
+
+                existing_orgs_result = await db.execute(
+                    select(OrganizationEntity)
+                    .where(OrganizationEntity.project_id == gen_request.project_id)
+                    .order_by(OrganizationEntity.created_at.desc())
+                    .limit(10)
+                )
+                for org in existing_orgs_result.scalars().all():
+                    organization_list.append(f"- {org.name} [{org.organization_type or '组织'}]")
                 
                 if character_list:
                     existing_info += "\n已有角色：\n" + "\n".join(character_list)
@@ -557,43 +679,29 @@ async def generate_organization_stream(
             
             yield await tracker.saving("创建组织记录...", 0.3)
             
-            # 创建角色记录（组织也是角色的一种）
-            character = Character(
+            # 创建规范组织实体
+            organization = OrganizationEntity(
                 project_id=gen_request.project_id,
                 name=organization_data.get("name", gen_request.name or "未命名组织"),
-                is_organization=True,
-                role_type="supporting",
+                normalized_name=normalized_name(organization_data.get("name", gen_request.name or "未命名组织")),
                 personality=organization_data.get("personality", ""),
                 background=organization_data.get("background", ""),
-                appearance=organization_data.get("appearance", ""),
                 organization_type=organization_data.get("organization_type"),
                 organization_purpose=organization_data.get("organization_purpose"),
                 traits=json.dumps(
                     organization_data.get("traits", []), 
                     ensure_ascii=False
-                )
-            )
-            db.add(character)
-            await db.flush()
-            
-            logger.info(f"✅ 组织角色创建成功：{character.name} (ID: {character.id})")
-            
-            yield await tracker.saving("创建组织详情...", 0.6)
-            
-            # 自动创建Organization详情记录
-            organization = Organization(
-                character_id=character.id,
-                project_id=gen_request.project_id,
-                member_count=0,
+                ),
                 power_level=organization_data.get("power_level", 50),
                 location=organization_data.get("location"),
                 motto=organization_data.get("motto"),
-                color=organization_data.get("color")
+                color=organization_data.get("color"),
+                source="ai",
             )
             db.add(organization)
             await db.flush()
-            
-            logger.info(f"✅ 组织详情创建成功：{character.name} (Org ID: {organization.id})")
+            await _ensure_organization_bridge(organization, db)
+            logger.info(f"✅ 组织详情创建成功：{organization.name} (Org ID: {organization.id})")
             
             yield await tracker.saving("保存生成历史...", 0.9)
             
@@ -608,24 +716,24 @@ async def generate_organization_stream(
             entity_generation_policy_service.record_override_audit(
                 db,
                 policy_decision,
-                [getattr(organization, "organization_entity_id", None) or character.id],
+                [organization.id],
                 extra_payload={"history_model": user_ai_service.default_model},
             )
-             
+              
             await db.commit()
-            await db.refresh(character)
+            await db.refresh(organization)
             
-            logger.info(f"🎉 成功生成组织: {character.name}")
+            logger.info(f"🎉 成功生成组织: {organization.name}")
             
             yield await tracker.complete("组织生成完成！")
             
             # 发送结果数据
             yield await tracker.result({
                 "character": {
-                    "id": character.id,
-                    "name": character.name,
-                    "organization_type": character.organization_type,
-                    "is_organization": character.is_organization
+                    "id": organization.id,
+                    "name": organization.name,
+                    "organization_type": organization.organization_type,
+                    "is_organization": True
                 }
             })
             

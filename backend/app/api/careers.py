@@ -1,6 +1,6 @@
 
 """职业管理API"""
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 import json
@@ -9,6 +9,7 @@ from typing import AsyncGenerator
 from app.database import get_db
 from app.utils.sse_response import SSEResponse, create_sse_response, WizardProgressTracker
 from app.models.career import Career, CharacterCareer
+from app.models.relationship import RelationshipTimelineEvent
 from app.models.character import Character
 from app.models.project import Project
 from app.schemas.career import (
@@ -26,18 +27,116 @@ from app.schemas.career import (
 )
 from app.services.ai_service import AIService
 from app.services.entity_generation_policy_service import entity_generation_policy_service
+from app.services.timeline_projection_service import TimelineProjectionService
 from app.logger import get_logger
 from app.api.settings import get_user_ai_service
 from app.api.common import verify_project_access
+from app.api.entity_compat import build_optional_entity_enrichment, candidate_policy_payload
 
 router = APIRouter(prefix="/careers", tags=["职业管理"])
 logger = get_logger(__name__)
+
+
+async def _career_response_dict(
+    career: Career,
+    db: AsyncSession,
+    request: Request | None = None,
+    *,
+    include_provenance: bool = False,
+    include_aliases: bool = False,
+    include_candidate_counts: bool = False,
+    include_timeline: bool = False,
+    include_policy_status: bool = False,
+) -> dict:
+    stages = json.loads(career.stages) if career.stages else []
+    attribute_bonuses = json.loads(career.attribute_bonuses) if career.attribute_bonuses else None
+    data = {
+        "id": career.id,
+        "project_id": career.project_id,
+        "name": career.name,
+        "type": career.type,
+        "description": career.description,
+        "category": career.category,
+        "stages": stages,
+        "max_stage": career.max_stage,
+        "requirements": career.requirements,
+        "special_abilities": career.special_abilities,
+        "worldview_rules": career.worldview_rules,
+        "attribute_bonuses": attribute_bonuses,
+        "source": career.source,
+        "created_at": career.created_at,
+        "updated_at": career.updated_at,
+    }
+    if request is not None:
+        data.update(await build_optional_entity_enrichment(
+            db=db,
+            request=request,
+            project_id=career.project_id,
+            entity_type="career",
+            entity_id=career.id,
+            include_provenance=include_provenance,
+            include_aliases=include_aliases,
+            include_candidate_counts=include_candidate_counts,
+            include_timeline=include_timeline,
+            include_policy_status=include_policy_status,
+        ))
+    return data
+
+
+async def _append_profession_timeline_event(
+    db: AsyncSession,
+    *,
+    project_id: str,
+    character_id: str,
+    career_id: str,
+    career_stage: int,
+    source_chapter_id: str | None = None,
+    source_chapter_order: int | None = None,
+    valid_from_chapter_id: str | None = None,
+    valid_from_chapter_order: int | None = None,
+    story_time_label: str | None = None,
+) -> None:
+    start_chapter_id = valid_from_chapter_id or source_chapter_id
+    start_order = valid_from_chapter_order if valid_from_chapter_order is not None else source_chapter_order
+    if start_chapter_id is not None:
+        active_events = (await db.execute(
+            select(RelationshipTimelineEvent).where(
+                RelationshipTimelineEvent.project_id == project_id,
+                RelationshipTimelineEvent.event_type == "profession",
+                RelationshipTimelineEvent.event_status == "active",
+                RelationshipTimelineEvent.character_id == character_id,
+                RelationshipTimelineEvent.valid_to_chapter_id.is_(None),
+            )
+        )).scalars().all()
+        for event in active_events:
+            event.valid_to_chapter_id = start_chapter_id
+            event.valid_to_chapter_order = start_order
+
+    event = RelationshipTimelineEvent(
+        project_id=project_id,
+        event_type="profession",
+        event_status="active",
+        character_id=character_id,
+        career_id=career_id,
+        career_stage=career_stage,
+        source_chapter_id=source_chapter_id or start_chapter_id,
+        source_chapter_order=source_chapter_order if source_chapter_order is not None else start_order,
+        valid_from_chapter_id=start_chapter_id,
+        valid_from_chapter_order=start_order,
+        story_time_label=story_time_label,
+    )
+    db.add(event)
 
 
 @router.get("", response_model=CareerListResponse, summary="获取职业列表")
 async def get_careers(
     project_id: str,
     request: Request,
+    include_provenance: bool = Query(False),
+    include_aliases: bool = Query(False),
+    include_candidate_counts: bool = Query(False),
+    include_timeline: bool = Query(False),
+    include_policy_status: bool = Query(False),
     db: AsyncSession = Depends(get_db)
 ):
     """获取指定项目的所有职业"""
@@ -63,27 +162,16 @@ async def get_careers(
     sub_careers = []
     
     for career in careers:
-        # 解析JSON字段
-        stages = json.loads(career.stages) if career.stages else []
-        attribute_bonuses = json.loads(career.attribute_bonuses) if career.attribute_bonuses else None
-        
-        career_dict = {
-            "id": career.id,
-            "project_id": career.project_id,
-            "name": career.name,
-            "type": career.type,
-            "description": career.description,
-            "category": career.category,
-            "stages": stages,
-            "max_stage": career.max_stage,
-            "requirements": career.requirements,
-            "special_abilities": career.special_abilities,
-            "worldview_rules": career.worldview_rules,
-            "attribute_bonuses": attribute_bonuses,
-            "source": career.source,
-            "created_at": career.created_at,
-            "updated_at": career.updated_at
-        }
+        career_dict = await _career_response_dict(
+            career,
+            db,
+            request,
+            include_provenance=include_provenance,
+            include_aliases=include_aliases,
+            include_candidate_counts=include_candidate_counts,
+            include_timeline=include_timeline,
+            include_policy_status=include_policy_status,
+        )
         
         if career.type == "main":
             main_careers.append(career_dict)
@@ -192,7 +280,7 @@ async def generate_career_system(
             )
             if not policy_decision.allowed:
                 yield await tracker.error(policy_decision.message, 403)
-                yield await tracker.result(policy_decision.to_response())
+                yield await tracker.result(candidate_policy_payload(policy_decision.to_response()))
                 yield await tracker.done()
                 return
             
@@ -586,6 +674,11 @@ async def delete_career(
 async def get_career(
     career_id: str,
     request: Request,
+    include_provenance: bool = Query(False),
+    include_aliases: bool = Query(False),
+    include_candidate_counts: bool = Query(False),
+    include_timeline: bool = Query(False),
+    include_policy_status: bool = Query(False),
     db: AsyncSession = Depends(get_db)
 ):
     """根据ID获取职业详情"""
@@ -601,26 +694,15 @@ async def get_career(
     user_id = getattr(request.state, 'user_id', None)
     await verify_project_access(career.project_id, user_id, db)
     
-    # 解析JSON字段
-    stages = json.loads(career.stages) if career.stages else []
-    attribute_bonuses = json.loads(career.attribute_bonuses) if career.attribute_bonuses else None
-    
-    return CareerResponse(
-        id=career.id,
-        project_id=career.project_id,
-        name=career.name,
-        type=career.type,
-        description=career.description,
-        category=career.category,
-        stages=stages,
-        max_stage=career.max_stage,
-        requirements=career.requirements,
-        special_abilities=career.special_abilities,
-        worldview_rules=career.worldview_rules,
-        attribute_bonuses=attribute_bonuses,
-        source=career.source,
-        created_at=career.created_at,
-        updated_at=career.updated_at
+    return await _career_response_dict(
+        career,
+        db,
+        request,
+        include_provenance=include_provenance,
+        include_aliases=include_aliases,
+        include_candidate_counts=include_candidate_counts,
+        include_timeline=include_timeline,
+        include_policy_status=include_policy_status,
     )
 
 
@@ -630,6 +712,9 @@ async def get_career(
 async def get_character_careers(
     character_id: str,
     request: Request,
+    include_timeline: bool = Query(False),
+    chapter_number: int | None = Query(None),
+    chapter_order: int | None = Query(None),
     db: AsyncSession = Depends(get_db)
 ):
     """获取角色的所有职业信息（主职业和副职业）"""
@@ -694,10 +779,32 @@ async def get_character_careers(
         else:
             sub_careers.append(career_detail)
     
-    return CharacterCareerResponse(
+    response = CharacterCareerResponse(
         main_career=main_career,
         sub_careers=sub_careers
     )
+    if include_timeline and chapter_number is not None:
+        professions = await db.run_sync(
+            lambda session: TimelineProjectionService(session).active_professions(
+                project_id=character.project_id,
+                chapter_number=chapter_number,
+                chapter_order=chapter_order,
+            )
+        )
+        response.timeline_professions = [
+            {
+                "id": event.id,
+                "career_id": event.career_id,
+                "career_stage": event.career_stage,
+                "valid_from_chapter_id": event.valid_from_chapter_id,
+                "valid_from_chapter_order": event.valid_from_chapter_order,
+                "valid_to_chapter_id": event.valid_to_chapter_id,
+                "valid_to_chapter_order": event.valid_to_chapter_order,
+            }
+            for event in professions
+            if event.character_id == character_id
+        ]
+    return response
 
 
 @router.post("/character/{character_id}/careers/main", summary="设置角色主职业")
@@ -768,6 +875,20 @@ async def set_main_career(
         reached_current_stage_at=career_request.started_at
     )
     db.add(char_career)
+    character.main_career_id = career_request.career_id
+    character.main_career_stage = career_request.current_stage
+    await _append_profession_timeline_event(
+        db,
+        project_id=character.project_id,
+        character_id=character_id,
+        career_id=career_request.career_id,
+        career_stage=career_request.current_stage,
+        source_chapter_id=career_request.source_chapter_id,
+        source_chapter_order=career_request.source_chapter_order,
+        valid_from_chapter_id=career_request.valid_from_chapter_id,
+        valid_from_chapter_order=career_request.valid_from_chapter_order,
+        story_time_label=career_request.story_time_label or career_request.started_at,
+    )
     await db.commit()
     
     logger.info(f"✅ 设置主职业成功：角色{character.name} -> {career.name}（第{career_request.current_stage}阶段）")
@@ -851,6 +972,18 @@ async def add_sub_career(
         reached_current_stage_at=career_request.started_at
     )
     db.add(char_career)
+    await _append_profession_timeline_event(
+        db,
+        project_id=character.project_id,
+        character_id=character_id,
+        career_id=career_request.career_id,
+        career_stage=career_request.current_stage,
+        source_chapter_id=career_request.source_chapter_id,
+        source_chapter_order=career_request.source_chapter_order,
+        valid_from_chapter_id=career_request.valid_from_chapter_id,
+        valid_from_chapter_order=career_request.valid_from_chapter_order,
+        story_time_label=career_request.story_time_label or career_request.started_at,
+    )
     await db.commit()
     
     logger.info(f"✅ 添加副职业成功：角色{character.name} -> {career.name}（第{career_request.current_stage}阶段）")
@@ -902,10 +1035,25 @@ async def update_career_stage(
     # 更新阶段信息
     char_career.current_stage = stage_request.current_stage
     char_career.stage_progress = stage_request.stage_progress
+    if char_career.career_type == "main":
+        character.main_career_id = career_id
+        character.main_career_stage = stage_request.current_stage
     if stage_request.reached_current_stage_at:
         char_career.reached_current_stage_at = stage_request.reached_current_stage_at
     if stage_request.notes is not None:
         char_career.notes = stage_request.notes
+    await _append_profession_timeline_event(
+        db,
+        project_id=character.project_id,
+        character_id=character_id,
+        career_id=career_id,
+        career_stage=stage_request.current_stage,
+        source_chapter_id=stage_request.source_chapter_id,
+        source_chapter_order=stage_request.source_chapter_order,
+        valid_from_chapter_id=stage_request.valid_from_chapter_id,
+        valid_from_chapter_order=stage_request.valid_from_chapter_order,
+        story_time_label=stage_request.story_time_label or stage_request.reached_current_stage_at,
+    )
     
     await db.commit()
     
