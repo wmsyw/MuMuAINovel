@@ -298,7 +298,7 @@ export interface OutlineUpdate {
 }
 
 // 角色类型定义
-export interface Character {
+export interface Character extends EntityEnrichmentFields {
   id: string;
   project_id: string;
   name: string;
@@ -354,6 +354,373 @@ export interface CharacterUpdate {
   location?: string;
   motto?: string;
   color?: string;
+}
+
+// ==================== 抽取候选评审 / 实体兼容元数据 ====================
+
+export type ExtractionRunStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+export type ExtractionCandidateStatus = 'pending' | 'accepted' | 'rejected' | 'merged' | 'superseded';
+export type ExtractionCandidateType =
+  | 'character'
+  | 'organization'
+  | 'profession'
+  | 'relationship'
+  | 'organization_affiliation'
+  | 'profession_assignment'
+  | 'world_fact'
+  | 'character_state';
+export type CanonicalTargetType = 'character' | 'organization' | 'career';
+
+export interface EntityAlias {
+  id: string;
+  alias: string;
+  normalized_alias?: string;
+  source?: string;
+  status?: string;
+  provenance_id?: string;
+}
+
+export interface EntityProvenance {
+  id: string;
+  source_type: string;
+  source_id?: string | null;
+  run_id?: string | null;
+  candidate_id?: string | null;
+  chapter_id?: string | null;
+  claim_type?: string | null;
+  claim_payload?: Record<string, unknown> | null;
+  evidence_text?: string | null;
+  confidence?: number | null;
+  status?: string | null;
+  created_by?: string | null;
+  created_at?: string | null;
+}
+
+export interface EntityTimelinePreview {
+  id: string;
+  event_type: string;
+  event_status: string;
+  relationship_name?: string | null;
+  position?: string | null;
+  career_id?: string | null;
+  career_stage?: number | null;
+  valid_from_chapter_id?: string | null;
+  valid_from_chapter_order?: number | null;
+  valid_to_chapter_id?: string | null;
+  valid_to_chapter_order?: number | null;
+  confidence?: number | null;
+}
+
+export interface EntityTimelineSummary {
+  total_events: number;
+  active_events: number;
+  event_type_counts: Record<string, number>;
+  latest_events: EntityTimelinePreview[];
+}
+
+export interface EntityGenerationPolicyStatus {
+  policy_gate: 'entity_generation';
+  allowed: boolean;
+  mode: 'canonical_allowed' | 'candidate_only' | 'manual_allowed';
+  code: string;
+  message: string;
+  audit_required: boolean;
+  override_source: 'admin' | 'advanced_setting' | 'manual' | 'none';
+  entity_type: string;
+  action_type: string;
+  source_endpoint: string;
+  project_id: string;
+  actor_user_id?: string | null;
+  provider?: string | null;
+  model?: string | null;
+  reason?: string | null;
+}
+
+export interface EntityEnrichmentFields {
+  aliases?: EntityAlias[];
+  provenance?: EntityProvenance[];
+  candidate_counts?: Record<ExtractionCandidateStatus | string, number>;
+  candidate_count?: number;
+  timeline_summary?: EntityTimelineSummary;
+  policy_status?: EntityGenerationPolicyStatus;
+}
+
+export interface EntityEnrichmentQuery {
+  include_provenance?: boolean;
+  include_aliases?: boolean;
+  include_candidate_counts?: boolean;
+  include_timeline?: boolean;
+  include_policy_status?: boolean;
+}
+
+export interface ExtractionRun {
+  id: string;
+  project_id: string;
+  chapter_id?: string | null;
+  trigger_source: string;
+  pipeline_version: string;
+  schema_version: string;
+  prompt_hash?: string | null;
+  content_hash: string;
+  status: ExtractionRunStatus;
+  provider?: string | null;
+  model?: string | null;
+  reasoning_intensity?: string | null;
+  raw_response?: unknown;
+  run_metadata?: Record<string, unknown> | null;
+  error_message?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface ExtractionRunListResponse {
+  total: number;
+  items: ExtractionRun[];
+}
+
+export interface ExtractionCandidate {
+  id: string;
+  run_id: string;
+  project_id: string;
+  user_id: string;
+  source_chapter_id?: string | null;
+  source_chapter_start_id?: string | null;
+  source_chapter_end_id?: string | null;
+  candidate_type: ExtractionCandidateType;
+  trigger_type: string;
+  source_hash: string;
+  provider?: string | null;
+  model?: string | null;
+  reasoning_intensity?: string | null;
+  display_name?: string | null;
+  normalized_name?: string | null;
+  canonical_target_type?: CanonicalTargetType | null;
+  canonical_target_id?: string | null;
+  status: ExtractionCandidateStatus;
+  confidence: number;
+  evidence_text: string;
+  source_start_offset: number;
+  source_end_offset: number;
+  source_chapter_number?: number | null;
+  source_chapter_order?: number | null;
+  valid_from_chapter_id?: string | null;
+  valid_from_chapter_order?: number | null;
+  valid_to_chapter_id?: string | null;
+  valid_to_chapter_order?: number | null;
+  story_time_label?: string | null;
+  payload: Record<string, unknown>;
+  raw_payload?: unknown;
+  merge_target_type?: string | null;
+  merge_target_id?: string | null;
+  reviewer_user_id?: string | null;
+  reviewed_at?: string | null;
+  accepted_at?: string | null;
+  rejection_reason?: string | null;
+  supersedes_candidate_id?: string | null;
+  rollback_of_candidate_id?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface ExtractionCandidateListResponse {
+  total: number;
+  items: ExtractionCandidate[];
+}
+
+export interface ExtractionCandidateListParams {
+  project_id?: string;
+  status?: ExtractionCandidateStatus;
+  type?: ExtractionCandidateType;
+  chapter_id?: string;
+  run_id?: string;
+  canonical_target?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface CandidateAcceptRequest {
+  target_type?: CanonicalTargetType | null;
+  target_id?: string | null;
+  override?: boolean;
+  supersedes_candidate_id?: string | null;
+}
+
+export interface CandidateMergeRequest {
+  target_type: CanonicalTargetType;
+  target_id: string;
+  override?: boolean;
+}
+
+export interface CandidateRejectRequest {
+  reason?: string | null;
+}
+
+export interface CandidateRollbackRequest {
+  reason?: string | null;
+}
+
+export interface CandidateReviewResponse {
+  changed: boolean;
+  reason?: string | null;
+  candidate: ExtractionCandidate;
+}
+
+export interface ManualReextractResponse {
+  project_id: string;
+  scope: 'project' | 'chapter' | 'range';
+  total_runs: number;
+  runs: ExtractionRun[];
+}
+
+export interface CareerStage {
+  level: number;
+  name: string;
+  description?: string;
+}
+
+export interface Career extends EntityEnrichmentFields {
+  id: string;
+  project_id: string;
+  name: string;
+  type: 'main' | 'sub';
+  description?: string;
+  category?: string;
+  stages: CareerStage[];
+  max_stage: number;
+  requirements?: string;
+  special_abilities?: string;
+  worldview_rules?: string;
+  attribute_bonuses?: Record<string, unknown> | null;
+  source: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface CareerListResponse {
+  total?: number;
+  main_careers?: Career[];
+  sub_careers?: Career[];
+}
+
+export interface CareerCreateRequest {
+  project_id: string;
+  name: string;
+  type: 'main' | 'sub';
+  description?: string;
+  category?: string;
+  stages: CareerStage[];
+  max_stage: number;
+  requirements?: string;
+  special_abilities?: string;
+  worldview_rules?: string;
+  attribute_bonuses?: Record<string, unknown> | null;
+  source?: string;
+}
+
+export type CareerUpdateRequest = Partial<Omit<CareerCreateRequest, 'project_id'>>;
+
+export interface Organization extends EntityEnrichmentFields {
+  id: string;
+  character_id: string;
+  organization_entity_id?: string;
+  name: string;
+  type: string;
+  purpose: string;
+  member_count: number;
+  power_level: number;
+  location?: string;
+  motto?: string;
+  color?: string;
+}
+
+export interface OrganizationMember {
+  id: string;
+  character_id: string;
+  character_name: string;
+  position: string;
+  rank: number;
+  loyalty: number;
+  contribution: number;
+  status: string;
+  joined_at?: string;
+  left_at?: string;
+  notes?: string;
+}
+
+export interface OrganizationMemberPayload {
+  character_id?: string;
+  position?: string;
+  rank?: number;
+  loyalty?: number;
+  contribution?: number;
+  status?: string;
+  joined_at?: string;
+  left_at?: string;
+  notes?: string;
+}
+
+export interface OrganizationUpdateRequest {
+  power_level?: number;
+  location?: string;
+  motto?: string;
+  color?: string;
+}
+
+export type TimelineEventType = 'relationship' | 'affiliation' | 'profession' | 'status';
+export type TimelineEventStatus = 'active' | 'ended' | 'superseded' | 'rolled_back';
+
+export interface TimelineQueryPoint {
+  chapter_id?: string | null;
+  chapter_number: number;
+  chapter_order: number;
+}
+
+export interface TimelineEvent {
+  id: string;
+  project_id: string;
+  relationship_id?: string | null;
+  organization_member_id?: string | null;
+  character_id?: string | null;
+  related_character_id?: string | null;
+  organization_entity_id?: string | null;
+  career_id?: string | null;
+  event_type: TimelineEventType;
+  event_status: TimelineEventStatus;
+  relationship_name?: string | null;
+  position?: string | null;
+  rank?: number | null;
+  career_stage?: number | null;
+  story_time_label?: string | null;
+  source_chapter_id?: string | null;
+  source_chapter_order?: number | null;
+  valid_from_chapter_id?: string | null;
+  valid_from_chapter_order?: number | null;
+  valid_to_chapter_id?: string | null;
+  valid_to_chapter_order?: number | null;
+  source_start_offset?: number | null;
+  source_end_offset?: number | null;
+  evidence_text?: string | null;
+  confidence?: number | null;
+  provenance_id?: string | null;
+  supersedes_event_id?: string | null;
+  created_at?: string | null;
+}
+
+export interface TimelineStateResponse {
+  project_id: string;
+  point: TimelineQueryPoint;
+  relationships: TimelineEvent[];
+  affiliations: TimelineEvent[];
+  professions: TimelineEvent[];
+}
+
+export interface TimelineHistoryResponse {
+  project_id: string;
+  event_type?: TimelineEventType | null;
+  total: number;
+  items: TimelineEvent[];
 }
 
 // 展开规划数据结构

@@ -61,6 +61,29 @@ import type {
   BatchAnalysisStatusResponse,
   BatchAnalyzeUnanalyzedRequest,
   BatchAnalyzeUnanalyzedResponse,
+  CandidateAcceptRequest,
+  CandidateMergeRequest,
+  CandidateRejectRequest,
+  CandidateReviewResponse,
+  CandidateRollbackRequest,
+  Career,
+  CareerCreateRequest,
+  CareerListResponse,
+  CareerUpdateRequest,
+  EntityEnrichmentQuery,
+  ExtractionCandidate,
+  ExtractionCandidateListParams,
+  ExtractionCandidateListResponse,
+  ExtractionRun,
+  ExtractionRunListResponse,
+  ManualReextractResponse,
+  Organization,
+  OrganizationMember,
+  OrganizationMemberPayload,
+  OrganizationUpdateRequest,
+  TimelineEventType,
+  TimelineHistoryResponse,
+  TimelineStateResponse,
 } from '../types';
 
 interface MCPPluginSimpleCreate {
@@ -508,6 +531,103 @@ export const bookImportApi = {
     api.delete<unknown, { success: boolean; message: string }>(`/book-import/tasks/${taskId}`),
 };
 
+export const extractionApi = {
+  listRuns: (params?: {
+    project_id?: string;
+    status?: ExtractionRun['status'];
+    chapter_id?: string;
+    limit?: number;
+    offset?: number;
+  }) => api.get<unknown, ExtractionRunListResponse>('/extraction/runs', { params }),
+
+  getRun: (runId: string) => api.get<unknown, ExtractionRun>(`/extraction/runs/${runId}`),
+
+  listCandidates: (params?: ExtractionCandidateListParams) =>
+    api.get<unknown, ExtractionCandidateListResponse>('/extraction/candidates', { params }),
+
+  getCandidate: (candidateId: string) =>
+    api.get<unknown, ExtractionCandidate>(`/extraction/candidates/${candidateId}`),
+
+  acceptCandidate: (candidateId: string, data: CandidateAcceptRequest = {}) =>
+    api.post<unknown, CandidateReviewResponse>(`/extraction/candidates/${candidateId}/accept`, data),
+
+  rejectCandidate: (candidateId: string, data: CandidateRejectRequest = {}) =>
+    api.post<unknown, CandidateReviewResponse>(`/extraction/candidates/${candidateId}/reject`, data),
+
+  mergeCandidate: (candidateId: string, data: CandidateMergeRequest) =>
+    api.post<unknown, CandidateReviewResponse>(`/extraction/candidates/${candidateId}/merge`, data),
+
+  rollbackCandidate: (candidateId: string, data: CandidateRollbackRequest = {}) =>
+    api.post<unknown, CandidateReviewResponse>(`/extraction/candidates/${candidateId}/rollback`, data),
+
+  reextractProject: (projectId: string) =>
+    api.post<unknown, ManualReextractResponse>('/extraction/reextract/project', { project_id: projectId }),
+
+  reextractChapter: (projectId: string, chapterId: string) =>
+    api.post<unknown, ManualReextractResponse>('/extraction/reextract/chapter', {
+      project_id: projectId,
+      chapter_id: chapterId,
+    }),
+
+  reextractRange: (projectId: string, startChapterNumber: number, endChapterNumber: number) =>
+    api.post<unknown, ManualReextractResponse>('/extraction/reextract/range', {
+      project_id: projectId,
+      start_chapter_number: startChapterNumber,
+      end_chapter_number: endChapterNumber,
+    }),
+};
+
+export const timelineApi = {
+  getProjectState: (projectId: string, params?: {
+    chapter_id?: string;
+    chapter_number?: number;
+    chapter_order?: number;
+  }) => api.get<unknown, TimelineStateResponse>(`/timeline/projects/${projectId}/state`, { params }),
+
+  getProjectHistory: (projectId: string, params?: { event_type?: TimelineEventType }) =>
+    api.get<unknown, TimelineHistoryResponse>(`/timeline/projects/${projectId}/history`, { params }),
+};
+
+export const organizationApi = {
+  getProjectOrganizations: (projectId: string, params?: EntityEnrichmentQuery) =>
+    api.get<unknown, Organization[]>(`/organizations/project/${projectId}`, { params }),
+
+  getOrganization: (organizationId: string, params?: EntityEnrichmentQuery) =>
+    api.get<unknown, Organization>(`/organizations/${organizationId}`, { params }),
+
+  updateOrganization: (organizationId: string, data: OrganizationUpdateRequest) =>
+    api.put<unknown, Organization>(`/organizations/${organizationId}`, data),
+
+  getMembers: (organizationId: string) =>
+    api.get<unknown, OrganizationMember[]>(`/organizations/${organizationId}/members`),
+
+  addMember: (organizationId: string, data: OrganizationMemberPayload) =>
+    api.post<unknown, OrganizationMember>(`/organizations/${organizationId}/members`, data),
+
+  updateMember: (memberId: string, data: OrganizationMemberPayload) =>
+    api.put<unknown, OrganizationMember>(`/organizations/members/${memberId}`, data),
+
+  removeMember: (memberId: string) =>
+    api.delete<unknown, { message: string; id?: string }>(`/organizations/members/${memberId}`),
+};
+
+export const careerApi = {
+  getCareers: (projectId: string, params?: EntityEnrichmentQuery) =>
+    api.get<unknown, CareerListResponse>('/careers', { params: { project_id: projectId, ...params } }),
+
+  getCareer: (careerId: string, params?: EntityEnrichmentQuery) =>
+    api.get<unknown, Career>(`/careers/${careerId}`, { params }),
+
+  createCareer: (data: CareerCreateRequest) =>
+    api.post<unknown, Career>('/careers', data),
+
+  updateCareer: (careerId: string, data: CareerUpdateRequest) =>
+    api.put<unknown, Career>(`/careers/${careerId}`, data),
+
+  deleteCareer: (careerId: string) =>
+    api.delete<unknown, { message: string }>(`/careers/${careerId}`),
+};
+
 export const outlineApi = {
   getOutlines: (projectId: string) =>
     api.get<unknown, { total: number; items: Outline[] }>(`/outlines/project/${projectId}`).then(res => res.items),
@@ -588,10 +708,10 @@ export const outlineApi = {
 };
 
 export const characterApi = {
-  getCharacters: (projectId: string) =>
-    api.get<unknown, { total: number; items: Character[] }>(`/characters/project/${projectId}`).then(res => res.items),
+  getCharacters: (projectId: string, params?: EntityEnrichmentQuery) =>
+    api.get<unknown, { total: number; items: Character[] }>(`/characters/project/${projectId}`, { params }).then(res => res.items),
 
-  getCharacter: (id: string) => api.get<unknown, Character>(`/characters/${id}`),
+  getCharacter: (id: string, params?: EntityEnrichmentQuery) => api.get<unknown, Character>(`/characters/${id}`, { params }),
 
   createCharacter: (data: {
     project_id: string;
