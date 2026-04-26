@@ -15,6 +15,26 @@ class OpenAIProvider(BaseAIProvider):
     def __init__(self, client: OpenAIClient):
         self.client = client
 
+    def _build_messages(self, prompt: str, system_prompt: Optional[str] = None) -> List[Dict[str, Any]]:
+        messages: List[Dict[str, Any]] = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+        return messages
+
+    def _uses_responses_api(self, reasoning_config: Optional[ReasoningConfig]) -> bool:
+        """Responses routing is driven by Task 4 provider payload, not model-name branches."""
+        if not reasoning_config or not reasoning_config.provider_payload:
+            return False
+        capability = reasoning_config.capability
+        provider_native = capability.provider_native if capability else ""
+        reasoning = reasoning_config.provider_payload.get("reasoning")
+        if not provider_native.startswith("responses.") or not isinstance(reasoning, dict):
+            return False
+
+        # `off`/`none` remains compatible with the legacy Chat Completions path.
+        return reasoning.get("effort") not in {None, "none", "off"}
+
     async def generate(
         self,
         prompt: str,
@@ -26,10 +46,18 @@ class OpenAIProvider(BaseAIProvider):
         tool_choice: Optional[str] = None,
         reasoning_config: Optional[ReasoningConfig] = None,
     ) -> Dict[str, Any]:
-        messages = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
+        messages = self._build_messages(prompt, system_prompt)
+
+        if self._uses_responses_api(reasoning_config):
+            return await self.client.create_response(
+                messages=messages,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                tools=tools,
+                tool_choice=tool_choice,
+                reasoning_payload=reasoning_config.provider_payload if reasoning_config else None,
+            )
 
         return await self.client.chat_completion(
             messages=messages,
@@ -52,10 +80,8 @@ class OpenAIProvider(BaseAIProvider):
         user_id: Optional[str] = None,
         reasoning_config: Optional[ReasoningConfig] = None,
     ) -> AsyncGenerator[str, None]:
-        messages = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
+        messages = self._build_messages(prompt, system_prompt)
+        use_responses = self._uses_responses_api(reasoning_config)
 
         # 如果有工具，使用真正的流式工具调用
         if tools:
@@ -64,13 +90,15 @@ class OpenAIProvider(BaseAIProvider):
             
             tool_calls_buffer = []
             
-            async for chunk in self.client.chat_completion_stream(
+            stream = self.client.create_response_stream if use_responses else self.client.chat_completion_stream
+            async for chunk in stream(
                 messages=messages,
                 model=model,
                 temperature=temperature,
                 max_tokens=max_tokens,
                 tools=tools,
                 tool_choice=actual_tool_choice,
+                **({"reasoning_payload": reasoning_config.provider_payload} if use_responses and reasoning_config else {}),
             ):
                 # 检查是否有工具调用
                 if chunk.get("tool_calls"):
@@ -113,17 +141,24 @@ class OpenAIProvider(BaseAIProvider):
             return
         
         # 无工具时普通流式生成
-        async for chunk in self.client.chat_completion_stream(
+        stream = self.client.create_response_stream if use_responses else self.client.chat_completion_stream
+        async for chunk in stream(
             messages=messages,
             model=model,
             temperature=temperature,
             max_tokens=max_tokens,
+            **({"reasoning_payload": reasoning_config.provider_payload} if use_responses and reasoning_config else {}),
         ):
             if isinstance(chunk, dict):
                 if chunk.get("usage"):
                     yield {"usage": chunk.get("usage")}
                 if chunk.get("finish_reason"):
-                    yield {"finish_reason": chunk.get("finish_reason")}
+                    yield {"finish_reason": chunk.get("finish_reason"), "done": chunk.get("done", False)}
+                if chunk.get("provider_metadata") or chunk.get("reasoning_continuation"):
+                    yield {
+                        "provider_metadata": chunk.get("provider_metadata"),
+                        "reasoning_continuation": chunk.get("reasoning_continuation"),
+                    }
                 if chunk.get("content"):
                     yield chunk["content"]
             else:
