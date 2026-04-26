@@ -19,12 +19,14 @@ from app.schemas.settings import (
     SettingsCreate, SettingsUpdate, SettingsResponse,
     APIKeyPreset, APIKeyPresetConfig, PresetCreateRequest,
     PresetUpdateRequest, PresetResponse, PresetListResponse,
-    SystemSMTPSettingsResponse, SystemSMTPSettingsUpdate, SMTPTestRequest
+    SystemSMTPSettingsResponse, SystemSMTPSettingsUpdate, SMTPTestRequest,
+    ReasoningCapabilitiesResponse,
 )
 from app.user_manager import User
 from app.logger import get_logger
 from app.config import settings as app_settings, PROJECT_ROOT
 from app.services.ai_service import AIService, create_user_ai_service, create_user_ai_service_with_mcp, normalize_provider
+from app.services.ai_capabilities import get_reasoning_registry_metadata
 from app.services.email_service import email_service
 from app.security import validate_public_http_url
 
@@ -49,6 +51,9 @@ def read_env_defaults() -> Dict[str, Any]:
         "llm_model": app_settings.default_model,
         "temperature": app_settings.default_temperature,
         "max_tokens": app_settings.default_max_tokens,
+        "default_reasoning_intensity": app_settings.default_reasoning_intensity,
+        "reasoning_overrides": app_settings.reasoning_overrides,
+        "allow_ai_entity_generation": app_settings.allow_ai_entity_generation,
     }
 
 
@@ -157,6 +162,8 @@ async def get_user_ai_service(
         db_session=db,                 # ✅ 传递 db_session
         system_prompt=settings.system_prompt,
         enable_mcp=enable_mcp,         # 根据MCP插件状态动态决定
+        default_reasoning_intensity=settings.default_reasoning_intensity,
+        reasoning_overrides=settings.reasoning_overrides,
     )
 
 
@@ -210,6 +217,12 @@ async def test_cover_settings(
         "provider": result.provider,
         "model": result.model,
     }
+
+
+@router.get("/reasoning-capabilities", response_model=ReasoningCapabilitiesResponse)
+async def get_reasoning_capabilities(user: User = Depends(require_login)):
+    """获取规范化推理强度与 provider/model 能力元数据。"""
+    return get_reasoning_registry_metadata()
 
 
 @router.get("/system/smtp", response_model=SystemSMTPSettingsResponse)
@@ -367,7 +380,8 @@ async def save_settings(
                     preset_config.get('api_base_url') != settings_dict.get('api_base_url', settings.api_base_url) or
                     preset_config.get('llm_model') != settings_dict.get('llm_model', settings.llm_model) or
                     preset_config.get('temperature') != settings_dict.get('temperature', settings.temperature) or
-                    preset_config.get('max_tokens') != settings_dict.get('max_tokens', settings.max_tokens)
+                    preset_config.get('max_tokens') != settings_dict.get('max_tokens', settings.max_tokens) or
+                    preset_config.get('default_reasoning_intensity') != settings_dict.get('default_reasoning_intensity', settings.default_reasoning_intensity)
                 )
                 
                 if config_changed:
@@ -1201,6 +1215,7 @@ async def activate_preset(
     settings.temperature = config['temperature']
     settings.max_tokens = config['max_tokens']
     settings.system_prompt = config.get('system_prompt')
+    settings.default_reasoning_intensity = config.get('default_reasoning_intensity', settings.default_reasoning_intensity)
     
     # 更新所有预设的is_active状态
     for preset in presets:
@@ -1283,7 +1298,8 @@ async def create_preset_from_current(
         llm_model=settings.llm_model,
         temperature=settings.temperature,
         max_tokens=settings.max_tokens,
-        system_prompt=settings.system_prompt
+        system_prompt=settings.system_prompt,
+        default_reasoning_intensity=settings.default_reasoning_intensity,
     )
     
     # 创建预设

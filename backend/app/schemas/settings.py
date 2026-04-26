@@ -1,12 +1,14 @@
 """设置相关的Pydantic模型"""
 from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, List
+from typing import Any, Dict, Optional, List
 from datetime import datetime
+
+from app.services.ai_capabilities import ReasoningIntensity
 
 
 class SettingsBase(BaseModel):
     """设置基础模型"""
-    model_config = ConfigDict(protected_namespaces=())
+    model_config = ConfigDict(protected_namespaces=(), use_enum_values=True, validate_default=True)
     
     api_provider: Optional[str] = Field(default="openai", description="API提供商")
     api_key: Optional[str] = Field(default=None, description="API密钥")
@@ -15,6 +17,9 @@ class SettingsBase(BaseModel):
     temperature: Optional[float] = Field(default=0.7, ge=0.0, le=2.0, description="温度参数")
     max_tokens: Optional[int] = Field(default=2000, ge=1, description="最大token数")
     system_prompt: Optional[str] = Field(default=None, description="系统级别提示词，每次AI调用都会使用")
+    default_reasoning_intensity: Optional[ReasoningIntensity] = Field(default=ReasoningIntensity.AUTO, description="默认推理强度")
+    reasoning_overrides: Optional[str] = Field(default=None, description="模型/任务推理强度覆盖(JSON)")
+    allow_ai_entity_generation: Optional[bool] = Field(default=False, description="是否允许AI直接生成规范实体")
     cover_api_provider: Optional[str] = Field(default=None, description="封面图片API提供商")
     cover_api_key: Optional[str] = Field(default=None, description="封面图片API密钥")
     cover_api_base_url: Optional[str] = Field(default=None, description="封面图片自定义API地址")
@@ -35,12 +40,34 @@ class SettingsUpdate(SettingsBase):
 
 class SettingsResponse(SettingsBase):
     """设置响应模型"""
-    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=(), use_enum_values=True, validate_default=True)
     
     id: str
     user_id: str
     created_at: datetime
     updated_at: datetime
+
+
+class ReasoningCapabilityResponse(BaseModel):
+    """模型推理能力元数据"""
+    model_config = ConfigDict(protected_namespaces=(), use_enum_values=True, validate_default=True)
+
+    provider: str
+    model_pattern: str
+    supported_intensities: List[ReasoningIntensity]
+    default_intensity: ReasoningIntensity
+    provider_native: str
+    provider_payload_mappings: Dict[str, Dict[str, Any]]
+    last_verified_date: str
+    notes: str
+
+
+class ReasoningCapabilitiesResponse(BaseModel):
+    """推理能力注册表响应"""
+    model_config = ConfigDict(protected_namespaces=(), use_enum_values=True, validate_default=True)
+
+    intensities: List[ReasoningIntensity]
+    capabilities: List[ReasoningCapabilityResponse]
 
 
 class SystemSMTPSettingsBase(BaseModel):
@@ -88,7 +115,7 @@ class SMTPTestRequest(BaseModel):
 
 class APIKeyPresetConfig(BaseModel):
     """预设配置内容"""
-    model_config = ConfigDict(protected_namespaces=())
+    model_config = ConfigDict(protected_namespaces=(), use_enum_values=True, validate_default=True)
     
     api_provider: str = Field(..., description="API提供商")
     api_key: str = Field(..., description="API密钥")
@@ -97,6 +124,7 @@ class APIKeyPresetConfig(BaseModel):
     temperature: float = Field(default=0.7, ge=0.0, le=2.0, description="温度参数")
     max_tokens: int = Field(default=2000, ge=1, description="最大token数")
     system_prompt: Optional[str] = Field(default=None, description="系统级别提示词")
+    default_reasoning_intensity: Optional[ReasoningIntensity] = Field(default=ReasoningIntensity.AUTO, description="默认推理强度")
 
 
 class APIKeyPreset(BaseModel):
