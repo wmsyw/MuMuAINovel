@@ -722,7 +722,7 @@ Wave 4: Tasks 15, 16, 17, 18 — inspiration/world UI, timeline UI, cleanup/docs
 
   **Commit**: YES | Message: `service: trigger extraction after text persistence` | Files: [`backend/app/api/book_import.py`, `backend/app/services/book_import_service.py`, `backend/app/api/wizard_stream.py`, `backend/app/api/outlines.py`, `backend/app/services/extraction_service.py`, `backend/tests/test_extraction_triggers.py`]
 
-- [ ] 12. Refactor character, organization, and profession APIs for extraction-first compatibility
+- [x] 12. Refactor character, organization, and profession APIs for extraction-first compatibility
 
   **What to do**: Update existing character/organization/career endpoints so current CRUD/list/edit behavior remains compatible while new response shapes can include provenance, aliases, candidate counts, timeline summaries, and generation policy status. Ordinary AI generation endpoints must return candidate-only/policy responses unless advanced/admin override is active. Careers must be treated as the canonical profession taxonomy for Phase 1; profession assignments are timeline relationships from characters to careers. Existing UI routes must continue receiving enough current-state data to render before frontend refactor lands.
   **Must NOT do**: Do not rename existing route paths casually. Do not remove manual create/edit. Do not expose timeline internals as required fields for old clients unless backward-compatible/defaulted.
