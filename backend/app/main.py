@@ -133,7 +133,7 @@ from app.api import (
     auth, users, settings, writing_styles, memories,
     mcp_plugins, admin, inspiration, prompt_templates,
     changelog, careers, foreshadows, prompt_workshop, book_import,
-    project_covers, extraction
+    project_covers, extraction, timeline
 )
 
 app.include_router(auth.router, prefix="/api")
@@ -152,6 +152,7 @@ app.include_router(chapters.router, prefix="/api")
 app.include_router(relationships.router, prefix="/api")
 app.include_router(organizations.router, prefix="/api")
 app.include_router(extraction.router, prefix="/api")  # 抽取候选评审API
+app.include_router(timeline.router, prefix="/api")  # 时间线查询API
 app.include_router(writing_styles.router, prefix="/api")
 app.include_router(memories.router)  # 记忆管理API (已包含/api前缀)
 app.include_router(foreshadows.router)  # 伏笔管理API (已包含/api前缀)
