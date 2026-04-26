@@ -116,6 +116,8 @@ embed_build.py
 
 .roo/
 data/
+!backend/data/
+!backend/data/reasoning_capabilities.json
 docs/
 data_old/
 backend/migrate_all_databases.py
