@@ -104,7 +104,7 @@ class CharacterResponse(CharacterBase):
     current_state: Optional[str] = Field(None, description="角色当前心理状态")
     state_updated_chapter: Optional[int] = Field(None, description="心理状态最后更新的章节号")
     
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, extra="allow")
 
 
 class CharacterGenerateRequest(BaseModel):

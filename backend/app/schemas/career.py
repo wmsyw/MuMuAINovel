@@ -63,7 +63,7 @@ class CareerResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, extra="allow")
 
 
 class CareerListResponse(BaseModel):
@@ -131,12 +131,19 @@ class CharacterCareerResponse(BaseModel):
     main_career: Optional[CharacterCareerDetail] = Field(None, description="主职业")
     sub_careers: List[CharacterCareerDetail] = Field(default_factory=list, description="副职业列表")
 
+    model_config = ConfigDict(extra="allow")
+
 
 class SetMainCareerRequest(BaseModel):
     """设置主职业请求模型"""
     career_id: str = Field(..., description="职业ID")
     current_stage: int = Field(1, description="当前阶段", ge=1)
     started_at: Optional[str] = Field(None, description="开始修炼时间")
+    source_chapter_id: Optional[str] = Field(None, description="来源章节ID")
+    source_chapter_order: Optional[int] = Field(None, description="来源章节内顺序")
+    valid_from_chapter_id: Optional[str] = Field(None, description="事实有效起点章节ID")
+    valid_from_chapter_order: Optional[int] = Field(None, description="事实有效起点章节内顺序")
+    story_time_label: Optional[str] = Field(None, description="故事内时间标签")
 
 
 class AddSubCareerRequest(BaseModel):
@@ -144,6 +151,11 @@ class AddSubCareerRequest(BaseModel):
     career_id: str = Field(..., description="职业ID")
     current_stage: int = Field(1, description="当前阶段", ge=1)
     started_at: Optional[str] = Field(None, description="开始修炼时间")
+    source_chapter_id: Optional[str] = Field(None, description="来源章节ID")
+    source_chapter_order: Optional[int] = Field(None, description="来源章节内顺序")
+    valid_from_chapter_id: Optional[str] = Field(None, description="事实有效起点章节ID")
+    valid_from_chapter_order: Optional[int] = Field(None, description="事实有效起点章节内顺序")
+    story_time_label: Optional[str] = Field(None, description="故事内时间标签")
 
 
 class UpdateCareerStageRequest(BaseModel):
@@ -152,3 +164,8 @@ class UpdateCareerStageRequest(BaseModel):
     stage_progress: int = Field(0, description="阶段进度", ge=0, le=100)
     reached_current_stage_at: Optional[str] = Field(None, description="到达时间")
     notes: Optional[str] = Field(None, description="备注")
+    source_chapter_id: Optional[str] = Field(None, description="来源章节ID")
+    source_chapter_order: Optional[int] = Field(None, description="来源章节内顺序")
+    valid_from_chapter_id: Optional[str] = Field(None, description="事实有效起点章节ID")
+    valid_from_chapter_order: Optional[int] = Field(None, description="事实有效起点章节内顺序")
+    story_time_label: Optional[str] = Field(None, description="故事内时间标签")

@@ -125,7 +125,7 @@ class OrganizationResponse(OrganizationBase):
     created_at: datetime
     updated_at: datetime
     
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, extra="allow")
 
 
 class OrganizationDetailResponse(BaseModel):
@@ -140,6 +140,8 @@ class OrganizationDetailResponse(BaseModel):
     location: Optional[str] = None
     motto: Optional[str] = None
     color: Optional[str] = None
+
+    model_config = ConfigDict(extra="allow")
 
 
 # ============ 组织成员相关 ============
