@@ -76,3 +76,8 @@
 
 ## 2026-04-27 — Task 10b QA world-result status fix
 - Atlas Phase 1 found the Task 10b world-setting API schema had reintroduced `rolled_back` into `WorldSettingResultStatus`, contradicting the Task 8 rollback decision. Narrowed the API status enum back to `pending | accepted | rejected | superseded` and added OpenAPI regression coverage while preserving rollback behavior (`current=superseded`, previous=`accepted`). Targeted Task 10b verification passed again with `8 passed, 4 warnings`, with output appended to `.sisyphus/evidence/task-10b-world-api.log`.
+
+## 2026-04-27 — Task 11 verification environment
+- Task 11 verification used the established minimal uv Python 3.11 dependency command. Targeted trigger verification passed with `6 passed`; extraction pipeline/API compatibility was also rerun and appended to `.sisyphus/evidence/task-11-triggers.log` / `task-11-triggers-error.log`.
+- LSP diagnostics on changed backend files remain dominated by known local basedpyright environment/import noise (`fastapi`/`sqlalchemy`/`pydantic` unresolved and implicit `app.*` import warnings). Concrete new argument-type/unused-call-result issues in Task 11 edits were fixed before the final targeted pytest rerun.
+- Follow-up glob for `.sisyphus/**/goldfinger-relationship-sync.md` returned no files; `.sisyphus/boulder.json` remains unrelated untracked orchestration state and was not staged or committed.
