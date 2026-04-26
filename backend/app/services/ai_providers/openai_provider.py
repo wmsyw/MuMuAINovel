@@ -2,6 +2,7 @@
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from app.logger import get_logger
+from app.services.ai_capabilities import ReasoningConfig
 from app.services.ai_clients.openai_client import OpenAIClient
 from .base_provider import BaseAIProvider
 
@@ -23,6 +24,7 @@ class OpenAIProvider(BaseAIProvider):
         system_prompt: Optional[str] = None,
         tools: Optional[List[Dict]] = None,
         tool_choice: Optional[str] = None,
+        reasoning_config: Optional[ReasoningConfig] = None,
     ) -> Dict[str, Any]:
         messages = []
         if system_prompt:
@@ -48,6 +50,7 @@ class OpenAIProvider(BaseAIProvider):
         tools: Optional[List[Dict]] = None,
         tool_choice: Optional[str] = None,
         user_id: Optional[str] = None,
+        reasoning_config: Optional[ReasoningConfig] = None,
     ) -> AsyncGenerator[str, None]:
         messages = []
         if system_prompt:

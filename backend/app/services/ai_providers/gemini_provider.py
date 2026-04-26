@@ -2,6 +2,7 @@
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from app.logger import get_logger
+from app.services.ai_capabilities import ReasoningConfig
 from app.services.ai_clients.gemini_client import GeminiClient
 from .base_provider import BaseAIProvider
 
@@ -21,6 +22,7 @@ class GeminiProvider(BaseAIProvider):
         system_prompt: Optional[str] = None,
         tools: Optional[List[Dict]] = None,
         tool_choice: Optional[str] = None,
+        reasoning_config: Optional[ReasoningConfig] = None,
     ) -> Dict[str, Any]:
         messages = [{"role": "user", "content": prompt}]
         return await self.client.chat_completion(
@@ -43,6 +45,7 @@ class GeminiProvider(BaseAIProvider):
         tools: Optional[List[Dict]] = None,
         tool_choice: Optional[str] = None,
         user_id: Optional[str] = None,
+        reasoning_config: Optional[ReasoningConfig] = None,
     ) -> AsyncGenerator[str, None]:
         # 如果有工具，使用真正的流式工具调用
         if tools:
