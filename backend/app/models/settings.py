@@ -18,6 +18,9 @@ class Settings(Base):
     temperature = Column(Float, default=0.7, comment="温度参数")
     max_tokens = Column(Integer, default=2000, comment="最大token数")
     system_prompt = Column(Text, comment="系统级别提示词，每次AI调用都会使用")
+    default_reasoning_intensity = Column(String(20), default="auto", server_default="auto", nullable=False, comment="默认推理强度：auto/off/low/medium/high/maximum")
+    reasoning_overrides = Column(Text, nullable=True, comment="模型/任务推理强度覆盖(JSON)")
+    allow_ai_entity_generation = Column(Boolean, default=False, server_default="0", nullable=False, comment="是否允许AI直接生成规范实体")
 
     # 封面图片生成配置
     cover_api_provider = Column(String(50), comment="封面图片API提供商")

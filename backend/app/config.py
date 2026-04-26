@@ -77,6 +77,10 @@ class Settings(BaseSettings):
     default_model: str = "gpt-4"
     default_temperature: float = 0.7
     default_max_tokens: int = 32000
+    default_reasoning_intensity: str = "auto"
+    reasoning_overrides: str = "{}"
+    allow_ai_entity_generation: bool = False
+    EXTRACTION_PIPELINE_ENABLED: bool = False
     
     # MCP配置
     mcp_max_rounds: int = 3  # MCP工具调用最大轮数（全局统一控制）
