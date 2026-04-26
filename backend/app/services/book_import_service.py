@@ -44,6 +44,7 @@ from app.schemas.book_import import (
 )
 from app.services.ai_service import AIService, create_user_ai_service_with_mcp
 from app.services.entity_generation_policy_service import entity_generation_policy_service
+from app.services.extraction_service import run_project_extraction_trigger_after_commit
 from app.services.prompt_service import PromptService
 from app.services.txt_parser_service import txt_parser_service
 
@@ -226,6 +227,14 @@ class BookImportService:
             statistics["generated_entities"] = generated_entities
 
             await db.commit()
+            _ = await run_project_extraction_trigger_after_commit(
+                db,
+                project_id=project.id,
+                user_id=user_id,
+                trigger_source="book_import",
+                force=False,
+                supersede_prior=True,
+            )
 
             return BookImportApplyResponse(
                 success=True,
@@ -408,6 +417,15 @@ class BookImportService:
             await _notify("正在保存到数据库...", 95)
             await db.commit()
             await _notify("数据保存完成", 98)
+
+            _ = await run_project_extraction_trigger_after_commit(
+                db,
+                project_id=project.id,
+                user_id=user_id,
+                trigger_source="book_import",
+                force=False,
+                supersede_prior=True,
+            )
 
             # 记录失败步骤和项目ID到任务中，供重试使用
             task.imported_project_id = project.id

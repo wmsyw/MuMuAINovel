@@ -56,6 +56,36 @@ class ExtractionRunListResponse(BaseModel):
     items: list[ExtractionRunResponse]
 
 
+class ManualReextractProjectRequest(BaseModel):
+    """Manual project-wide re-extraction request."""
+
+    project_id: str = Field(..., description="Project to re-extract")
+
+
+class ManualReextractChapterRequest(BaseModel):
+    """Manual chapter re-extraction request."""
+
+    project_id: str = Field(..., description="Project that owns the chapter")
+    chapter_id: str = Field(..., description="Chapter to re-extract")
+
+
+class ManualReextractRangeRequest(BaseModel):
+    """Manual chapter range re-extraction request."""
+
+    project_id: str = Field(..., description="Project to re-extract")
+    start_chapter_number: int = Field(..., ge=1, description="Inclusive start chapter number")
+    end_chapter_number: int = Field(..., ge=1, description="Inclusive end chapter number")
+
+
+class ManualReextractResponse(BaseModel):
+    """Manual re-extraction operation result."""
+
+    project_id: str
+    scope: Literal["project", "chapter", "range"]
+    total_runs: int
+    runs: list[ExtractionRunResponse]
+
+
 class ExtractionCandidateResponse(BaseModel):
     """Extraction candidate response."""
 

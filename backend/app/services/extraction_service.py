@@ -16,11 +16,17 @@ from typing import Any, Callable, Protocol, TypeAlias, cast
 import uuid
 
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
+from app.config import settings as app_settings
+from app.logger import get_logger
 from app.models.chapter import Chapter
 from app.models.project import Project
 from app.models.relationship import ExtractionCandidate, ExtractionRun
+
+
+logger = get_logger(__name__)
 
 
 EXTRACTION_PIPELINE_VERSION = "extraction-core-v1"
@@ -565,7 +571,7 @@ class ExtractionService:
 
     def _json_safe(self, value: Any) -> Any:
         try:
-            json.dumps(value, ensure_ascii=False)
+            _ = json.dumps(value, ensure_ascii=False)
             return value
         except TypeError:
             return json.loads(json.dumps(value, ensure_ascii=False, default=str))
@@ -576,6 +582,293 @@ class ExtractionService:
 
     def _hash_text(self, text: str) -> str:
         return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+_default_extraction_callable: ExtractionCallable | Callable[..., RawExtractionOutput] | None = None
+
+
+def set_default_extraction_callable(extractor: ExtractionCallable | Callable[..., RawExtractionOutput] | None) -> None:
+    """Set the process-local extractor used by trigger integrations.
+
+    Tests and future async/status workers can install a real extractor without
+    coupling persistence routes to provider clients. When unset, trigger runs are
+    still recorded deterministically with an empty candidate list.
+    """
+
+    global _default_extraction_callable
+    _default_extraction_callable = extractor
+
+
+def get_default_extraction_callable() -> ExtractionCallable | Callable[..., RawExtractionOutput]:
+    if _default_extraction_callable is not None:
+        return _default_extraction_callable
+
+    def empty_extractor(**_: Any) -> RawExtractionOutput:
+        return {"candidates": []}
+
+    return empty_extractor
+
+
+@dataclass(frozen=True, slots=True)
+class ExtractionTriggerResult:
+    """Outcome for one extraction trigger attempt."""
+
+    run_id: str
+    chapter_id: str
+    status: str
+    reused_existing_run: bool
+
+
+class ExtractionTriggerService:
+    """Coordinate extraction triggers after persisted chapter text changes."""
+
+    def __init__(self, db: Session) -> None:
+        self.db: Session = db
+
+    def trigger_chapter(
+        self,
+        *,
+        project_id: str,
+        chapter_id: str,
+        user_id: str,
+        trigger_source: str,
+        force: bool = False,
+        extractor: ExtractionCallable | Callable[..., RawExtractionOutput] | None = None,
+        enabled: bool = True,
+        supersede_prior: bool = True,
+        source_metadata: dict[str, Any] | None = None,
+    ) -> ExtractionTriggerResult | None:
+        """Run extraction for a persisted chapter if the trigger is enabled."""
+
+        if not enabled:
+            return None
+
+        previous_run_ids = set(self._chapter_run_ids(project_id=project_id, chapter_id=chapter_id))
+        run = ExtractionService(self.db).extract_chapter(
+            project_id=project_id,
+            chapter_id=chapter_id,
+            user_id=user_id,
+            extractor=extractor or get_default_extraction_callable(),
+            force=force,
+            trigger_source=trigger_source,
+            source_metadata=source_metadata,
+        )
+        reused_existing_run = run.id in previous_run_ids
+        if supersede_prior and not reused_existing_run and run.status == "completed":
+            self._supersede_pending_candidates_for_chapter(
+                project_id=project_id,
+                chapter_id=chapter_id,
+                current_run_id=run.id,
+            )
+        return ExtractionTriggerResult(
+            run_id=run.id,
+            chapter_id=chapter_id,
+            status=str(run.status),
+            reused_existing_run=reused_existing_run,
+        )
+
+    def trigger_project(
+        self,
+        *,
+        project_id: str,
+        user_id: str,
+        trigger_source: str = "manual_project",
+        force: bool = True,
+        extractor: ExtractionCallable | Callable[..., RawExtractionOutput] | None = None,
+        enabled: bool = True,
+        supersede_prior: bool = False,
+    ) -> list[ExtractionTriggerResult]:
+        if not enabled:
+            return []
+        chapters = self._project_chapters(project_id=project_id)
+        return [
+            result
+            for chapter in chapters
+            if (
+                result := self.trigger_chapter(
+                    project_id=project_id,
+                    chapter_id=chapter.id,
+                    user_id=user_id,
+                    trigger_source=trigger_source,
+                    force=force,
+                    extractor=extractor,
+                    enabled=enabled,
+                    supersede_prior=supersede_prior,
+                    source_metadata={"manual_scope": "project"},
+                )
+            )
+            is not None
+        ]
+
+    def trigger_chapter_range(
+        self,
+        *,
+        project_id: str,
+        user_id: str,
+        start_chapter_number: int,
+        end_chapter_number: int,
+        trigger_source: str = "manual_range",
+        force: bool = True,
+        extractor: ExtractionCallable | Callable[..., RawExtractionOutput] | None = None,
+        enabled: bool = True,
+        supersede_prior: bool = False,
+    ) -> list[ExtractionTriggerResult]:
+        if not enabled:
+            return []
+        if end_chapter_number < start_chapter_number:
+            raise ValueError("end_chapter_number must be greater than or equal to start_chapter_number")
+        chapters = self.db.execute(
+            select(Chapter)
+            .where(
+                Chapter.project_id == project_id,
+                Chapter.chapter_number >= start_chapter_number,
+                Chapter.chapter_number <= end_chapter_number,
+            )
+            .order_by(Chapter.chapter_number.asc(), Chapter.sub_index.asc())
+        ).scalars().all()
+        return [
+            result
+            for chapter in chapters
+            if (
+                result := self.trigger_chapter(
+                    project_id=project_id,
+                    chapter_id=chapter.id,
+                    user_id=user_id,
+                    trigger_source=trigger_source,
+                    force=force,
+                    extractor=extractor,
+                    enabled=enabled,
+                    supersede_prior=supersede_prior,
+                    source_metadata={
+                        "manual_scope": "range",
+                        "start_chapter_number": start_chapter_number,
+                        "end_chapter_number": end_chapter_number,
+                    },
+                )
+            )
+            is not None
+        ]
+
+    def _project_chapters(self, *, project_id: str) -> list[Chapter]:
+        return list(
+            self.db.execute(
+                select(Chapter)
+                .where(Chapter.project_id == project_id)
+                .order_by(Chapter.chapter_number.asc(), Chapter.sub_index.asc())
+            ).scalars().all()
+        )
+
+    def _chapter_run_ids(self, *, project_id: str, chapter_id: str) -> list[str]:
+        return [
+            str(run_id)
+            for run_id in self.db.execute(
+                select(ExtractionRun.id).where(
+                    ExtractionRun.project_id == project_id,
+                    ExtractionRun.chapter_id == chapter_id,
+                )
+            ).scalars().all()
+        ]
+
+    def _supersede_pending_candidates_for_chapter(
+        self,
+        *,
+        project_id: str,
+        chapter_id: str,
+        current_run_id: str,
+    ) -> None:
+        prior_candidates = self.db.execute(
+            select(ExtractionCandidate).where(
+                ExtractionCandidate.project_id == project_id,
+                ExtractionCandidate.source_chapter_id == chapter_id,
+                ExtractionCandidate.run_id != current_run_id,
+                ExtractionCandidate.status == "pending",
+            )
+        ).scalars().all()
+        for candidate in prior_candidates:
+            candidate.status = "superseded"
+
+
+async def run_extraction_trigger_after_commit(
+    db: AsyncSession,
+    *,
+    project_id: str,
+    chapter_id: str,
+    user_id: str,
+    trigger_source: str,
+    force: bool = False,
+    extractor: ExtractionCallable | Callable[..., RawExtractionOutput] | None = None,
+    enabled: bool | None = None,
+    supersede_prior: bool = True,
+    source_metadata: dict[str, Any] | None = None,
+) -> ExtractionTriggerResult | None:
+    """Best-effort async entrypoint used by route/import persistence flows.
+
+    Call only after the chapter/import/generation transaction has committed.
+    Any trigger error is isolated to the extraction transaction and will not
+    roll back the already-persisted text.
+    """
+
+    if enabled is None:
+        enabled = bool(app_settings.EXTRACTION_PIPELINE_ENABLED)
+    if not enabled:
+        return None
+    try:
+        result = await db.run_sync(
+            lambda session: ExtractionTriggerService(session).trigger_chapter(
+                project_id=project_id,
+                chapter_id=chapter_id,
+                user_id=user_id,
+                trigger_source=trigger_source,
+                force=force,
+                extractor=extractor,
+                enabled=True,
+                supersede_prior=supersede_prior,
+                source_metadata=source_metadata,
+            )
+        )
+        await db.commit()
+        return result
+    except Exception as exc:
+        await db.rollback()
+        logger.warning("正文抽取触发失败，已保留已落库正文: %s", exc, exc_info=True)
+        return None
+
+
+async def run_project_extraction_trigger_after_commit(
+    db: AsyncSession,
+    *,
+    project_id: str,
+    user_id: str,
+    trigger_source: str,
+    force: bool = False,
+    extractor: ExtractionCallable | Callable[..., RawExtractionOutput] | None = None,
+    enabled: bool | None = None,
+    supersede_prior: bool = True,
+) -> list[ExtractionTriggerResult]:
+    """Best-effort project-wide automatic trigger after an import commit."""
+
+    if enabled is None:
+        enabled = bool(app_settings.EXTRACTION_PIPELINE_ENABLED)
+    if not enabled:
+        return []
+    try:
+        results = await db.run_sync(
+            lambda session: ExtractionTriggerService(session).trigger_project(
+                project_id=project_id,
+                user_id=user_id,
+                trigger_source=trigger_source,
+                force=force,
+                extractor=extractor,
+                enabled=True,
+                supersede_prior=supersede_prior,
+            )
+        )
+        await db.commit()
+        return results
+    except Exception as exc:
+        await db.rollback()
+        logger.warning("项目正文抽取触发失败，已保留已落库导入内容: %s", exc, exc_info=True)
+        return []
 
 
 def extract_chapter_candidates(

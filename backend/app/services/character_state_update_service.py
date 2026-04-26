@@ -1,9 +1,12 @@
 """角色状态更新服务 - 根据章节分析结果自动更新角色心理状态、关系和组织成员"""
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_, and_
+from app.config import settings as app_settings
+from app.models.chapter import Chapter
 from app.models.character import Character
 from app.models.relationship import CharacterRelationship, Organization, OrganizationMember
+from app.services.extraction_service import ExtractionTriggerService
 from app.logger import get_logger
 import uuid
 
@@ -60,7 +63,16 @@ class CharacterStateUpdateService:
                 "changes": []
             }
 
-        result = {
+        if app_settings.EXTRACTION_PIPELINE_ENABLED:
+            return await CharacterStateUpdateService._stage_candidates_from_analysis(
+                db=db,
+                project_id=project_id,
+                character_states=character_states,
+                chapter_id=chapter_id,
+                chapter_number=chapter_number,
+            )
+
+        result: Dict[str, Any] = {
             "state_updated_count": 0,
             "relationship_created_count": 0,
             "relationship_updated_count": 0,
@@ -183,6 +195,198 @@ class CharacterStateUpdateService:
             logger.info("📋 本章没有角色状态或关系变化")
 
         return result
+
+    @staticmethod
+    async def _stage_candidates_from_analysis(
+        db: AsyncSession,
+        project_id: str,
+        character_states: List[Dict[str, Any]],
+        chapter_id: str,
+        chapter_number: int,
+    ) -> Dict[str, Any]:
+        """Stage extraction candidates instead of mutating canon when extraction is enabled."""
+
+        chapter_result = await db.execute(select(Chapter).where(Chapter.id == chapter_id, Chapter.project_id == project_id))
+        chapter = chapter_result.scalar_one_or_none()
+        if chapter is None:
+            logger.warning("📋 章节不存在，无法创建状态抽取候选: %s", chapter_id)
+            return {
+                "state_updated_count": 0,
+                "relationship_created_count": 0,
+                "relationship_updated_count": 0,
+                "org_updated_count": 0,
+                "changes": [],
+            }
+
+        all_characters_result = await db.execute(select(Character).where(Character.project_id == project_id))
+        all_characters = all_characters_result.scalars().all()
+        characters_by_name: Dict[str, Character] = {c.name: c for c in all_characters}
+
+        raw_candidates: list[dict[str, Any]] = []
+        changes: list[str] = []
+        state_count = 0
+        relationship_count = 0
+        org_count = 0
+
+        def source_for(*needles: Any) -> tuple[str, dict[str, int | str]]:
+            content = chapter.content or ""
+            fallback_end = min(len(content), 1)
+            if not content:
+                return "", {"chapter_id": chapter.id, "chapter": chapter_number, "order": int(chapter.sub_index or 1), "offset_start": 0, "offset_end": 0}
+            for needle in needles:
+                text = str(needle or "").strip()
+                if not text:
+                    continue
+                start = content.find(text)
+                if start >= 0:
+                    return text, {
+                        "chapter_id": chapter.id,
+                        "chapter": chapter_number,
+                        "order": int(chapter.sub_index or 1),
+                        "offset_start": start,
+                        "offset_end": start + len(text),
+                    }
+            evidence = content[:fallback_end]
+            return evidence, {
+                "chapter_id": chapter.id,
+                "chapter": chapter_number,
+                "order": int(chapter.sub_index or 1),
+                "offset_start": 0,
+                "offset_end": fallback_end,
+            }
+
+        for char_state in character_states:
+            char_name = str(char_state.get("character_name") or "").strip()
+            if not char_name or char_name not in characters_by_name:
+                continue
+
+            survival_status = char_state.get("survival_status")
+            if survival_status and survival_status in ("deceased", "missing", "retired"):
+                key_event = str(char_state.get("key_event") or survival_status)
+                evidence, source = source_for(key_event, char_name)
+                raw_candidates.append({
+                    "candidate_type": "character_state",
+                    "character": char_name,
+                    "state": str(survival_status),
+                    "confidence": 0.98,
+                    "evidence_text": evidence,
+                    "source": source,
+                    "payload": {
+                        "character": char_name,
+                        "survival_status": survival_status,
+                        "key_event": key_event,
+                        "auto_accept": True,
+                        "source_service": "CharacterStateUpdateService._update_survival_status",
+                    },
+                })
+                state_count += 1
+                changes.append(f"候选：{char_name} 生存状态 {survival_status}")
+                continue
+
+            state_after = char_state.get("state_after")
+            if state_after:
+                evidence, source = source_for(char_state.get("psychological_change"), state_after, char_name)
+                raw_candidates.append({
+                    "candidate_type": "character_state",
+                    "character": char_name,
+                    "state": str(state_after),
+                    "confidence": 0.86,
+                    "evidence_text": evidence,
+                    "source": source,
+                    "payload": {
+                        "character": char_name,
+                        "state_before": char_state.get("state_before"),
+                        "state_after": state_after,
+                        "psychological_change": char_state.get("psychological_change"),
+                        "source_service": "CharacterStateUpdateService._update_psychological_state",
+                    },
+                })
+                state_count += 1
+                changes.append(f"候选：{char_name} 心理状态 {state_after}")
+
+            relationship_changes = char_state.get("relationship_changes", {})
+            if isinstance(relationship_changes, dict):
+                for target_name, change_info in relationship_changes.items():
+                    target = str(target_name or "").strip()
+                    if not target or target not in characters_by_name or target == char_name:
+                        continue
+                    change_desc = change_info.get("change", str(change_info)) if isinstance(change_info, dict) else str(change_info)
+                    evidence, source = source_for(change_desc, target, char_name)
+                    raw_candidates.append({
+                        "candidate_type": "relationship",
+                        "relationship": change_desc,
+                        "confidence": 0.84,
+                        "evidence_text": evidence,
+                        "source": source,
+                        "payload": {
+                            "participants": [char_name, target],
+                            "relationship": change_desc,
+                            "source_service": "CharacterStateUpdateService._update_relationships",
+                        },
+                    })
+                    relationship_count += 1
+                    changes.append(f"候选：{char_name}↔{target} 关系 {change_desc}")
+
+            organization_changes = char_state.get("organization_changes", [])
+            if isinstance(organization_changes, list):
+                for org_change in organization_changes:
+                    if not isinstance(org_change, dict):
+                        continue
+                    org_name = str(org_change.get("organization_name") or "").strip()
+                    if not org_name:
+                        continue
+                    change_desc = str(org_change.get("description") or org_change.get("change_type") or org_name)
+                    evidence, source = source_for(change_desc, org_name, char_name)
+                    raw_candidates.append({
+                        "candidate_type": "organization_affiliation",
+                        "character": char_name,
+                        "current_organization": org_name,
+                        "confidence": 0.84,
+                        "evidence_text": evidence,
+                        "source": source,
+                        "payload": {
+                            **org_change,
+                            "character": char_name,
+                            "source_service": "CharacterStateUpdateService._update_organization_memberships",
+                        },
+                    })
+                    org_count += 1
+                    changes.append(f"候选：{char_name} 组织归属 {org_name}")
+
+        if not raw_candidates:
+            return {
+                "state_updated_count": 0,
+                "relationship_created_count": 0,
+                "relationship_updated_count": 0,
+                "org_updated_count": 0,
+                "changes": [],
+            }
+
+        def analysis_extractor(**_: Any) -> dict[str, Any]:
+            return {"candidates": raw_candidates}
+
+        await db.run_sync(
+            lambda session: ExtractionTriggerService(session).trigger_chapter(
+                project_id=project_id,
+                chapter_id=chapter_id,
+                user_id="character_state_analysis",
+                trigger_source="character_state_analysis",
+                force=True,
+                extractor=analysis_extractor,
+                enabled=True,
+                supersede_prior=False,
+                source_metadata={"chapter_number": chapter_number, "source_service": "CharacterStateUpdateService"},
+            )
+        )
+        await db.commit()
+
+        return {
+            "state_updated_count": state_count,
+            "relationship_created_count": relationship_count,
+            "relationship_updated_count": 0,
+            "org_updated_count": org_count,
+            "changes": changes,
+        }
 
     @staticmethod
     async def _update_survival_status(
@@ -669,7 +873,7 @@ class CharacterStateUpdateService:
         if not organization_states:
             return {"updated_count": 0, "changes": []}
         
-        result = {"updated_count": 0, "changes": []}
+        result: Dict[str, Any] = {"updated_count": 0, "changes": []}
         
         logger.info(f"🏛️ 开始更新第{chapter_number}章的组织自身状态...")
         
