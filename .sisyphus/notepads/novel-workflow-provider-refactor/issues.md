@@ -61,3 +61,11 @@
 
 ## 2026-04-26 — Task 9 QA typing fix
 - Atlas Phase 2 found new `object` attribute-access diagnostics in `tests/test_entity_generation_policy.py` from the local `AsyncSessionAdapter.execute()` helper. Added narrow local `Protocol` return types plus explicit casts for the book-import audit/career scalar result lists, with no suppressions or runtime behavior changes. Targeted Task 9 pytest remains `7 passed`.
+
+## 2026-04-27 — Task 10a verification environment
+- Task 10a verification used the established `uv run --python python3.11 --with ... python -m pytest ...` command. Targeted extraction API output and compatibility runs were appended to `.sisyphus/evidence/task-10a-extraction-api.log`; focused invalid-merge/rollback edge output was appended to `.sisyphus/evidence/task-10a-extraction-api-edge.log`.
+- Initial API test collection exposed that importing `app.main` under the minimal uv dependency set needs local stubs for MCP, memory, and email services; the tests now stub only those heavy imports while still asserting the real extraction router is registered in `main.py` and OpenAPI includes `/api/extraction/*` paths.
+- LSP diagnostics on changed backend files remain dominated by known local environment/import noise (`fastapi`/`sqlalchemy`/`pydantic`/`pytest` unresolved and implicit `app.*` import warnings). Concrete new attribute-assignment and unused-call-result issues in the Task 10a files were cleaned up before the final targeted pytest rerun passed.
+
+## 2026-04-27 — Task 10a QA typing cleanup
+- Cleaned `backend/tests/test_extraction_api.py` by adding narrow local result/session `Protocol`s and `TypeVar`-based `run_sync` typing, assigning intentional `sys.modules.setdefault(...)` results, and keeping test/API semantics unchanged. Targeted verification passed with `uv run --python python3.11 ... python -m pytest tests/test_extraction_api.py -q` (`5 passed, 4 warnings`); grep found no `type: ignore`, `pyright`, `TODO`, `FIXME`, or `HACK`, and the Goldfinger artifact glob remained empty.
