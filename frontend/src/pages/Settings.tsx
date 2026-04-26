@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Card, Form, Input, Button, Select, Slider, InputNumber, message, Space, Typography, Spin, Modal, Alert, Grid, Tabs, List, Tag, Popconfirm, Empty, Row, Col, theme } from 'antd';
+import { Card, Form, Input, Button, Select, Slider, InputNumber, message, Space, Typography, Spin, Modal, Alert, Grid, Tabs, List, Tag, Popconfirm, Empty, Row, Col, Switch, Tooltip, theme } from 'antd';
 import { SaveOutlined, DeleteOutlined, ReloadOutlined, InfoCircleOutlined, CheckCircleOutlined, CloseCircleOutlined, ThunderboltOutlined, PlusOutlined, EditOutlined, CopyOutlined, WarningOutlined, PictureOutlined } from '@ant-design/icons';
 import { settingsApi, mcpPluginApi } from '../services/api';
-import type { SettingsUpdate, APIKeyPreset, PresetCreateRequest, APIKeyPresetConfig } from '../types';
+import type { SettingsUpdate, APIKeyPreset, PresetCreateRequest, APIKeyPresetConfig, ReasoningCapabilitiesResponse, ReasoningCapability, ReasoningIntensity } from '../types';
 import { eventBus, EventNames } from '../store/eventBus';
 
 const { Title, Text } = Typography;
@@ -10,7 +10,132 @@ const { Option } = Select;
 const { useBreakpoint } = Grid;
 const { TextArea } = Input;
 
-export default function SettingsPage() {
+const REASONING_INTENSITIES: ReasoningIntensity[] = ['auto', 'off', 'low', 'medium', 'high', 'maximum'];
+
+const REASONING_INTENSITY_LABELS: Record<ReasoningIntensity, string> = {
+  auto: '自动',
+  off: '关闭',
+  low: '低',
+  medium: '中',
+  high: '高',
+  maximum: '最高',
+};
+
+const DEFAULT_REASONING_INTENSITY: ReasoningIntensity = 'auto';
+const ENTITY_GENERATION_WARNING_COPY = '默认从正文自动提取角色/组织/职业；开启后才允许 AI 直接生成入库';
+
+const normalizeReasoningProvider = (provider?: string) => {
+  const normalized = (provider || '').trim().toLowerCase();
+  return normalized === 'mumu' ? 'openai' : normalized;
+};
+
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const matchesReasoningModelPattern = (model: string, pattern: string) => {
+  const normalizedModel = model.trim().toLowerCase();
+  const normalizedPattern = pattern.trim().toLowerCase();
+  if (!normalizedModel || !normalizedPattern) {
+    return false;
+  }
+  const regex = new RegExp(`^${normalizedPattern.split('*').map(escapeRegExp).join('.*')}$`);
+  return regex.test(normalizedModel);
+};
+
+const findReasoningCapability = (
+  provider: string | undefined,
+  model: string | undefined,
+  capabilities?: ReasoningCapability[],
+) => {
+  const normalizedProvider = normalizeReasoningProvider(provider);
+  const normalizedModel = (model || '').trim().toLowerCase();
+  if (!normalizedProvider || !normalizedModel || !capabilities?.length) {
+    return undefined;
+  }
+  return capabilities.find(capability => (
+    normalizeReasoningProvider(capability.provider) === normalizedProvider &&
+    matchesReasoningModelPattern(normalizedModel, capability.model_pattern)
+  ));
+};
+
+const getReasoningIntensityOptions = (
+  registry: ReasoningCapabilitiesResponse | null,
+  provider?: string,
+  model?: string,
+) => {
+  const intensities = registry?.intensities?.length ? registry.intensities : REASONING_INTENSITIES;
+  const capability = findReasoningCapability(provider, model, registry?.capabilities);
+  return intensities.map(intensity => {
+    const supported = capability
+      ? capability.supported_intensities.includes(intensity)
+      : intensity === DEFAULT_REASONING_INTENSITY;
+    return {
+      value: intensity,
+      label: REASONING_INTENSITY_LABELS[intensity],
+      disabled: !supported,
+      reason: supported
+        ? undefined
+        : capability
+          ? `当前模型不支持 ${REASONING_INTENSITY_LABELS[intensity]} 推理强度`
+          : '未匹配到后端能力元数据，仅建议使用自动',
+    };
+  });
+};
+
+const getReasoningSelectionError = (
+  provider: string | undefined,
+  model: string | undefined,
+  intensity: ReasoningIntensity | undefined,
+  registry: ReasoningCapabilitiesResponse | null,
+) => {
+  const selectedIntensity = intensity || DEFAULT_REASONING_INTENSITY;
+  const capability = findReasoningCapability(provider, model, registry?.capabilities);
+
+  if (!capability) {
+    return selectedIntensity === DEFAULT_REASONING_INTENSITY
+      ? undefined
+      : '未匹配到该 provider/model 的推理能力元数据，请使用“自动”或先确认模型名称';
+  }
+
+  if (capability.supported_intensities.includes(selectedIntensity)) {
+    return undefined;
+  }
+
+  const supportedLabels = capability.supported_intensities
+    .map(item => `${REASONING_INTENSITY_LABELS[item]}(${item})`)
+    .join('、');
+  return `模型 ${capability.provider}/${model || capability.model_pattern} 不支持推理强度 ${selectedIntensity}；支持: ${supportedLabels}`;
+};
+
+const getApiErrorMessage = (error: unknown, fallback: string) => {
+  const maybeError = error as {
+    response?: {
+      data?: {
+        detail?: string | { msg?: string }[];
+        message?: string;
+      };
+    };
+    message?: string;
+  };
+  const detail = maybeError.response?.data?.detail;
+  if (typeof detail === 'string' && detail.trim()) {
+    return detail;
+  }
+  if (Array.isArray(detail)) {
+    const firstMessage = detail.find(item => item?.msg)?.msg;
+    if (firstMessage) {
+      return firstMessage;
+    }
+  }
+  return maybeError.response?.data?.message || maybeError.message || fallback;
+};
+
+const normalizeSettingsFormDefaults = <T extends Partial<SettingsUpdate>>(settings?: T) => ({
+  ...settings,
+  default_reasoning_intensity: settings?.default_reasoning_intensity || DEFAULT_REASONING_INTENSITY,
+  allow_ai_entity_generation: settings?.allow_ai_entity_generation ?? false,
+});
+
+function SettingsPage() {
   const { token } = theme.useToken();
   const screens = useBreakpoint();
   const isMobile = !screens.md; // md断点是768px
@@ -42,6 +167,8 @@ export default function SettingsPage() {
     provider?: string;
     model?: string;
   } | null>(null);
+  const [reasoningCapabilities, setReasoningCapabilities] = useState<ReasoningCapabilitiesResponse | null>(null);
+  const [fetchingReasoningCapabilities, setFetchingReasoningCapabilities] = useState(false);
 
   // 预设相关状态
   const [activeTab, setActiveTab] = useState('current');
@@ -64,6 +191,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     loadSettings();
+    loadReasoningCapabilities();
     if (activeTab === 'presets') {
       loadPresets();
     }
@@ -83,13 +211,26 @@ export default function SettingsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
+  const loadReasoningCapabilities = async () => {
+    setFetchingReasoningCapabilities(true);
+    try {
+      const capabilities = await settingsApi.getReasoningCapabilities();
+      setReasoningCapabilities(capabilities);
+    } catch (error) {
+      console.error('加载推理能力元数据失败:', error);
+      message.error(getApiErrorMessage(error, '加载推理能力元数据失败'));
+    } finally {
+      setFetchingReasoningCapabilities(false);
+    }
+  };
+
   const loadSettings = async () => {
     setInitialLoading(true);
     try {
       const settings = await settingsApi.getSettings();
       form.setFieldsValue({
         ...defaultCoverSettings,
-        ...settings,
+        ...normalizeSettingsFormDefaults(settings),
         cover_api_provider: settings.cover_api_provider || defaultCoverSettings.cover_api_provider,
         cover_api_key: settings.cover_api_key ?? defaultCoverSettings.cover_api_key,
         cover_api_base_url: settings.cover_api_base_url || defaultCoverSettings.cover_api_base_url,
@@ -117,6 +258,8 @@ export default function SettingsPage() {
           llm_model: 'gpt-4',
           temperature: 0.7,
           max_tokens: 2000,
+          default_reasoning_intensity: DEFAULT_REASONING_INTENSITY,
+          allow_ai_entity_generation: false,
           ...defaultCoverSettings,
         });
       } else {
@@ -128,6 +271,12 @@ export default function SettingsPage() {
   };
 
   const handleSave = async (values: SettingsUpdate) => {
+    const reasoningError = validateReasoningSelection(values);
+    if (reasoningError) {
+      message.error(reasoningError);
+      return;
+    }
+
     setLoading(true);
     try {
       // 检查是否与 MCP 缓存的配置不一致
@@ -229,8 +378,8 @@ export default function SettingsPage() {
           console.error('Failed to disable MCP plugins:', err);
         }
       }
-    } catch {
-      message.error('保存设置失败');
+    } catch (error) {
+      message.error(getApiErrorMessage(error, '保存设置失败'));
     } finally {
       setLoading(false);
     }
@@ -251,6 +400,8 @@ export default function SettingsPage() {
           llm_model: 'gpt-4',
           temperature: 0.7,
           max_tokens: 2000,
+          default_reasoning_intensity: DEFAULT_REASONING_INTENSITY,
+          allow_ai_entity_generation: false,
           ...defaultCoverSettings,
         });
         message.info('已重置为默认值，请点击保存');
@@ -304,13 +455,46 @@ export default function SettingsPage() {
       defaultModel: 'gemini-3-flash-preview'
     },
     { value: 'openai', label: 'OpenAI Compatible', defaultUrl: 'https://api.openai.com/v1' },
-    // { value: 'anthropic', label: 'Anthropic (Claude)', defaultUrl: 'https://api.anthropic.com' },
+    { value: 'anthropic', label: 'Anthropic Claude', defaultUrl: 'https://api.anthropic.com' },
     { value: 'gemini', label: 'Google Gemini', defaultUrl: 'https://generativelanguage.googleapis.com/v1beta' },
   ];
 
   const selectedProvider = Form.useWatch('api_provider', form);
+  const selectedModel = Form.useWatch('llm_model', form);
   const selectedCoverProvider = Form.useWatch('cover_api_provider', form);
   const selectedPresetProvider = Form.useWatch('api_provider', presetForm);
+  const selectedPresetModel = Form.useWatch('llm_model', presetForm);
+  const selectedReasoningCapability = findReasoningCapability(
+    selectedProvider,
+    selectedModel,
+    reasoningCapabilities?.capabilities,
+  );
+  const selectedPresetReasoningCapability = findReasoningCapability(
+    selectedPresetProvider,
+    selectedPresetModel,
+    reasoningCapabilities?.capabilities,
+  );
+  const reasoningOptions = getReasoningIntensityOptions(reasoningCapabilities, selectedProvider, selectedModel);
+  const presetReasoningOptions = getReasoningIntensityOptions(reasoningCapabilities, selectedPresetProvider, selectedPresetModel);
+
+  const validateReasoningSelection = (
+    values: Pick<SettingsUpdate, 'api_provider' | 'llm_model' | 'default_reasoning_intensity'>,
+    targetForm = form,
+  ) => {
+    const errorMessage = getReasoningSelectionError(
+      values.api_provider,
+      values.llm_model,
+      values.default_reasoning_intensity,
+      reasoningCapabilities,
+    );
+    targetForm.setFields([
+      {
+        name: 'default_reasoning_intensity',
+        errors: errorMessage ? [errorMessage] : [],
+      },
+    ]);
+    return errorMessage;
+  };
 
   const handleProviderChange = (value: string) => {
     const provider = apiProviders.find(p => p.value === value);
@@ -323,6 +507,7 @@ export default function SettingsPage() {
         nextValues.api_key = '';
         nextValues.llm_model = provider.defaultModel || 'gemini-3-flash-preview';
       }
+      nextValues.default_reasoning_intensity = DEFAULT_REASONING_INTENSITY;
       form.setFieldsValue(nextValues);
     }
     // 清空模型列表，需要重新获取
@@ -459,9 +644,28 @@ export default function SettingsPage() {
     const modelName = form.getFieldValue('llm_model');
     const temperature = form.getFieldValue('temperature');
     const maxTokens = form.getFieldValue('max_tokens');
+    const defaultReasoningIntensity = form.getFieldValue('default_reasoning_intensity') as ReasoningIntensity | undefined;
 
     if (!apiKey || !apiBaseUrl || !provider || !modelName) {
       message.warning('请先填写完整的配置信息');
+      return;
+    }
+
+    const reasoningError = validateReasoningSelection({
+      api_provider: provider,
+      llm_model: modelName,
+      default_reasoning_intensity: defaultReasoningIntensity,
+    });
+    if (reasoningError) {
+      message.error(reasoningError);
+      setTestResult({
+        success: false,
+        message: '推理能力预检失败',
+        error: reasoningError,
+        error_type: 'ReasoningPreflightError',
+        suggestions: ['请选择后端能力元数据支持的推理强度', '不确定时使用“自动”'],
+      });
+      setShowTestResult(true);
       return;
     }
 
@@ -475,7 +679,8 @@ export default function SettingsPage() {
         provider: provider,
         llm_model: modelName,
         temperature: temperature,
-        max_tokens: maxTokens
+        max_tokens: maxTokens,
+        default_reasoning_intensity: defaultReasoningIntensity || DEFAULT_REASONING_INTENSITY,
       });
 
       setTestResult(result);
@@ -530,6 +735,7 @@ export default function SettingsPage() {
         name: preset.name,
         description: preset.description,
         ...preset.config,
+        default_reasoning_intensity: preset.config.default_reasoning_intensity || DEFAULT_REASONING_INTENSITY,
       });
     } else {
       setEditingPreset(null);
@@ -539,6 +745,7 @@ export default function SettingsPage() {
         api_base_url: 'https://api.openai.com/v1',
         temperature: 0.7,
         max_tokens: 2000,
+        default_reasoning_intensity: DEFAULT_REASONING_INTENSITY,
       });
     }
     setIsPresetModalVisible(true);
@@ -612,6 +819,7 @@ export default function SettingsPage() {
         nextValues.api_key = '';
         nextValues.llm_model = provider.defaultModel || 'gemini-3-flash-preview';
       }
+      nextValues.default_reasoning_intensity = DEFAULT_REASONING_INTENSITY;
       presetForm.setFieldsValue(nextValues);
     }
     // 清空模型列表，需要重新获取
@@ -622,6 +830,11 @@ export default function SettingsPage() {
   const handlePresetSave = async () => {
     try {
       const values = await presetForm.validateFields();
+      const reasoningError = validateReasoningSelection(values, presetForm);
+      if (reasoningError) {
+        message.error(reasoningError);
+        return;
+      }
       const config: APIKeyPresetConfig = {
         api_provider: values.api_provider,
         api_key: values.api_key,
@@ -630,6 +843,7 @@ export default function SettingsPage() {
         temperature: values.temperature,
         max_tokens: values.max_tokens,
         system_prompt: values.system_prompt,
+        default_reasoning_intensity: values.default_reasoning_intensity || DEFAULT_REASONING_INTENSITY,
       };
 
       if (editingPreset) {
@@ -653,6 +867,9 @@ export default function SettingsPage() {
       loadPresets();
     } catch (error) {
       console.error('保存失败:', error);
+      if (!(typeof error === 'object' && error !== null && 'errorFields' in error)) {
+        message.error(getApiErrorMessage(error, '保存预设失败'));
+      }
     }
   };
 
@@ -776,6 +993,32 @@ export default function SettingsPage() {
   const handlePresetTest = async (presetId: string) => {
     setTestingPresetId(presetId);
     try {
+      const preset = presets.find(item => item.id === presetId);
+      if (preset) {
+        const reasoningError = getReasoningSelectionError(
+          preset.config.api_provider,
+          preset.config.llm_model,
+          preset.config.default_reasoning_intensity,
+          reasoningCapabilities,
+        );
+        if (reasoningError) {
+          message.error(reasoningError);
+          modal.error({
+            title: '推理能力预检失败',
+            centered: true,
+            width: isMobile ? '90%' : 600,
+            content: (
+              <Alert
+                message={reasoningError}
+                description="请选择后端能力元数据支持的推理强度，或将预设改为“自动”。"
+                type="error"
+                showIcon
+              />
+            ),
+          });
+          return;
+        }
+      }
       const result = await settingsApi.testPreset(presetId);
       if (result.success) {
         modal.success({
@@ -899,8 +1142,8 @@ export default function SettingsPage() {
     switch (provider) {
       case 'openai':
         return 'blue';
-      // case 'anthropic':
-      //   return 'purple';
+      case 'anthropic':
+        return 'purple';
       case 'gemini':
         return 'green';
       case 'mumu':
@@ -908,6 +1151,86 @@ export default function SettingsPage() {
       default:
         return 'default';
     }
+  };
+
+  const renderReasoningSelectOptions = (options: ReturnType<typeof getReasoningIntensityOptions>) => options.map(option => ({
+    value: option.value,
+    disabled: option.disabled,
+    label: (
+      <Tooltip title={option.reason} placement="right">
+        <Space size={6} wrap>
+          <span>{option.label}</span>
+          <Text type="secondary" style={{ fontSize: 12 }}>{option.value}</Text>
+          {option.disabled && <Tag color="default">不可用</Tag>}
+        </Space>
+      </Tooltip>
+    ),
+  }));
+
+  const renderReasoningCapabilityInfo = (
+    capability: ReasoningCapability | undefined,
+    provider: string | undefined,
+    model: string | undefined,
+    options: ReturnType<typeof getReasoningIntensityOptions>,
+  ) => {
+    if (fetchingReasoningCapabilities) {
+      return (
+        <Alert
+          type="info"
+          showIcon
+          message="正在加载后端推理能力元数据..."
+          style={{ marginBottom: 16 }}
+        />
+      );
+    }
+
+    if (!provider || !model) {
+      return null;
+    }
+
+    if (!capability) {
+      return (
+        <Alert
+          type="warning"
+          showIcon
+          message="未匹配到该模型的推理能力元数据"
+          description="当前仅开放“自动”推理强度，保存和测试前会再次预检，后端仍会做最终校验。"
+          style={{ marginBottom: 16 }}
+        />
+      );
+    }
+
+    const supportedOptions = options.filter(option => !option.disabled);
+
+    return (
+      <Alert
+        type="info"
+        showIcon
+        message="当前模型推理能力"
+        description={
+          <Space direction="vertical" size={8} style={{ width: '100%' }}>
+            <Space wrap size={[8, 4]}>
+              <Tag color={getProviderColor(provider)}>{capability.provider}</Tag>
+              <Tag>{capability.model_pattern}</Tag>
+              <Tag color="processing">默认 {REASONING_INTENSITY_LABELS[capability.default_intensity]}</Tag>
+              <Tag color="cyan">{capability.provider_native}</Tag>
+            </Space>
+            <Space wrap size={[8, 4]}>
+              <Text type="secondary">可选强度：</Text>
+              {supportedOptions.map(option => (
+                <Tag key={option.value} color={option.value === DEFAULT_REASONING_INTENSITY ? 'blue' : 'default'}>
+                  {option.label}({option.value})
+                </Tag>
+              ))}
+            </Space>
+            <Text type="secondary" style={{ fontSize: isMobile ? 12 : 13 }}>
+              {capability.notes}
+            </Text>
+          </Space>
+        }
+        style={{ marginBottom: 16 }}
+      />
+    );
   };
 
   // ========== 渲染预设列表 ==========
@@ -1021,6 +1344,9 @@ export default function SettingsPage() {
                           <Tag>{preset.config.llm_model}</Tag>
                           <Tag>温度: {preset.config.temperature}</Tag>
                           <Tag>Tokens: {preset.config.max_tokens}</Tag>
+                          <Tag color="processing">
+                            推理: {REASONING_INTENSITY_LABELS[preset.config.default_reasoning_intensity || DEFAULT_REASONING_INTENSITY]}
+                          </Tag>
                         </Space>
                         <div style={{ fontSize: '12px', color: token.colorTextTertiary }}>
                           创建于: {new Date(preset.created_at).toLocaleString()}
@@ -1270,7 +1596,7 @@ export default function SettingsPage() {
                                 return (option?.label ?? '').toLowerCase().includes(input.toLowerCase()) ||
                                   (option?.description ?? '').toLowerCase().includes(input.toLowerCase());
                               }}
-                              dropdownRender={(menu) => (
+                              popupRender={(menu) => (
                                 <>
                                   {menu}
                                   {fetchingModels && (
@@ -1420,6 +1746,39 @@ export default function SettingsPage() {
                           <Form.Item
                             label={
                               <Space size={4}>
+                                <span>默认推理强度</span>
+                                <InfoCircleOutlined
+                                  title="统一使用后端规范化枚举：auto / off / low / medium / high / maximum"
+                                  style={{ color: token.colorTextSecondary, fontSize: isMobile ? '12px' : '14px' }}
+                                />
+                              </Space>
+                            }
+                            name="default_reasoning_intensity"
+                            initialValue={DEFAULT_REASONING_INTENSITY}
+                            rules={[{ required: true, message: '请选择默认推理强度' }]}
+                            extra="仅保存规范化推理强度；具体 provider-native 参数由后端能力注册表映射。"
+                          >
+                            <Select
+                              size={isMobile ? 'middle' : 'large'}
+                              options={renderReasoningSelectOptions(reasoningOptions)}
+                              onChange={(value) => validateReasoningSelection({
+                                api_provider: selectedProvider,
+                                llm_model: selectedModel,
+                                default_reasoning_intensity: value,
+                              })}
+                            />
+                          </Form.Item>
+
+                          {renderReasoningCapabilityInfo(
+                            selectedReasoningCapability,
+                            selectedProvider,
+                            selectedModel,
+                            reasoningOptions,
+                          )}
+
+                          <Form.Item
+                            label={
+                              <Space size={4}>
                                 <span>系统提示词</span>
                                 <InfoCircleOutlined
                                   title="设置全局系统提示词，每次AI调用时都会自动使用。可用于设定AI的角色、语言风格等"
@@ -1436,6 +1795,24 @@ export default function SettingsPage() {
                               showCount
                               style={{ fontSize: isMobile ? '13px' : '14px' }}
                             />
+                          </Form.Item>
+
+                          <Alert
+                            type="warning"
+                            showIcon
+                            message="高级实体生成覆盖"
+                            description={ENTITY_GENERATION_WARNING_COPY}
+                            style={{ marginBottom: 16 }}
+                          />
+
+                          <Form.Item
+                            label="允许 AI 直接生成角色/组织/职业入库"
+                            name="allow_ai_entity_generation"
+                            valuePropName="checked"
+                            initialValue={false}
+                            extra="关闭时，实体默认从正文抽取并进入候选/审核流程。"
+                          >
+                            <Switch checkedChildren="开启" unCheckedChildren="关闭" />
                           </Form.Item>
 
                           {/* 测试结果展示 */}
@@ -1921,7 +2298,7 @@ export default function SettingsPage() {
                       return (option?.label ?? '').toLowerCase().includes(input.toLowerCase()) ||
                         (option?.description ?? '').toLowerCase().includes(input.toLowerCase());
                     }}
-                    dropdownRender={(menu) => (
+                    popupRender={(menu) => (
                       <>
                         {menu}
                         {fetchingPresetModels && (
@@ -2017,6 +2394,32 @@ export default function SettingsPage() {
                   />
                 </Form.Item>
               </Col>
+              <Col xs={24} sm={12}>
+                <Form.Item
+                  name="default_reasoning_intensity"
+                  label={
+                    <Space size={4}>
+                      <span>默认推理强度</span>
+                      <InfoCircleOutlined
+                        title="统一使用后端规范化枚举"
+                        style={{ color: token.colorTextSecondary, fontSize: '12px' }}
+                      />
+                    </Space>
+                  }
+                  initialValue={DEFAULT_REASONING_INTENSITY}
+                  rules={[{ required: true, message: '请选择' }]}
+                  style={{ marginBottom: 16 }}
+                >
+                  <Select
+                    options={renderReasoningSelectOptions(presetReasoningOptions)}
+                    onChange={(value) => validateReasoningSelection({
+                      api_provider: selectedPresetProvider,
+                      llm_model: selectedPresetModel,
+                      default_reasoning_intensity: value,
+                    }, presetForm)}
+                  />
+                </Form.Item>
+              </Col>
               <Col xs={12} sm={6}>
                 <Form.Item
                   name="temperature"
@@ -2050,6 +2453,13 @@ export default function SettingsPage() {
               </Col>
             </Row>
 
+            {renderReasoningCapabilityInfo(
+              selectedPresetReasoningCapability,
+              selectedPresetProvider,
+              selectedPresetModel,
+              presetReasoningOptions,
+            )}
+
             <Form.Item
               name="system_prompt"
               label="系统提示词"
@@ -2068,3 +2478,17 @@ export default function SettingsPage() {
     </>
   );
 }
+
+const settingsTestUtils = {
+  ENTITY_GENERATION_WARNING_COPY,
+  findReasoningCapability,
+  getApiErrorMessage,
+  getReasoningIntensityOptions,
+  getReasoningSelectionError,
+  normalizeReasoningProvider,
+  normalizeSettingsFormDefaults,
+};
+
+(SettingsPage as typeof SettingsPage & { __testUtils: typeof settingsTestUtils }).__testUtils = settingsTestUtils;
+
+export default SettingsPage;
