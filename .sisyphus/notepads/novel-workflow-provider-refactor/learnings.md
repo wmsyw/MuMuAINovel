@@ -80,3 +80,9 @@
 - Frontend settings now consumes `/settings/reasoning-capabilities` and keeps the UI state normalized to `default_reasoning_intensity` (`auto/off/low/medium/high/maximum`); provider-native payload names are displayed only as backend metadata and are not submitted as frontend state.
 - Settings capability matching mirrors backend behavior for wildcard model patterns and the `mumu -> openai` provider alias, disabling unsupported intensities and preflighting unsupported current/preset selections before save/test calls.
 - The entity-generation override is a backend-backed `allow_ai_entity_generation` form field, normalized to default `false`, with the required warning copy preserved exactly in the Settings page and tests.
+
+## 2026-04-27 — Task 14 entity review UI
+- Frontend extraction review UI now uses shared `extractionApi`, `organizationApi`, `careerApi`, and `timelineApi` wrappers in `frontend/src/services/api.ts`; new work should continue routing candidate accept/reject/merge/rollback through those wrappers rather than page-local transport.
+- `ExtractionCandidateReviewPanel` centralizes the restrained AntD review surface: outer tabs are `已入库`, `正文发现`, `待合并`, and `已拒绝/历史`; candidates are split client-side by pending status plus `canonical_target_id` because the current list API does not expose an explicit "has target" filter.
+- AI canonical entity generation controls on Characters and Careers now default hidden behind the backend-backed `allow_ai_entity_generation` setting, while manual create/edit controls remain visible; the shared policy copy is kept in the review component test utils for regression coverage.
+- Careers adds a `职业时间线` tab backed by `/api/timeline/projects/{project_id}/history?event_type=profession`, mapped to current character/career names when available while preserving the existing taxonomy CRUD tabs.

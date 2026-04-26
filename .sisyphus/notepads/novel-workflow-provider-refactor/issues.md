@@ -95,3 +95,13 @@
 - Initial frontend lint failed because `Settings.tsx` exported test helpers directly, triggering `react-refresh/only-export-components`; helpers now remain file-local and are exposed only as a static `__testUtils` property on the default Settings component for Vitest coverage.
 - `npm run build` still emits the known Vite chunk-size warnings and writes built assets to `backend/static` per the existing frontend build configuration; targeted Settings tests, build, and lint all passed after the lint fix.
 - Follow-up glob for `.sisyphus/**/goldfinger-relationship-sync.md` returned no files; no new Goldfinger artifact was created.
+
+## 2026-04-27 — Task 14 verification notes
+- `npm run test -- --run extraction`, `npm run build`, and `npm run lint` were run from `frontend/`; stdout was appended to `.sisyphus/evidence/task-14-entity-review-ui.log` and stderr/warnings to `.sisyphus/evidence/task-14-entity-review-ui-error.log`.
+- `npm run build` continues to write the configured Vite output under `backend/static` and may emit the known large chunk warnings; no backend code changes were needed for Task 14.
+- Follow-up glob for `.sisyphus/**/goldfinger-relationship-sync.md` returned no files; `.sisyphus/boulder.json` was not edited.
+- Initial verification surfaced an SSR-only test assertion gap and a build callback return-type mismatch; after fixing them, the final appended frontend verification block passed with extraction tests `3 passed`, Vite build success, and lint success.
+
+## 2026-04-27 — Task 14 QA accept-path test fix
+- Atlas QA required the candidate accept scenario to exercise the actual `ExtractionCandidateReviewPanel` component path. The extraction review test now renders the panel with jsdom/ReactDOM, clicks the visible `接受入库` button, verifies the injected API client's `acceptCandidate` and `listCandidates` mocks are called, verifies the canonical refresh callback runs, and asserts the tab counts update to `正文发现 (0)` / `已拒绝/历史 (1)` after the mocked accepted candidate refresh.
+- The first QA-fix test run exposed that confidence was not visibly labeled as `置信度 87%`; the panel now renders an explicit small confidence label next to the AntD progress bar. Final required frontend verification passed, forbidden-marker grep on the touched component/test files found no matches, and the Goldfinger artifact glob remained empty.

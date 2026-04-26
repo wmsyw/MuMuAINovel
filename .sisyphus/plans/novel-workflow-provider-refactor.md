@@ -806,7 +806,7 @@ Wave 4: Tasks 15, 16, 17, 18 — inspiration/world UI, timeline UI, cleanup/docs
 
   **Commit**: YES | Message: `frontend: add reasoning settings controls` | Files: [`frontend/src/pages/Settings.tsx`, `frontend/src/services/api.ts`, `frontend/src/types/index.ts`, `frontend/src/**/__tests__/**`]
 
-- [ ] 14. Add extraction candidate review UI to Characters, Organizations, and Careers pages
+- [x] 14. Add extraction candidate review UI to Characters, Organizations, and Careers pages
 
   **What to do**: Refactor `Characters.tsx`, `Organizations.tsx`, and `Careers.tsx` around extraction-first workflows. Add shared components such as `ExtractionCandidatePanel`, `CandidateMergeDialog`, `ProvenanceDrawer`, and `ManualReextractModal` under `frontend/src/components` or page-local components per repo style. Default tabs/sections should expose: 已入库, 正文发现, 待合并, 已拒绝/历史, and for careers/professions “职业时间线”. Hide/disable AI “generate new character/org/career” controls unless backend says advanced override is enabled; show policy explanation and manual edit/create remains available. Candidate actions call shared API wrappers for accept/reject/merge/rollback and refresh current projection.
   **Must NOT do**: Do not remove manual edit/create. Do not call endpoints with direct `axios`/`fetch` from pages if `frontend/src/services/api.ts` can wrap them. Do not force users to inspect raw JSON to understand evidence; show source chapter/snippet/confidence.
