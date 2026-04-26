@@ -589,7 +589,7 @@ Wave 4: Tasks 15, 16, 17, 18 — inspiration/world UI, timeline UI, cleanup/docs
 
   **Commit**: YES | Message: `policy: gate AI entity generation by advanced setting` | Files: [`backend/app/services/*policy*`, `backend/app/api/characters.py`, `backend/app/api/organizations.py`, `backend/app/api/careers.py`, `backend/app/api/wizard_stream.py`, `backend/app/api/outlines.py`, `backend/tests/test_entity_generation_policy.py`]
 
-- [ ] 10a. Expose extraction candidate and review APIs
+- [x] 10a. Expose extraction candidate and review APIs
 
   **What to do**: Add thin FastAPI routers/schemas for extraction run and candidate management. Required endpoints under existing `/api` convention: list/get extraction runs; list candidates with filters (`status`, `type`, `chapter_id`, `run_id`, `canonical_target`); accept/reject/merge candidate; rollback merge. Include deterministic status values: `pending`, `running`, `completed`, `failed`, `cancelled` for runs and `pending`, `accepted`, `rejected`, `merged`, `superseded` for candidates. Register new router(s) in `backend/app/main.py`.
   **Must NOT do**: Do not put merge/extraction business logic in router functions. Do not break existing route prefixes.
