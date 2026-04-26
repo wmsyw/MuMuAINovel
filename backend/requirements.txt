@@ -37,3 +37,6 @@ sentence-transformers==5.1.2
 
 # PyTorch 版本锁定（用于打包环境）
 torch==2.8.0
+
+# 测试工具（最小 pytest harness）
+pytest==8.3.4
