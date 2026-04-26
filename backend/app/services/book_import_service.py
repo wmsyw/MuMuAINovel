@@ -1625,6 +1625,8 @@ class BookImportService:
             db_session=db,
             system_prompt=user_settings.system_prompt,
             enable_mcp=enable_mcp,
+            default_reasoning_intensity=user_settings.default_reasoning_intensity,
+            reasoning_overrides=user_settings.reasoning_overrides,
         )
 
     async def _run_post_import_wizard_generation(

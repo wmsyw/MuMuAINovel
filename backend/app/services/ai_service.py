@@ -19,6 +19,7 @@ from app.services.ai_providers.openai_provider import OpenAIProvider
 from app.services.ai_providers.anthropic_provider import AnthropicProvider
 from app.services.ai_providers.gemini_provider import GeminiProvider
 from app.services.ai_providers.base_provider import BaseAIProvider
+from app.services.ai_capabilities import ReasoningConfig, build_reasoning_config
 from app.services.json_helper import clean_json_response, parse_json
 
 # 导出清理函数
@@ -80,6 +81,8 @@ class AIService:
         default_temperature: Optional[float] = None,
         default_max_tokens: Optional[int] = None,
         default_system_prompt: Optional[str] = None,
+        default_reasoning_intensity: Optional[str] = None,
+        reasoning_overrides: Optional[str] = None,
         config: Optional[AIClientConfig] = None,
         # MCP支持参数
         user_id: Optional[str] = None,
@@ -91,6 +94,8 @@ class AIService:
         self.default_temperature = default_temperature or app_settings.default_temperature
         self.default_max_tokens = default_max_tokens or app_settings.default_max_tokens
         self.default_system_prompt = default_system_prompt
+        self.default_reasoning_intensity = default_reasoning_intensity or app_settings.default_reasoning_intensity
+        self.reasoning_overrides = reasoning_overrides or app_settings.reasoning_overrides
         self.config = config or default_config
         
         # MCP配置
@@ -193,6 +198,35 @@ class AIService:
             logger.info(message)
         else:
             logger.error(message)
+
+    def _select_reasoning_intensity(self, *, provider: str, model: str, explicit: Optional[str] = None) -> str:
+        """选择本次调用的规范化推理强度。显式参数优先，其次模型覆盖，最后默认值。"""
+        if explicit is not None:
+            return explicit
+
+        try:
+            import json
+            overrides = json.loads(self.reasoning_overrides or "{}")
+            if isinstance(overrides, dict):
+                for key in (f"{provider}:{model}", model, provider):
+                    value = overrides.get(key)
+                    if isinstance(value, str) and value:
+                        return value
+        except Exception as exc:
+            logger.warning(f"解析 reasoning_overrides 失败，使用默认推理强度: {exc}")
+
+        return self.default_reasoning_intensity or "auto"
+
+    def _build_reasoning_config(
+        self,
+        *,
+        provider: Optional[str],
+        model: str,
+        reasoning_intensity: Optional[str] = None,
+    ) -> ReasoningConfig:
+        provider_name = normalize_provider(provider or self.api_provider) or "unknown"
+        selected = self._select_reasoning_intensity(provider=provider_name, model=model, explicit=reasoning_intensity)
+        return build_reasoning_config(provider=provider_name, model=model, intensity=selected)
 
     async def _prepare_mcp_tools(self, auto_mcp: bool = True, force_refresh: bool = False) -> Optional[List[Dict]]:
         """
@@ -343,6 +377,7 @@ class AIService:
                     system_prompt=kwargs.get("system_prompt") or self.default_system_prompt,
                     tools=None if tool_choice == "none" else self._cached_tools,
                     tool_choice=tool_choice,
+                    reasoning_config=kwargs.get("reasoning_config"),
                 )
                 tool_metrics.usage.add(TokenUsage.from_response(next_response))
                 
@@ -388,6 +423,7 @@ class AIService:
         auto_mcp: bool = True,
         handle_tool_calls: bool = True,
         mcp_max_rounds: Optional[int] = None,
+        reasoning_intensity: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         生成文本（自动支持MCP工具）
@@ -404,6 +440,7 @@ class AIService:
             auto_mcp: 是否自动加载MCP工具（默认True）
             handle_tool_calls: 是否自动处理工具调用（默认True）
             mcp_max_rounds: 最大工具调用轮数（None使用默认值3）
+            reasoning_intensity: 规范化推理强度（auto/off/low/medium/high/maximum）
             
         Returns:
             包含生成内容的字典
@@ -411,6 +448,13 @@ class AIService:
         # 使用全局配置的MCP轮数（如果未指定）
         if mcp_max_rounds is None:
             mcp_max_rounds = app_settings.mcp_max_rounds
+
+        target_model = model or self.default_model
+        reasoning_config = self._build_reasoning_config(
+            provider=provider,
+            model=target_model,
+            reasoning_intensity=reasoning_intensity,
+        )
         
         # 自动加载MCP工具
         if auto_mcp and tools is None:
@@ -430,12 +474,13 @@ class AIService:
             prov = self._get_provider(provider)
             response = await prov.generate(
                 prompt=prompt,
-                model=model or self.default_model,
+                model=target_model,
                 temperature=temperature or self.default_temperature,
                 max_tokens=max_tokens or self.default_max_tokens,
                 system_prompt=system_prompt or self.default_system_prompt,
                 tools=tools,
                 tool_choice=tool_choice,
+                reasoning_config=reasoning_config,
             )
             usage = TokenUsage.from_response(response)
             
@@ -451,6 +496,7 @@ class AIService:
                     system_prompt=system_prompt,
                     tool_choice=tool_choice,
                     max_rounds=mcp_max_rounds,
+                    reasoning_config=reasoning_config,
                 )
                 usage = TokenUsage.from_response(response)
                 tool_metrics = response.get("__tool_metrics")
@@ -481,6 +527,7 @@ class AIService:
         tool_choice: Optional[str] = None,
         auto_mcp: bool = True,
         mcp_max_rounds: Optional[int] = None,
+        reasoning_intensity: Optional[str] = None,
     ) -> AsyncGenerator[str, None]:
         """
         流式生成文本（自动支持MCP工具）
@@ -497,6 +544,7 @@ class AIService:
             tool_choice: 工具选择策略（"auto"/"none"/"required"）
             auto_mcp: 是否自动加载MCP工具
             mcp_max_rounds: 最大工具调用轮数（None使用默认值3）
+            reasoning_intensity: 规范化推理强度（auto/off/low/medium/high/maximum）
             
         Yields:
             生成的文本块
@@ -504,6 +552,12 @@ class AIService:
         logger.debug(f"🔧 generate_text_stream: auto_mcp={auto_mcp}, tool_choice={tool_choice}")
         
         tools_to_use = None
+        target_model = model or self.default_model
+        reasoning_config = self._build_reasoning_config(
+            provider=provider,
+            model=target_model,
+            reasoning_intensity=reasoning_intensity,
+        )
         
         # 加载MCP工具
         if auto_mcp:
@@ -530,13 +584,14 @@ class AIService:
             logger.debug(f"🔧 开始流式生成，provider={provider or self.api_provider}, tools_count={len(tools_to_use) if tools_to_use else 0}")
             async for chunk in prov.generate_stream(
                 prompt=prompt,
-                model=model or self.default_model,
+                model=target_model,
                 temperature=temperature or self.default_temperature,
                 max_tokens=max_tokens or self.default_max_tokens,
                 system_prompt=system_prompt or self.default_system_prompt,
                 tools=tools_to_use,
                 tool_choice=tool_choice,
                 user_id=self.user_id,
+                reasoning_config=reasoning_config,
             ):
                 if isinstance(chunk, dict):
                     if chunk.get("usage"):
@@ -679,6 +734,8 @@ def create_user_ai_service(
     temperature: float,
     max_tokens: int,
     system_prompt: Optional[str] = None,
+    default_reasoning_intensity: Optional[str] = None,
+    reasoning_overrides: Optional[str] = None,
 ) -> AIService:
     """创建用户 AI 服务（不带MCP支持）"""
     return AIService(
@@ -689,6 +746,8 @@ def create_user_ai_service(
         default_temperature=temperature,
         default_max_tokens=max_tokens,
         default_system_prompt=system_prompt,
+        default_reasoning_intensity=default_reasoning_intensity,
+        reasoning_overrides=reasoning_overrides,
     )
 
 
@@ -703,6 +762,8 @@ def create_user_ai_service_with_mcp(
     db_session,
     system_prompt: Optional[str] = None,
     enable_mcp: bool = True,
+    default_reasoning_intensity: Optional[str] = None,
+    reasoning_overrides: Optional[str] = None,
 ) -> AIService:
     """
     创建支持MCP的用户AI服务
@@ -718,6 +779,8 @@ def create_user_ai_service_with_mcp(
         db_session: 数据库会话
         system_prompt: 系统提示词
         enable_mcp: 是否启用MCP工具
+        default_reasoning_intensity: 默认推理强度
+        reasoning_overrides: 模型/提供商推理强度覆盖(JSON)
         
     Returns:
         配置好的AIService实例
@@ -733,4 +796,6 @@ def create_user_ai_service_with_mcp(
         user_id=user_id,
         db_session=db_session,
         enable_mcp=enable_mcp,
+        default_reasoning_intensity=default_reasoning_intensity,
+        reasoning_overrides=reasoning_overrides,
     )
