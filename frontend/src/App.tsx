@@ -9,6 +9,7 @@ import Characters from './pages/Characters';
 import Careers from './pages/Careers';
 import Relationships from './pages/Relationships';
 import RelationshipGraph from './pages/RelationshipGraph';
+import Goldfingers from './pages/Goldfingers';
 import Organizations from './pages/Organizations';
 import Chapters from './pages/Chapters';
 import ChapterReader from './pages/ChapterReader';
@@ -24,9 +25,9 @@ import Sponsor from './pages/Sponsor';
 // import Polish from './pages/Polish';
 import Login from './pages/Login';
 import AuthCallback from './pages/AuthCallback';
-import ProtectedRoute from './components/ProtectedRoute';
-import AppFooter from './components/AppFooter';
-import SpringFestival from './components/SpringFestival';
+import ProtectedRoute from './components/common/ProtectedRoute';
+import AppFooter from './components/layout/AppFooter';
+import SpringFestival from './components/theme/SpringFestival';
 import './App.css';
 
 function App() {
@@ -61,6 +62,7 @@ function App() {
             <Route path="characters" element={<Characters />} />
             <Route path="relationships" element={<Relationships />} />
             <Route path="relationships-graph" element={<RelationshipGraph />} />
+            <Route path="goldfingers" element={<Goldfingers />} />
             <Route path="organizations" element={<Organizations />} />
             <Route path="chapters" element={<Chapters />} />
             <Route path="chapter-analysis" element={<ChapterAnalysis />} />

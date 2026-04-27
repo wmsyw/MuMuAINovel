@@ -29,8 +29,8 @@ import {
 } from '@ant-design/icons';
 import { authApi } from '../services/api';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import AnnouncementModal from '../components/AnnouncementModal';
-import ThemeSwitch from '../components/ThemeSwitch';
+import AnnouncementModal from '../components/modal/AnnouncementModal';
+import ThemeSwitch from '../components/common/ThemeSwitch';
 
 const { Title, Paragraph, Text } = Typography;
 

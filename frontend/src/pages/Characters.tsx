@@ -3,11 +3,11 @@ import { Alert, Button, Modal, Form, Input, Select, message, Row, Col, Empty, Ta
 import { ThunderboltOutlined, UserOutlined, TeamOutlined, PlusOutlined, ExportOutlined, ImportOutlined, DownloadOutlined } from '@ant-design/icons';
 import { useStore } from '../store';
 import { useCharacterSync } from '../store/hooks';
-import { charactersPageGridConfig } from '../components/CardStyles';
-import { CharacterCard } from '../components/CharacterCard';
-import { SSELoadingOverlay } from '../components/SSELoadingOverlay';
-import ExtractionCandidateReviewPanel from '../components/ExtractionCandidateReviewPanel';
-import TimelineReviewPanel from '../components/TimelineReviewPanel';
+import { charactersPageGridConfig } from '../components/common/CardStyles';
+import { CharacterCard } from '../components/character/CharacterCard';
+import { SSELoadingOverlay } from '../components/progress/SSELoadingOverlay';
+import ExtractionCandidateReviewPanel from '../components/common/ExtractionCandidateReviewPanel';
+import TimelineReviewPanel from '../components/common/TimelineReviewPanel';
 import type { Character, CharacterCreate, CharacterUpdate, ApiError, ExtractionCandidateType } from '../types';
 import { characterApi, careerApi, settingsApi } from '../services/api';
 import { SSEPostClient } from '../utils/sseClient';

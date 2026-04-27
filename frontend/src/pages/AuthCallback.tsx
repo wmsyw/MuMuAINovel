@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Spin, Result, Button, Modal, Input, message, theme } from 'antd';
 import { authApi } from '../services/api';
-import AnnouncementModal from '../components/AnnouncementModal';
+import AnnouncementModal from '../components/modal/AnnouncementModal';
 
 export default function AuthCallback() {
   const navigate = useNavigate();

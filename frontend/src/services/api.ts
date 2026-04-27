@@ -86,6 +86,26 @@ import type {
   TimelineHistoryResponse,
   TimelineStateQuery,
   TimelineStateResponse,
+  Goldfinger,
+  GoldfingerCreate,
+  GoldfingerExportPayload,
+  GoldfingerHistoryListResponse,
+  GoldfingerImportDryRunResult,
+  GoldfingerImportPayload,
+  GoldfingerImportResult,
+  GoldfingerListResponse,
+  GoldfingerUpdate,
+  Relationship,
+  RelationshipCreate,
+  RelationshipGraphData,
+  RelationshipType,
+  RelationshipUpdate,
+  SyncCandidateApproveRequest,
+  SyncCandidateListResponse,
+  SyncCandidateRejectRequest,
+  SyncCandidateReviewResponse,
+  SyncRun,
+  SyncRunListResponse,
   WorldBuildingDraftResponse,
   WorldSettingRejectRequest,
   WorldSettingResult,
@@ -651,6 +671,99 @@ export const careerApi = {
 
   deleteCareer: (careerId: string) =>
     api.delete<unknown, { message: string }>(`/careers/${careerId}`),
+};
+
+export const relationshipApi = {
+  getProjectRelationships: (projectId: string, params?: { character_id?: string }) =>
+    api.get<unknown, Relationship[]>(`/relationships/project/${projectId}`, { params }),
+
+  getRelationshipTypes: () =>
+    api.get<unknown, RelationshipType[]>('/relationships/types'),
+
+  getGraphData: (projectId: string) =>
+    api.get<unknown, RelationshipGraphData>(`/relationships/graph/${projectId}`),
+
+  createRelationship: (data: RelationshipCreate) =>
+    api.post<unknown, Relationship>('/relationships/', data),
+
+  updateRelationship: (relationshipId: string, data: RelationshipUpdate) =>
+    api.put<unknown, Relationship>(`/relationships/${relationshipId}`, data),
+
+  deleteRelationship: (relationshipId: string) =>
+    api.delete<unknown, { message: string; id: string }>(`/relationships/${relationshipId}`),
+};
+
+export const goldfingerApi = {
+  listGoldfingers: (projectId: string) =>
+    api.get<unknown, GoldfingerListResponse>(`/goldfingers/project/${projectId}`),
+
+  getGoldfinger: (goldfingerId: string) =>
+    api.get<unknown, Goldfinger>(`/goldfingers/${goldfingerId}`),
+
+  createGoldfinger: (projectId: string, data: GoldfingerCreate) =>
+    api.post<unknown, Goldfinger>(`/goldfingers/project/${projectId}`, data),
+
+  updateGoldfinger: (goldfingerId: string, data: GoldfingerUpdate) =>
+    api.put<unknown, Goldfinger>(`/goldfingers/${goldfingerId}`, data),
+
+  deleteGoldfinger: (goldfingerId: string) =>
+    api.delete<unknown, { message: string; id: string }>(`/goldfingers/${goldfingerId}`),
+
+  getHistory: (goldfingerId: string) =>
+    api.get<unknown, GoldfingerHistoryListResponse>(`/goldfingers/${goldfingerId}/history`),
+
+  exportProject: (projectId: string) =>
+    api.get<unknown, GoldfingerExportPayload>(`/goldfingers/project/${projectId}/export`),
+
+  downloadExport: async (projectId: string, projectTitle?: string) => {
+    const payload = await goldfingerApi.exportProject(projectId);
+    const safeTitle = (projectTitle || 'project').replace(/[\\/:*?"<>|\s]+/g, '_');
+    const filename = `${safeTitle}_goldfingers_${new Date().toISOString().slice(0, 10)}.json`;
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+    return payload;
+  },
+
+  dryRunImport: (projectId: string, payload: GoldfingerImportPayload) =>
+    api.post<unknown, GoldfingerImportDryRunResult>(`/goldfingers/project/${projectId}/import/dry-run`, payload),
+
+  importProject: (projectId: string, payload: GoldfingerImportPayload) =>
+    api.post<unknown, GoldfingerImportResult>(`/goldfingers/project/${projectId}/import`, payload),
+};
+
+export const syncApi = {
+  listRuns: (projectId: string, params?: {
+    status?: string;
+    entity_type?: 'relationship' | 'goldfinger' | string;
+    chapter_id?: string;
+    limit?: number;
+    offset?: number;
+  }) => api.get<unknown, SyncRunListResponse>(`/sync/project/${projectId}/runs`, { params }),
+
+  listCandidates: (projectId: string, params?: {
+    status?: string | null;
+    entity_type?: 'relationship' | 'goldfinger' | string;
+    run_id?: string;
+    chapter_id?: string;
+    limit?: number;
+    offset?: number;
+  }) => api.get<unknown, SyncCandidateListResponse>(`/sync/project/${projectId}/candidates`, { params }),
+
+  retryRun: (runId: string) =>
+    api.post<unknown, SyncRun>(`/sync/runs/${runId}/retry`, {}),
+
+  approveCandidate: (candidateId: string, data: SyncCandidateApproveRequest = {}) =>
+    api.post<unknown, SyncCandidateReviewResponse>(`/sync/candidates/${candidateId}/approve`, data),
+
+  rejectCandidate: (candidateId: string, data: SyncCandidateRejectRequest = {}) =>
+    api.post<unknown, SyncCandidateReviewResponse>(`/sync/candidates/${candidateId}/reject`, data),
 };
 
 export const outlineApi = {

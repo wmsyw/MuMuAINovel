@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, Input, Button, Space, Typography, message, Spin, Modal, theme } from 'antd';
 import { SendOutlined, ArrowLeftOutlined, ReloadOutlined } from '@ant-design/icons';
 import { inspirationApi, projectApi } from '../services/api';
-import { AIProjectGenerator, type GenerationConfig } from '../components/AIProjectGenerator';
+import { AIProjectGenerator, type GenerationConfig } from '../components/generation/AIProjectGenerator';
 import type { Project, ProjectCreate } from '../types';
 
 const { Title, Text, Paragraph } = Typography;

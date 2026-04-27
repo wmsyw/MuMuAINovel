@@ -3,7 +3,7 @@ import { BookOutlined, RocketOutlined, BulbOutlined, UploadOutlined, DownloadOut
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import type { Project } from '../types';
-import { bookshelfCardStyles, bookshelfCardHoverHandlers } from '../components/CardStyles';
+import { bookshelfCardStyles, bookshelfCardHoverHandlers } from '../components/common/CardStyles';
 import { useThemeMode } from '../theme/useThemeMode';
 
 const { Paragraph } = Typography;

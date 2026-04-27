@@ -1,36 +1,40 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, Table, Tag, Button, Space, message, Modal, Form, Select, Slider, Input, Tabs, AutoComplete, theme } from 'antd';
-import { PlusOutlined, ApartmentOutlined, UserOutlined, EditOutlined } from '@ant-design/icons';
+import { Alert, Card, Descriptions, Drawer, Empty, Progress, Table, Tag, Button, Space, message, Modal, Form, Select, Slider, Input, Tabs, AutoComplete, Typography, theme } from 'antd';
+import { PlusOutlined, ApartmentOutlined, UserOutlined, EditOutlined, FileSearchOutlined, HistoryOutlined } from '@ant-design/icons';
 import { useStore } from '../store';
-import axios from 'axios';
 import { isOrganizationEntity, type LegacyOrganizationCharacterFields } from '../utils/entityCompatibility';
+import GoldfingerPendingReviewPanel from '../components/goldfingers/GoldfingerPendingReviewPanel';
+import { characterApi, relationshipApi } from '../services/api';
+import type { Character as CharacterContract, Relationship, RelationshipHistoryEvent, RelationshipProvenance, RelationshipType } from '../types';
 
 const { TextArea } = Input;
+const { Paragraph, Text } = Typography;
 
-interface Relationship {
-  id: string;
-  character_from_id: string;
-  character_to_id: string;
-  relationship_name: string;
-  intimacy_level: number;
-  status: string;
-  description?: string;
-  source: string;
-}
+type Character = Pick<CharacterContract, 'id' | 'name'> & LegacyOrganizationCharacterFields;
 
-interface RelationshipType {
-  id: number;
-  name: string;
-  category: string;
-  reverse_name?: string;
-  icon?: string;
-}
+const formatConfidence = (confidence?: number | null) => {
+  if (confidence === null || confidence === undefined) return '未记录';
+  return `${Math.round(Math.max(0, Math.min(1, confidence)) * 100)}%`;
+};
 
-interface Character extends LegacyOrganizationCharacterFields {
-  id: string;
-  name: string;
-}
+const formatSourceChapter = (relationship?: Pick<Relationship, 'source_chapter_number' | 'source_chapter_order' | 'source_chapter_id'> | null) => {
+  if (!relationship) return '未记录来源章节';
+  if (relationship.source_chapter_number !== null && relationship.source_chapter_number !== undefined) {
+    return `第 ${relationship.source_chapter_number} 章`;
+  }
+  if (relationship.source_chapter_order !== null && relationship.source_chapter_order !== undefined) {
+    return `章节顺序 ${relationship.source_chapter_order}`;
+  }
+  if (relationship.source_chapter_id) return `章节 ${relationship.source_chapter_id}`;
+  return '未记录来源章节';
+};
+
+const formatDateTime = (value?: string | null) => {
+  if (!value) return '—';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN', { hour12: false });
+};
 
 export default function Relationships() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -43,6 +47,8 @@ export default function Relationships() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingRelationship, setEditingRelationship] = useState<Relationship | null>(null);
+  const [evidenceRelationship, setEvidenceRelationship] = useState<Relationship | null>(null);
+  const [evidenceOpen, setEvidenceOpen] = useState(false);
   const [form] = Form.useForm();
   const [modal, contextHolder] = Modal.useModal();
   const { token } = theme.useToken();
@@ -67,17 +73,18 @@ export default function Relationships() {
   }, [projectId]);
 
   const loadData = async () => {
+    if (!projectId) return;
     setLoading(true);
     try {
       const [relsRes, typesRes, charsRes] = await Promise.all([
-        axios.get(`/api/relationships/project/${projectId}`),
-        axios.get('/api/relationships/types'),
-        axios.get(`/api/characters?project_id=${projectId}`)
+        relationshipApi.getProjectRelationships(projectId),
+        relationshipApi.getRelationshipTypes(),
+        characterApi.getCharacters(projectId)
       ]);
 
-      setRelationships(relsRes.data);
-      setRelationshipTypes(typesRes.data);
-      setCharacters(charsRes.data.items || []);
+      setRelationships(relsRes);
+      setRelationshipTypes(typesRes);
+      setCharacters(charsRes || []);
     } catch (error) {
       message.error('加载数据失败');
       console.error(error);
@@ -94,8 +101,9 @@ export default function Relationships() {
     status: string;
     description?: string;
   }) => {
+    if (!projectId) return;
     try {
-      await axios.post('/api/relationships/', {
+      await relationshipApi.createRelationship({
         project_id: projectId,
         ...values
       });
@@ -134,7 +142,7 @@ export default function Relationships() {
     if (!editingRelationship) return;
 
     try {
-      await axios.put(`/api/relationships/${editingRelationship.id}`, {
+      await relationshipApi.updateRelationship(editingRelationship.id, {
         relationship_name: values.relationship_name,
         intimacy_level: values.intimacy_level,
         status: values.status,
@@ -162,7 +170,7 @@ export default function Relationships() {
       cancelText: '取消',
       onOk: async () => {
         try {
-          await axios.delete(`/api/relationships/${id}`);
+          await relationshipApi.deleteRelationship(id);
           message.success('关系删除成功');
           loadData();
         } catch (error) {
@@ -172,6 +180,54 @@ export default function Relationships() {
       }
     });
   };
+
+  const openEvidenceDrawer = (record: Relationship) => {
+    setEvidenceRelationship(record);
+    setEvidenceOpen(true);
+  };
+
+  const renderEvidenceExcerpt = (evidence?: string | null, rows = 2) => (
+    <Paragraph style={{ marginBottom: 0 }} ellipsis={evidence ? { rows, tooltip: evidence } : false}>
+      {evidence || '暂无证据摘录'}
+    </Paragraph>
+  );
+
+  const renderProvenanceCard = (item: RelationshipProvenance) => (
+    <Card key={item.id} size="small" style={{ borderColor: token.colorBorderSecondary }}>
+      <Space direction="vertical" size="small" style={{ width: '100%' }}>
+        <Space wrap>
+          <Tag color="geekblue">{item.source_type}</Tag>
+          {item.claim_type && <Tag>{item.claim_type}</Tag>}
+          {item.chapter_id && <Tag color="cyan">章节 {item.chapter_id}</Tag>}
+          <Text type="secondary">置信度：{formatConfidence(item.confidence)}</Text>
+          <Text type="secondary">{formatDateTime(item.created_at)}</Text>
+        </Space>
+        <Paragraph style={{ marginBottom: 0, whiteSpace: 'pre-wrap' }}>
+          {item.evidence_text || '暂无证据原文'}
+        </Paragraph>
+      </Space>
+    </Card>
+  );
+
+  const renderHistoryCard = (item: RelationshipHistoryEvent) => (
+    <Card key={item.id} size="small" style={{ borderColor: token.colorBorderSecondary }}>
+      <Space direction="vertical" size="small" style={{ width: '100%' }}>
+        <Space wrap>
+          <Tag color={item.event_status === 'active' ? 'success' : item.event_status === 'ended' ? 'default' : 'processing'}>
+            {item.event_status}
+          </Tag>
+          <Text strong>{item.relationship_name || '关系事件'}</Text>
+          <Tag color="cyan">{formatSourceChapter({ source_chapter_id: item.source_chapter_id, source_chapter_order: item.source_chapter_order })}</Tag>
+          <Text type="secondary">置信度：{formatConfidence(item.confidence)}</Text>
+          {item.supersedes_event_id && <Tag color="orange">替换 {item.supersedes_event_id}</Tag>}
+        </Space>
+        {item.story_time_label && <Text type="secondary">故事时间：{item.story_time_label}</Text>}
+        <Paragraph style={{ marginBottom: 0, whiteSpace: 'pre-wrap' }}>
+          {item.evidence_text || '暂无证据原文'}
+        </Paragraph>
+      </Space>
+    </Card>
+  );
 
   const getCharacterName = (id: string) => {
     const char = characters.find(c => c.id === id);
@@ -222,8 +278,16 @@ export default function Relationships() {
       title: '关系',
       dataIndex: 'relationship_name',
       key: 'relationship',
-      render: (name: string) => <strong>{name}</strong>,
-      width: 120,
+      render: (name: string, record: Relationship) => (
+        <Space direction="vertical" size={2}>
+          <Space wrap size={4}>
+            <Text strong>{name || '未知关系'}</Text>
+            {Boolean(record.pending_candidate_count) && <Tag color="orange">待审 {record.pending_candidate_count}</Tag>}
+          </Space>
+          {record.description && <Text type="secondary" ellipsis style={{ maxWidth: 180 }}>{record.description}</Text>}
+        </Space>
+      ),
+      width: 180,
     },
     {
       title: '角色B',
@@ -258,16 +322,44 @@ export default function Relationships() {
       title: '来源',
       dataIndex: 'source',
       key: 'source',
-      render: (source: string) => (
-        <Tag>{source === 'ai' ? 'AI生成' : '手动创建'}</Tag>
+      render: (source: string, record: Relationship) => (
+        <Space direction="vertical" size={2}>
+          <Tag>{source === 'ai' ? 'AI生成' : source === 'manual' ? '手动创建' : source || '未知'}</Tag>
+          <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>{formatSourceChapter(record)}</Text>
+        </Space>
       ),
-      width: 100,
+      width: 150,
+    },
+    {
+      title: '证据 / 置信度',
+      key: 'provenance',
+      render: (_: unknown, record: Relationship) => (
+        <Space direction="vertical" size={4} style={{ width: '100%' }}>
+          <Space wrap size={6}>
+            <Tag color={record.evidence_text ? 'cyan' : 'default'}>证据 {record.evidence_text ? '已记录' : '未记录'}</Tag>
+            <Text type="secondary">{formatConfidence(record.confidence)}</Text>
+          </Space>
+          {record.confidence !== null && record.confidence !== undefined && (
+            <Progress percent={Math.round(Math.max(0, Math.min(1, record.confidence)) * 100)} size="small" showInfo={false} strokeColor={record.confidence >= 0.8 ? token.colorSuccess : token.colorWarning} />
+          )}
+          {renderEvidenceExcerpt(record.evidence_text, 1)}
+        </Space>
+      ),
+      width: 260,
     },
     {
       title: '操作',
       key: 'action',
       render: (_: unknown, record: Relationship) => (
         <Space size="small">
+          <Button
+            type="link"
+            size="small"
+            icon={<FileSearchOutlined />}
+            onClick={() => openEvidenceDrawer(record)}
+          >
+            证据
+          </Button>
           <Button
             type="link"
             size="small"
@@ -286,7 +378,7 @@ export default function Relationships() {
           </Button>
         </Space>
       ),
-      width: 140,
+      width: 210,
       fixed: isMobile ? ('right' as const) : undefined,
     },
   ];
@@ -371,12 +463,23 @@ export default function Relationships() {
                     }
                   }}
                   scroll={{
-                    x: 700,
+                    x: 980,
                     y: isMobile ? 'calc(100vh - 360px)' : 'calc(100vh - 440px)'
                   }}
                   size={isMobile ? 'small' : 'middle'}
                 />
               ),
+            },
+            {
+              key: 'pending-review',
+              label: '待审核同步',
+              children: projectId ? (
+                <GoldfingerPendingReviewPanel
+                  projectId={projectId}
+                  entityType="relationship"
+                  onReviewed={loadData}
+                />
+              ) : null,
             },
             {
               key: 'types',
@@ -536,6 +639,65 @@ export default function Relationships() {
           </Form.Item>
         </Form>
       </Modal>
+
+      <Drawer
+        title={evidenceRelationship ? `关系证据：${getCharacterName(evidenceRelationship.character_from_id)} → ${getCharacterName(evidenceRelationship.character_to_id)}` : '关系证据'}
+        open={evidenceOpen}
+        width={720}
+        onClose={() => setEvidenceOpen(false)}
+      >
+        {evidenceRelationship ? (
+          <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+            {Boolean(evidenceRelationship.pending_candidate_count) && (
+              <Alert
+                type="warning"
+                showIcon
+                message="存在待审核关系候选"
+                description={`当前正式关系没有被自动覆盖；仍有 ${evidenceRelationship.pending_candidate_count} 条冲突或低置信度候选等待评审。`}
+              />
+            )}
+            <Descriptions bordered column={1} size="small">
+              <Descriptions.Item label="关系">
+                <Space wrap>
+                  <Tag icon={<UserOutlined />} color="blue">{getCharacterName(evidenceRelationship.character_from_id)}</Tag>
+                  <Text strong>{evidenceRelationship.relationship_name || '未知关系'}</Text>
+                  <Tag icon={<UserOutlined />} color="purple">{getCharacterName(evidenceRelationship.character_to_id)}</Tag>
+                </Space>
+              </Descriptions.Item>
+              <Descriptions.Item label="来源">{evidenceRelationship.source || '—'}</Descriptions.Item>
+              <Descriptions.Item label="来源章节">{formatSourceChapter(evidenceRelationship)}</Descriptions.Item>
+              <Descriptions.Item label="置信度">{formatConfidence(evidenceRelationship.confidence)}</Descriptions.Item>
+              <Descriptions.Item label="状态">{evidenceRelationship.status}</Descriptions.Item>
+              <Descriptions.Item label="亲密度">{evidenceRelationship.intimacy_level}</Descriptions.Item>
+              <Descriptions.Item label="更新时间">{formatDateTime(evidenceRelationship.updated_at)}</Descriptions.Item>
+            </Descriptions>
+
+            <Card size="small" title="证据摘录">
+              {renderEvidenceExcerpt(evidenceRelationship.evidence_text, 4)}
+            </Card>
+
+            <Card size="small" title={<Space><HistoryOutlined />合并 / 历史事件</Space>}>
+              {evidenceRelationship.history && evidenceRelationship.history.length > 0 ? (
+                <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                  {evidenceRelationship.history.map(renderHistoryCard)}
+                </Space>
+              ) : (
+                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无关系历史事件" />
+              )}
+            </Card>
+
+            <Card size="small" title="来源 / Provenance">
+              {evidenceRelationship.provenance && evidenceRelationship.provenance.length > 0 ? (
+                <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                  {evidenceRelationship.provenance.map(renderProvenanceCard)}
+                </Space>
+              ) : (
+                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无来源记录" />
+              )}
+            </Card>
+          </Space>
+        ) : null}
+      </Drawer>
       </div>
     </>
   );

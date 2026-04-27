@@ -6,13 +6,13 @@ import { useChapterSync } from '../store/hooks';
 import { projectApi, writingStyleApi, chapterApi } from '../services/api';
 import type { Chapter, ChapterUpdate, ApiError, WritingStyle, AnalysisTask, ExpansionPlanData } from '../types';
 import type { TextAreaRef } from 'antd/es/input/TextArea';
-import ChapterAnalysis from '../components/ChapterAnalysis';
-import ExpansionPlanEditor from '../components/ExpansionPlanEditor';
-import { SSELoadingOverlay } from '../components/SSELoadingOverlay';
-import { SSEProgressModal } from '../components/SSEProgressModal';
-import ChapterReader from '../components/ChapterReader';
-import PartialRegenerateToolbar from '../components/PartialRegenerateToolbar';
-import PartialRegenerateModal from '../components/PartialRegenerateModal';
+import ChapterAnalysis from '../components/chapter/ChapterAnalysis';
+import ExpansionPlanEditor from '../components/generation/ExpansionPlanEditor';
+import { SSELoadingOverlay } from '../components/progress/SSELoadingOverlay';
+import { SSEProgressModal } from '../components/progress/SSEProgressModal';
+import ChapterReader from '../components/chapter/ChapterReader';
+import PartialRegenerateToolbar from '../components/modal/PartialRegenerateToolbar';
+import PartialRegenerateModal from '../components/modal/PartialRegenerateModal';
 
 const { TextArea } = Input;
 

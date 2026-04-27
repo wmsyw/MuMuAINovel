@@ -450,6 +450,296 @@ export interface CharacterUpdate extends LegacyOrganizationPayloadFields {
   color?: string;
 }
 
+// ==================== 关系管理 / 来源证据 ====================
+
+export interface RelationshipProvenance {
+  id: string;
+  source_type: string;
+  source_id?: string | null;
+  run_id?: string | null;
+  candidate_id?: string | null;
+  chapter_id?: string | null;
+  claim_type?: string | null;
+  claim_payload?: Record<string, unknown> | null;
+  evidence_text?: string | null;
+  source_start?: number | null;
+  source_end?: number | null;
+  confidence?: number | null;
+  status?: string | null;
+  created_by?: string | null;
+  created_at?: string | null;
+}
+
+export interface RelationshipHistoryEvent {
+  id: string;
+  event_type: string;
+  event_status: string;
+  relationship_name?: string | null;
+  source_chapter_id?: string | null;
+  source_chapter_order?: number | null;
+  valid_from_chapter_id?: string | null;
+  valid_from_chapter_order?: number | null;
+  valid_to_chapter_id?: string | null;
+  valid_to_chapter_order?: number | null;
+  story_time_label?: string | null;
+  source_start_offset?: number | null;
+  source_end_offset?: number | null;
+  evidence_text?: string | null;
+  confidence?: number | null;
+  provenance_id?: string | null;
+  supersedes_event_id?: string | null;
+  created_at?: string | null;
+}
+
+export interface Relationship {
+  id: string;
+  project_id: string;
+  character_from_id: string;
+  character_to_id: string;
+  relationship_type_id?: number | null;
+  relationship_name?: string | null;
+  intimacy_level: number;
+  status: string;
+  description?: string | null;
+  started_at?: string | null;
+  ended_at?: string | null;
+  source: string;
+  source_chapter_id?: string | null;
+  source_chapter_number?: number | null;
+  source_chapter_order?: number | null;
+  evidence_text?: string | null;
+  confidence?: number | null;
+  provenance?: RelationshipProvenance[];
+  history?: RelationshipHistoryEvent[];
+  pending_candidate_count?: number;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface RelationshipCreate {
+  project_id: string;
+  character_from_id: string;
+  character_to_id: string;
+  relationship_type_id?: number | null;
+  relationship_name?: string | null;
+  intimacy_level?: number;
+  status?: string;
+  description?: string | null;
+  started_at?: string | null;
+  ended_at?: string | null;
+}
+
+export interface RelationshipUpdate {
+  relationship_type_id?: number | null;
+  relationship_name?: string | null;
+  intimacy_level?: number;
+  status?: string;
+  description?: string | null;
+  started_at?: string | null;
+  ended_at?: string | null;
+}
+
+export interface RelationshipType {
+  id: number;
+  name: string;
+  category: string;
+  reverse_name?: string | null;
+  intimacy_range?: string | null;
+  icon?: string | null;
+  description?: string | null;
+  created_at?: string | null;
+}
+
+export interface RelationshipGraphNode {
+  id: string;
+  name: string;
+  type: string;
+  role_type?: string | null;
+  avatar?: string | null;
+}
+
+export interface RelationshipGraphLink {
+  id?: string | null;
+  source: string;
+  target: string;
+  relationship: string;
+  intimacy: number;
+  status: string;
+  source_chapter_id?: string | null;
+  source_chapter_number?: number | null;
+  source_chapter_order?: number | null;
+  evidence_text?: string | null;
+  confidence?: number | null;
+  pending_candidate_count?: number;
+}
+
+export interface RelationshipGraphData {
+  nodes: RelationshipGraphNode[];
+  links: RelationshipGraphLink[];
+}
+
+// ==================== 金手指管理 ====================
+
+export type GoldfingerStatus =
+  | 'latent'
+  | 'active'
+  | 'sealed'
+  | 'cooldown'
+  | 'upgrading'
+  | 'lost'
+  | 'completed'
+  | 'unknown';
+
+export interface Goldfinger {
+  id: string;
+  project_id: string;
+  name: string;
+  normalized_name: string;
+  owner_character_id?: string | null;
+  owner_character_name?: string | null;
+  type?: string | null;
+  status: GoldfingerStatus;
+  summary?: string | null;
+  rules?: unknown;
+  tasks?: unknown;
+  rewards?: unknown;
+  limits?: unknown;
+  trigger_conditions?: unknown;
+  cooldown?: unknown;
+  aliases?: unknown;
+  metadata?: Record<string, unknown> | null;
+  confidence?: number | null;
+  last_source_chapter_id?: string | null;
+  created_by?: string | null;
+  updated_by?: string | null;
+  source: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface GoldfingerCreate {
+  name: string;
+  owner_character_id?: string | null;
+  owner_character_name?: string | null;
+  type?: string | null;
+  status?: GoldfingerStatus;
+  summary?: string | null;
+  rules?: unknown;
+  tasks?: unknown;
+  rewards?: unknown;
+  limits?: unknown;
+  trigger_conditions?: unknown;
+  cooldown?: unknown;
+  aliases?: unknown;
+  metadata?: Record<string, unknown> | null;
+  confidence?: number | null;
+  last_source_chapter_id?: string | null;
+}
+
+export type GoldfingerUpdate = Partial<GoldfingerCreate>;
+
+export interface GoldfingerListResponse {
+  total: number;
+  items: Goldfinger[];
+}
+
+export interface GoldfingerHistoryEvent {
+  id: string;
+  goldfinger_id: string;
+  project_id: string;
+  chapter_id?: string | null;
+  event_type: string;
+  old_value?: unknown;
+  new_value?: unknown;
+  evidence_excerpt?: string | null;
+  confidence?: number | null;
+  source_type?: string | null;
+  created_at?: string | null;
+}
+
+export interface GoldfingerHistoryListResponse {
+  total: number;
+  items: GoldfingerHistoryEvent[];
+}
+
+export interface GoldfingerImportItem {
+  id?: string | null;
+  name?: string | null;
+  owner_character_id?: string | null;
+  owner_character_name?: string | null;
+  type?: string | null;
+  status?: GoldfingerStatus | string | null;
+  summary?: string | null;
+  rules?: unknown;
+  tasks?: unknown;
+  rewards?: unknown;
+  limits?: unknown;
+  trigger_conditions?: unknown;
+  cooldown?: unknown;
+  aliases?: unknown;
+  metadata?: Record<string, unknown> | null;
+  confidence?: number | null;
+  last_source_chapter_id?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  [key: string]: unknown;
+}
+
+export interface GoldfingerImportPayload {
+  version: string;
+  export_time?: string | null;
+  export_type?: string | null;
+  project_id?: string | null;
+  count?: number | null;
+  data: GoldfingerImportItem[];
+  [key: string]: unknown;
+}
+
+export interface GoldfingerImportConflict {
+  index: number;
+  name?: string | null;
+  normalized_name?: string | null;
+  existing_id?: string | null;
+  reason: string;
+}
+
+export interface GoldfingerImportProblem {
+  index?: number | null;
+  name?: string | null;
+  message: string;
+}
+
+export interface GoldfingerImportDryRunResult {
+  valid: boolean;
+  version: string;
+  expected_version: 'goldfinger-card.v1';
+  total: number;
+  creatable: number;
+  conflicts: GoldfingerImportConflict[];
+  errors: GoldfingerImportProblem[];
+  warnings: GoldfingerImportProblem[];
+  would_create: Array<Record<string, unknown>>;
+  statistics: Record<string, number>;
+}
+
+export interface GoldfingerImportResult {
+  success: boolean;
+  message: string;
+  imported: number;
+  imported_ids: string[];
+  dry_run: GoldfingerImportDryRunResult;
+  warnings: GoldfingerImportProblem[];
+}
+
+export interface GoldfingerExportPayload extends GoldfingerImportPayload {
+  version: 'goldfinger-card.v1';
+  export_time: string;
+  export_type: 'goldfingers';
+  project_id: string;
+  count: number;
+  data: GoldfingerImportItem[];
+}
+
 // ==================== 抽取候选评审 / 实体兼容元数据 ====================
 
 export type ExtractionRunStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
@@ -459,11 +749,36 @@ export type ExtractionCandidateType =
   | 'organization'
   | 'profession'
   | 'relationship'
+  | 'goldfinger'
   | 'organization_affiliation'
   | 'profession_assignment'
   | 'world_fact'
   | 'character_state';
-export type CanonicalTargetType = 'character' | 'organization' | 'career';
+export type CanonicalTargetType = 'character' | 'organization' | 'career' | 'goldfinger' | 'relationship';
+
+export interface SyncRun {
+  id: string;
+  project_id: string;
+  chapter_id?: string | null;
+  trigger_source: string;
+  pipeline_version: string;
+  schema_version: string;
+  prompt_hash?: string | null;
+  content_hash: string;
+  status: ExtractionRunStatus | string;
+  raw_response?: Record<string, unknown> | unknown[] | string | null;
+  run_metadata?: Record<string, unknown> | null;
+  error_message?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface SyncRunListResponse {
+  total: number;
+  items: SyncRun[];
+}
 
 export interface EntityAlias {
   id: string;
@@ -611,11 +926,36 @@ export interface ExtractionCandidate {
   reviewer_user_id?: string | null;
   reviewed_at?: string | null;
   accepted_at?: string | null;
+  review_required_reason?: string | null;
   rejection_reason?: string | null;
   supersedes_candidate_id?: string | null;
   rollback_of_candidate_id?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
+}
+
+export type SyncCandidate = ExtractionCandidate;
+
+export interface SyncCandidateListResponse {
+  total: number;
+  items: SyncCandidate[];
+}
+
+export interface SyncCandidateApproveRequest {
+  target_type?: string | null;
+  target_id?: string | null;
+  override?: boolean;
+  supersedes_candidate_id?: string | null;
+}
+
+export interface SyncCandidateRejectRequest {
+  reason?: string | null;
+}
+
+export interface SyncCandidateReviewResponse {
+  changed: boolean;
+  reason?: string | null;
+  candidate: SyncCandidate;
 }
 
 export interface ExtractionCandidateListResponse {

@@ -28,7 +28,7 @@ import {
   InfoCircleOutlined
 } from '@ant-design/icons';
 import axios from 'axios';
-import { promptTemplateCardStyles, promptTemplateCardHoverHandlers, promptTemplateGridConfig } from '../components/CardStyles';
+import { promptTemplateCardStyles, promptTemplateCardHoverHandlers, promptTemplateGridConfig } from '../components/common/CardStyles';
 
 const { TextArea } = Input;
 const { Title, Text, Paragraph } = Typography;

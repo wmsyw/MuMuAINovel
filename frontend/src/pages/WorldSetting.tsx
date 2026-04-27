@@ -21,9 +21,9 @@ import {
 } from 'antd';
 import { CheckOutlined, CloseOutlined, EditOutlined, FormOutlined, GlobalOutlined, ReloadOutlined, RollbackOutlined, SyncOutlined } from '@ant-design/icons';
 import { useStore } from '../store';
-import { worldSettingCardStyles } from '../components/CardStyles';
+import { worldSettingCardStyles } from '../components/common/CardStyles';
 import { projectApi, wizardStreamApi, worldSettingResultApi } from '../services/api';
-import { SSELoadingOverlay } from '../components/SSELoadingOverlay';
+import { SSELoadingOverlay } from '../components/progress/SSELoadingOverlay';
 import type {
   Project,
   ProjectWorldSnapshot,

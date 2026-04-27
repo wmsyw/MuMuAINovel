@@ -1,14 +1,14 @@
 import { useState, useEffect, useCallback, useMemo, type CSSProperties } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Card, Tag, Button, Space, message, Typography, theme } from 'antd';
+import { Alert, Card, Tag, Button, Space, message, Typography, theme } from 'antd';
 import {
   ArrowLeftOutlined,
   ApartmentOutlined,
+  CloseOutlined,
   UserOutlined,
   TeamOutlined,
   TrophyOutlined,
 } from '@ant-design/icons';
-import axios from 'axios';
 import dagre from 'dagre';
 import {
   ReactFlow,
@@ -22,40 +22,10 @@ import {
 import type { Node, Edge } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { getOrganizationPurpose, getOrganizationType, isOrganizationEntity, type LegacyOrganizationCharacterFields } from '../utils/entityCompatibility';
+import { careerApi, characterApi, relationshipApi, syncApi } from '../services/api';
+import type { RelationshipGraphData as GraphData, RelationshipGraphLink as GraphLink, RelationshipType, SyncCandidate } from '../types';
 
 const { Text } = Typography;
-
-interface GraphNode {
-  id: string;
-  name: string;
-  type: string;
-  role_type: string;
-  avatar: string | null;
-}
-
-interface GraphLink {
-  source: string;
-  target: string;
-  relationship: string;
-  intimacy: number;
-  status: string;
-}
-
-interface GraphData {
-  nodes: GraphNode[];
-  links: GraphLink[];
-}
-
-interface RelationshipType {
-  id: number;
-  name: string;
-  category: string;
-  reverse_name: string;
-  intimacy_range: string;
-  icon: string;
-  description: string;
-  created_at: string;
-}
 
 interface CharacterDetail extends LegacyOrganizationCharacterFields {
   id: string;
@@ -86,15 +56,6 @@ interface CareerItem {
   max_stage: number;
 }
 
-interface CareerListResponse {
-  main_careers?: CareerItem[];
-  sub_careers?: CareerItem[];
-}
-
-interface CharacterListResponse {
-  items?: CharacterDetail[];
-}
-
 const GROUP_MAIN_CAREER_NODE_ID = '__career_group_main__';
 const GROUP_SUB_CAREER_NODE_ID = '__career_group_sub__';
 
@@ -109,6 +70,7 @@ const EDGE_CATEGORY_META: Record<string, { label: string; colorPreset: EdgeColor
   hostile: { label: '敌对关系', colorPreset: 'error', order: 6 },
   professional: { label: '职业关系', colorPreset: 'info', order: 7 },
   social: { label: '社交关系', colorPreset: 'success', order: 8 },
+  pending_relationship: { label: '待审核关系', colorPreset: 'warning', order: 9 },
   default: { label: '其他关系', colorPreset: 'textTertiary', order: 99 },
 };
 
@@ -405,6 +367,70 @@ const safeParseSubCareers = (raw: CharacterDetail['sub_careers']) => {
   return [];
 };
 
+const getCandidatePayloadRecord = (candidate: SyncCandidate): Record<string, unknown> => (
+  candidate.payload && typeof candidate.payload === 'object' && !Array.isArray(candidate.payload)
+    ? candidate.payload
+    : {}
+);
+
+const getStringValue = (value: unknown): string | undefined => {
+  if (value === null || value === undefined || value === '') return undefined;
+  return String(value);
+};
+
+const getNumberValue = (value: unknown, fallback: number): number => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const resolvePendingEndpoint = (
+  payload: Record<string, unknown>,
+  endpoint: 'source' | 'target',
+  nameToId: Record<string, string>,
+): string | undefined => {
+  const idKeys = endpoint === 'source'
+    ? ['character_from_id', 'from_entity_id', 'from_character_id', 'source_character_id']
+    : ['character_to_id', 'to_entity_id', 'to_character_id', 'target_character_id'];
+  for (const key of idKeys) {
+    const id = getStringValue(payload[key]);
+    if (id) return id;
+  }
+
+  const nameKeys = endpoint === 'source'
+    ? ['character_from_name', 'from_entity_name', 'from_character_name', 'source_character_name']
+    : ['character_to_name', 'to_entity_name', 'to_character_name', 'target_character_name'];
+  for (const key of nameKeys) {
+    const name = getStringValue(payload[key]);
+    if (name && nameToId[name]) return nameToId[name];
+  }
+
+  const participants = payload.participants;
+  if (Array.isArray(participants)) {
+    const value = participants[endpoint === 'source' ? 0 : 1];
+    const id = getStringValue(value);
+    if (id && nameToId[id]) return nameToId[id];
+    if (id) return id;
+  }
+
+  return undefined;
+};
+
+const formatGraphConfidence = (value?: number | null): string => {
+  if (value === null || value === undefined || !Number.isFinite(value)) return '未记录';
+  return `${Math.round(Math.max(0, Math.min(1, value)) * 100)}%`;
+};
+
+const formatGraphSourceChapter = (data?: Record<string, unknown>): string => {
+  if (!data) return '未记录来源章节';
+  const chapterNumber = getNumberValue(data.source_chapter_number, Number.NaN);
+  if (Number.isFinite(chapterNumber)) return `第 ${chapterNumber} 章`;
+  const chapterOrder = getNumberValue(data.source_chapter_order, Number.NaN);
+  if (Number.isFinite(chapterOrder)) return `章节顺序 ${chapterOrder}`;
+  const chapterId = getStringValue(data.source_chapter_id);
+  return chapterId ? `章节 ${chapterId}` : '未记录来源章节';
+};
+
 const getCategoryColor = (
   relationshipName: string,
   isActive: boolean,
@@ -569,11 +595,13 @@ export default function RelationshipGraph() {
   const [, setLoading] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [nodeDetail, setNodeDetail] = useState<CharacterDetail | null>(null);
+  const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null);
   const [, setDetailLoading] = useState(false);
   const [relationshipTypes, setRelationshipTypes] = useState<RelationshipType[]>([]);
   const [characterDetailMap, setCharacterDetailMap] = useState<Record<string, CharacterDetail>>({});
   const [mainCareers, setMainCareers] = useState<CareerItem[]>([]);
   const [subCareers, setSubCareers] = useState<CareerItem[]>([]);
+  const [pendingRelationshipCandidates, setPendingRelationshipCandidates] = useState<SyncCandidate[]>([]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -643,8 +671,8 @@ export default function RelationshipGraph() {
 
   const loadRelationshipTypes = async () => {
     try {
-      const res = await axios.get('/api/relationships/types');
-      setRelationshipTypes(res.data || []);
+      const data = await relationshipApi.getRelationshipTypes();
+      setRelationshipTypes(data || []);
     } catch (error) {
       console.error('加载关系类型失败', error);
     }
@@ -662,9 +690,11 @@ export default function RelationshipGraph() {
         dashed?: boolean;
         animated?: boolean;
         layoutWeight?: number;
+        pendingCandidate?: boolean;
+        provenance?: Record<string, unknown>;
       },
     ): Edge => {
-      const edgeColor = getCategoryColor(relationship, status === 'active', relationshipTypes, {
+      const baseEdgeColor = getCategoryColor(relationship, status === 'active', relationshipTypes, {
         colorPrimary: token.colorPrimary,
         colorWarning: token.colorWarning,
         colorInfo: token.colorInfo,
@@ -673,28 +703,31 @@ export default function RelationshipGraph() {
         colorSuccess: token.colorSuccess,
         colorBorder: token.colorBorder,
       });
+      const edgeColor = opts?.pendingCandidate ? token.colorWarning : baseEdgeColor;
       const isOrgMemberLink = relationship.startsWith('组织成员·');
       const isCareerMainLink = relationship.startsWith('主职业·');
       const isCareerSubLink = relationship.startsWith('副职业·');
       const isCareerClassLink = relationship.startsWith('职业分类·');
+      const label = opts?.pendingCandidate ? `${relationship} · 待审` : relationship;
 
       return {
         id: edgeId,
         source,
         target,
-        label: relationship,
+        label,
         type: 'smoothstep',
         animated: opts?.animated,
+        interactionWidth: opts?.pendingCandidate ? 28 : 18,
         style: {
           stroke: edgeColor,
-          strokeWidth: isCareerClassLink ? 1.5 : 2,
-          strokeDasharray: opts?.dashed || isOrgMemberLink || isCareerSubLink ? '6 3' : undefined,
-          opacity: isCareerClassLink ? 0.5 : (isCareerMainLink || isCareerSubLink ? 0.6 : 1),
+          strokeWidth: opts?.pendingCandidate ? 2.6 : (isCareerClassLink ? 1.5 : 2),
+          strokeDasharray: opts?.pendingCandidate || opts?.dashed || isOrgMemberLink || isCareerSubLink ? '6 3' : undefined,
+          opacity: opts?.pendingCandidate ? 0.96 : (isCareerClassLink ? 0.5 : (isCareerMainLink || isCareerSubLink ? 0.6 : 1)),
         },
         labelStyle: {
-          fill: token.colorTextSecondary,
+          fill: opts?.pendingCandidate ? token.colorWarning : token.colorTextSecondary,
           fontSize: 10,
-          fontWeight: isCareerMainLink || isCareerSubLink ? 600 : 500,
+          fontWeight: opts?.pendingCandidate || isCareerMainLink || isCareerSubLink ? 600 : 500,
         },
         labelBgStyle: {
           fill: token.colorBgContainer,
@@ -705,10 +738,15 @@ export default function RelationshipGraph() {
           color: edgeColor,
         },
         data: {
+          relationship,
           intimacy,
           status,
           layoutWeight: opts?.layoutWeight ?? 1,
-          category: isOrgMemberLink
+          pendingCandidate: Boolean(opts?.pendingCandidate),
+          ...(opts?.provenance || {}),
+          category: opts?.pendingCandidate
+            ? 'pending_relationship'
+            : isOrgMemberLink
             ? 'organization'
             : isCareerMainLink
               ? 'career_main'
@@ -739,27 +777,27 @@ export default function RelationshipGraph() {
 
     setLoading(true);
     try {
-      const [graphRes, charactersRes, careersRes] = await Promise.all([
-        axios.get(`/api/relationships/graph/${projectId}`),
-        axios.get('/api/characters', { params: { project_id: projectId } }),
-        axios.get('/api/careers', { params: { project_id: projectId } }),
+      const [data, characters, careersData, pendingCandidatesResponse] = await Promise.all([
+        relationshipApi.getGraphData(projectId),
+        characterApi.getCharacters(projectId),
+        careerApi.getCareers(projectId),
+        syncApi.listCandidates(projectId, { entity_type: 'relationship', status: 'pending', limit: 100 }),
       ]);
-
-      const data = graphRes.data as GraphData;
-      const characters = (charactersRes.data as CharacterListResponse)?.items || [];
-      const careersData = (careersRes.data as CareerListResponse) || {};
+      const pendingCandidates = pendingCandidatesResponse.items || [];
+      setPendingRelationshipCandidates(pendingCandidates);
 
       setMainCareers(careersData.main_careers || []);
       setSubCareers(careersData.sub_careers || []);
 
       const detailMap: Record<string, CharacterDetail> = {};
       characters.forEach((item) => {
-        detailMap[item.id] = item;
+        detailMap[item.id] = item as CharacterDetail;
       });
       setCharacterDetailMap(detailMap);
 
       const baseNodes: Node[] = data.nodes.map((node) => {
-        const style = node.type === 'organization' ? getOrganizationNodeStyle() : getCharacterNodeStyle(node.role_type);
+        const roleType = node.role_type || 'supporting';
+        const style = node.type === 'organization' ? getOrganizationNodeStyle() : getCharacterNodeStyle(roleType);
         const detail = detailMap[node.id];
         
         const roleColorMap: Record<string, string> = {
@@ -767,7 +805,7 @@ export default function RelationshipGraph() {
           antagonist: token.colorPrimary,
           supporting: token.colorInfo,
         };
-        const baseColor = roleColorMap[node.role_type] || token.colorInfo;
+        const baseColor = roleColorMap[roleType] || token.colorInfo;
 
         const labelContent = node.type === 'organization' ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
@@ -786,7 +824,7 @@ export default function RelationshipGraph() {
             )}
             <div style={{ fontWeight: 600, fontSize: 13, color: token.colorText, maxWidth: '90%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.name}</div>
             <div style={{ fontSize: 11, color: baseColor, marginTop: 2, transform: 'scale(0.9)' }}>
-              {node.role_type === 'protagonist' ? '主角' : node.role_type === 'antagonist' ? '反派' : '配角'}
+              {roleType === 'protagonist' ? '主角' : roleType === 'antagonist' ? '反派' : '配角'}
             </div>
           </div>
         );
@@ -798,7 +836,7 @@ export default function RelationshipGraph() {
           data: {
             label: labelContent,
             type: node.type,
-            role_type: node.role_type,
+            role_type: roleType,
           },
           style,
         };
@@ -866,17 +904,26 @@ export default function RelationshipGraph() {
 
       const orgMemberLinks = data.links.filter((link) => link.relationship.startsWith('组织成员·'));
       const memberRelationLinks = data.links.filter((link) => !link.relationship.startsWith('组织成员·'));
+      const linkProvenance = (link: GraphLink): Record<string, unknown> => ({
+        relationship_id: link.id,
+        source_chapter_id: link.source_chapter_id,
+        source_chapter_number: link.source_chapter_number,
+        source_chapter_order: link.source_chapter_order,
+        evidence_text: link.evidence_text,
+        confidence: link.confidence,
+        pending_candidate_count: link.pending_candidate_count,
+      });
 
       // 先建立组织-成员边（用于先稳定层级结构）
       const orgMemberEdges: Edge[] = orgMemberLinks.map((link) =>
         buildFlowEdge(
-          `${link.source}-${link.target}-${link.relationship}`,
+          link.id || `${link.source}-${link.target}-${link.relationship}`,
           link.source,
           link.target,
           link.relationship,
           link.status,
           link.intimacy,
-          { layoutWeight: 8 },
+          { layoutWeight: 8, provenance: linkProvenance(link) },
         ),
       );
 
@@ -956,15 +1003,60 @@ export default function RelationshipGraph() {
       // 最后才连接成员之间的人际关系
       const memberRelationEdges: Edge[] = memberRelationLinks.map((link) =>
         buildFlowEdge(
-          `${link.source}-${link.target}-${link.relationship}`,
+          link.id || `${link.source}-${link.target}-${link.relationship}`,
           link.source,
           link.target,
           link.relationship,
           link.status,
           link.intimacy,
-          { layoutWeight: 1 },
+          { layoutWeight: 1, provenance: linkProvenance(link) },
         ),
       );
+
+      const nameToId = characters.reduce<Record<string, string>>((map, character) => {
+        map[character.name] = character.id;
+        return map;
+      }, {});
+      const pendingCandidateEdges: Edge[] = pendingCandidates
+        .map((candidate) => {
+          const payload = getCandidatePayloadRecord(candidate);
+          const source = resolvePendingEndpoint(payload, 'source', nameToId);
+          const target = resolvePendingEndpoint(payload, 'target', nameToId);
+          if (!source || !target || !detailMap[source] || !detailMap[target]) {
+            return null;
+          }
+          const relationship = getStringValue(payload.relationship_name)
+            || getStringValue(payload.relationship)
+            || getStringValue(payload.state)
+            || candidate.display_name
+            || '待审核关系';
+          const intimacy = getNumberValue(payload.intimacy_level, Math.round(candidate.confidence * 100));
+          return buildFlowEdge(
+            `pending-${candidate.id}`,
+            source,
+            target,
+            relationship,
+            'active',
+            intimacy,
+            {
+              dashed: true,
+              animated: true,
+              pendingCandidate: true,
+              layoutWeight: 1,
+              provenance: {
+                candidate_id: candidate.id,
+                source_chapter_id: candidate.source_chapter_id,
+                source_chapter_number: candidate.source_chapter_number,
+                source_chapter_order: candidate.source_chapter_order,
+                evidence_text: candidate.evidence_text,
+                confidence: candidate.confidence,
+                review_required_reason: candidate.review_required_reason,
+                payload: candidate.payload,
+              },
+            },
+          );
+        })
+        .filter((edge): edge is Edge => Boolean(edge));
 
       const layoutEdges = [...orgMemberEdges, ...careerGroupEdges, ...careerToCharacterEdges];
       const fallbackLayoutEdges = layoutEdges.length > 0 ? layoutEdges : memberRelationEdges;
@@ -972,7 +1064,7 @@ export default function RelationshipGraph() {
       const layouted = getLayoutedElements(allNodes, fallbackLayoutEdges);
 
       setNodes(layouted.nodes);
-      setEdges([...orgMemberEdges, ...careerGroupEdges, ...careerToCharacterEdges, ...memberRelationEdges]);
+      setEdges([...orgMemberEdges, ...careerGroupEdges, ...careerToCharacterEdges, ...memberRelationEdges, ...pendingCandidateEdges]);
       setGraphData(data);
     } catch (error) {
       message.error('加载关系图谱失败');
@@ -1024,8 +1116,8 @@ export default function RelationshipGraph() {
 
     setDetailLoading(true);
     try {
-      const res = await axios.get(`/api/characters/${nodeId}`);
-      setNodeDetail(res.data as CharacterDetail);
+      const detail = await characterApi.getCharacter(nodeId);
+      setNodeDetail(detail as CharacterDetail);
     } catch (error) {
       message.error('加载详情失败');
       console.error(error);
@@ -1036,6 +1128,7 @@ export default function RelationshipGraph() {
 
   const handleNodeClick = (_: unknown, node: { id: string }) => {
     setSelectedNodeId(node.id);
+    setSelectedEdge(null);
 
     const shouldShowDetail =
       node.id !== GROUP_MAIN_CAREER_NODE_ID &&
@@ -1053,6 +1146,16 @@ export default function RelationshipGraph() {
   const handleCloseDetail = () => {
     setSelectedNodeId(null);
     setNodeDetail(null);
+  };
+
+  const handleEdgeClick = (_: unknown, edge: Edge) => {
+    setSelectedEdge(edge);
+    setSelectedNodeId(null);
+    setNodeDetail(null);
+  };
+
+  const closeEdgeDetail = () => {
+    setSelectedEdge(null);
   };
 
   const goBack = () => {
@@ -1126,6 +1229,12 @@ export default function RelationshipGraph() {
   const nodeDetailIsOrganization = isOrganizationEntity(nodeDetail);
   const nodeDetailOrganizationType = getOrganizationType(nodeDetail);
   const nodeDetailOrganizationPurpose = getOrganizationPurpose(nodeDetail);
+  const selectedEdgeData = selectedEdge?.data && typeof selectedEdge.data === 'object'
+    ? selectedEdge.data as Record<string, unknown>
+    : undefined;
+  const selectedEdgeSourceName = selectedEdge ? characterDetailMap[selectedEdge.source]?.name || selectedEdge.source : '';
+  const selectedEdgeTargetName = selectedEdge ? characterDetailMap[selectedEdge.target]?.name || selectedEdge.target : '';
+  const selectedEdgeRelationship = getStringValue(selectedEdgeData?.relationship) || String(selectedEdge?.label || '关系详情');
 
   return (
     <div
@@ -1146,13 +1255,15 @@ export default function RelationshipGraph() {
           display: 'flex',
           flexDirection: 'column',
         }}
-        bodyStyle={{
-          flex: 1,
-          minHeight: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          padding: 12,
+        styles={{
+          body: {
+            flex: 1,
+            minHeight: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            padding: 12,
+          },
         }}
         title={
           <Space>
@@ -1163,6 +1274,9 @@ export default function RelationshipGraph() {
             <Tag color="processing" style={{ marginInlineStart: 4 }}>
               {graphData?.nodes?.length || 0} 节点 / {graphData?.links?.length || 0} 关系
             </Tag>
+            {pendingRelationshipCandidates.length > 0 && (
+              <Tag color="orange">待审核 {pendingRelationshipCandidates.length}</Tag>
+            )}
           </Space>
         }
         extra={
@@ -1200,6 +1314,10 @@ export default function RelationshipGraph() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                 <span style={{ color: token.colorInfo, fontWeight: 'bold' }}>- -</span>
                 <span>副职业关联</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ color: token.colorWarning, fontWeight: 'bold' }}>- -</span>
+                <span>待审关系</span>
               </div>
             </div>
 
@@ -1299,6 +1417,8 @@ export default function RelationshipGraph() {
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onNodeClick={handleNodeClick}
+            onEdgeClick={handleEdgeClick}
+            onPaneClick={() => setSelectedEdge(null)}
             fitView
             fitViewOptions={{ padding: 0.2 }}
             attributionPosition="bottom-left"
@@ -1308,6 +1428,85 @@ export default function RelationshipGraph() {
           </ReactFlow>
         </div>
       </Card>
+
+      {selectedEdge && selectedEdgeData && (
+        <div
+          style={{
+            position: 'fixed',
+            right: 24,
+            top: 80,
+            width: 420,
+            maxHeight: 'calc(100vh - 100px)',
+            zIndex: 1000,
+          }}
+        >
+          <Card
+            size="small"
+            title={
+              <Space wrap>
+                <ApartmentOutlined />
+                <span>关系详情</span>
+                {Boolean(selectedEdgeData.pendingCandidate) && <Tag color="orange">待审核候选</Tag>}
+              </Space>
+            }
+            extra={<Button type="text" size="small" icon={<CloseOutlined />} onClick={closeEdgeDetail} />}
+            style={{
+              borderRadius: 16,
+              borderColor: selectedEdgeData.pendingCandidate ? token.colorWarningBorder : token.colorBorderSecondary,
+              borderStyle: selectedEdgeData.pendingCandidate ? 'dashed' : 'solid',
+              boxShadow: `0 12px 32px ${alphaColor(token.colorTextBase, 0.22)}`,
+            }}
+          >
+            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+              <Space wrap>
+                <Tag color="blue">{selectedEdgeSourceName}</Tag>
+                <Text strong>{selectedEdgeRelationship}</Text>
+                <Tag color="purple">{selectedEdgeTargetName}</Tag>
+              </Space>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+                <div>
+                  <Text type="secondary">来源章节</Text>
+                  <div><Text>{formatGraphSourceChapter(selectedEdgeData)}</Text></div>
+                </div>
+                <div>
+                  <Text type="secondary">置信度</Text>
+                  <div><Text>{formatGraphConfidence(getNumberValue(selectedEdgeData.confidence, Number.NaN))}</Text></div>
+                </div>
+                <div>
+                  <Text type="secondary">亲密度</Text>
+                  <div><Text>{getNumberValue(selectedEdgeData.intimacy, 0)}</Text></div>
+                </div>
+                <div>
+                  <Text type="secondary">状态</Text>
+                  <div><Text>{getStringValue(selectedEdgeData.status) || '—'}</Text></div>
+                </div>
+              </div>
+              {Boolean(selectedEdgeData.review_required_reason) && (
+                <Alert
+                  type="warning"
+                  showIcon
+                  message="候选审核原因"
+                  description={String(selectedEdgeData.review_required_reason)}
+                />
+              )}
+              {getNumberValue(selectedEdgeData.pending_candidate_count, 0) > 0 && !selectedEdgeData.pendingCandidate && (
+                <Alert
+                  type="warning"
+                  showIcon
+                  message="正式关系仍有关联待审候选"
+                  description={`待审核候选 ${getNumberValue(selectedEdgeData.pending_candidate_count, 0)} 条，当前图中正式边未被自动覆盖。`}
+                />
+              )}
+              <div>
+                <Text type="secondary">证据摘录</Text>
+                <p style={{ ...clampTextStyle(4), marginTop: 4 }}>
+                  {getStringValue(selectedEdgeData.evidence_text) || '暂无证据摘录'}
+                </p>
+              </div>
+            </Space>
+          </Card>
+        </div>
+      )}
 
       {/* 节点详情 */}
 {selectedNodeId && nodeDetail && (
@@ -1335,12 +1534,14 @@ export default function RelationshipGraph() {
       display: 'flex',
       flexDirection: 'column',
     }}
-    bodyStyle={{
-      flex: 1,
-      overflow: 'hidden',
-      padding: '12px 16px',
-      display: 'flex',
-      flexDirection: 'column',
+    styles={{
+      body: {
+        flex: 1,
+        overflow: 'hidden',
+        padding: '12px 16px',
+        display: 'flex',
+        flexDirection: 'column',
+      },
     }}
             title={
               <Space>

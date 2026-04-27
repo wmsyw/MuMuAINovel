@@ -11,6 +11,7 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   ApartmentOutlined,
+  ThunderboltOutlined,
   BankOutlined,
   EditOutlined,
   FundOutlined,
@@ -23,7 +24,7 @@ import {
 import { useStore } from '../store';
 import { useCharacterSync, useOutlineSync, useChapterSync } from '../store/hooks';
 import { projectApi } from '../services/api';
-import ThemeSwitch from '../components/ThemeSwitch';
+import ThemeSwitch from '../components/common/ThemeSwitch';
 import { useThemeMode } from '../theme/useThemeMode';
 import { getStoredSidebarCollapsed, setStoredSidebarCollapsed } from '../utils/sidebarState';
 
@@ -148,6 +149,11 @@ export default function ProjectDetail() {
           label: <Link to={`/project/${projectId}/relationships`}>关系管理</Link>,
         },
         {
+          key: 'goldfingers',
+          icon: <ThunderboltOutlined />,
+          label: <Link to={`/project/${projectId}/goldfingers`}>金手指管理</Link>,
+        },
+        {
           key: 'outline',
           icon: <FileTextOutlined />,
           label: <Link to={`/project/${projectId}/outline`}>大纲管理</Link>,
@@ -214,6 +220,11 @@ export default function ProjectDetail() {
       label: <Link to={`/project/${projectId}/relationships`}>关系管理</Link>,
     },
     {
+      key: 'goldfingers',
+      icon: <ThunderboltOutlined />,
+      label: <Link to={`/project/${projectId}/goldfingers`}>金手指管理</Link>,
+    },
+    {
       key: 'organizations',
       icon: <BankOutlined />,
       label: <Link to={`/project/${projectId}/organizations`}>组织管理</Link>,
@@ -255,6 +266,7 @@ export default function ProjectDetail() {
     const path = location.pathname;
     if (path.includes('/world-setting')) return 'world-setting';
     if (path.includes('/careers')) return 'careers';
+    if (path.includes('/goldfingers')) return 'goldfingers';
     if (path.includes('/relationships')) return 'relationships';
     if (path.includes('/organizations')) return 'organizations';
     if (path.includes('/outline')) return 'outline';

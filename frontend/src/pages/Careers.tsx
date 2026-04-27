@@ -3,9 +3,9 @@ import { Alert, Button, Modal, Form, Input, Select, message, Row, Col, Empty, Ta
 import { ThunderboltOutlined, PlusOutlined, EditOutlined, DeleteOutlined, TrophyOutlined } from '@ant-design/icons';
 import { useParams } from 'react-router-dom';
 import { careerApi, characterApi, settingsApi } from '../services/api';
-import SSEProgressModal from '../components/SSEProgressModal';
-import ExtractionCandidateReviewPanel from '../components/ExtractionCandidateReviewPanel';
-import TimelineReviewPanel from '../components/TimelineReviewPanel';
+import SSEProgressModal from '../components/progress/SSEProgressModal';
+import ExtractionCandidateReviewPanel from '../components/common/ExtractionCandidateReviewPanel';
+import TimelineReviewPanel from '../components/common/TimelineReviewPanel';
 import type { Career, CareerCreateRequest, CareerStage, Character, ExtractionCandidateType } from '../types';
 import { isOrganizationEntity } from '../utils/entityCompatibility';
 

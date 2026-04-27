@@ -2,7 +2,7 @@ import { act, type ComponentProps } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
-import ExtractionCandidateReviewPanel from '../../components/ExtractionCandidateReviewPanel';
+import ExtractionCandidateReviewPanel from '../../components/common/ExtractionCandidateReviewPanel';
 import type { CandidateReviewResponse, ExtractionCandidate } from '../../types';
 
 const reviewUtils = ExtractionCandidateReviewPanel.__testUtils;

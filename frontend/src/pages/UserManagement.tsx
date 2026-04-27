@@ -36,7 +36,7 @@ import {
 } from '@ant-design/icons';
 import { adminApi } from '../services/api';
 import type { User } from '../types';
-import UserMenu from '../components/UserMenu';
+import UserMenu from '../components/common/UserMenu';
 
 const { Title, Text } = Typography;
 

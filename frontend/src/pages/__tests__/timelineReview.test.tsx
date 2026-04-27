@@ -2,7 +2,7 @@ import { act, type ComponentProps } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
-import TimelineReviewPanel from '../../components/TimelineReviewPanel';
+import TimelineReviewPanel from '../../components/common/TimelineReviewPanel';
 import type { Character, TimelineEvent, TimelineStateResponse } from '../../types';
 
 type TimelinePanelProps = ComponentProps<typeof TimelineReviewPanel>;

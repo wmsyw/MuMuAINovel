@@ -11,8 +11,8 @@ import {
 } from '@ant-design/icons';
 import { useParams } from 'react-router-dom';
 import api from '../services/api';
-import AnnotatedText, { type MemoryAnnotation } from '../components/AnnotatedText';
-import MemorySidebar from '../components/MemorySidebar';
+import AnnotatedText, { type MemoryAnnotation } from '../components/common/AnnotatedText';
+import MemorySidebar from '../components/layout/MemorySidebar';
 
 interface ChapterItem {
   id: string;

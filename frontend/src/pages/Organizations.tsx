@@ -4,8 +4,8 @@ import { Alert, Card, Table, Tag, Button, Space, message, Modal, Form, Select, I
 import { PlusOutlined, UserOutlined, EditOutlined, DeleteOutlined, UnorderedListOutlined, BankOutlined } from '@ant-design/icons';
 import { useStore } from '../store';
 import { useCharacterSync } from '../store/hooks';
-import ExtractionCandidateReviewPanel from '../components/ExtractionCandidateReviewPanel';
-import TimelineReviewPanel from '../components/TimelineReviewPanel';
+import ExtractionCandidateReviewPanel from '../components/common/ExtractionCandidateReviewPanel';
+import TimelineReviewPanel from '../components/common/TimelineReviewPanel';
 import { characterApi, organizationApi } from '../services/api';
 import type { Character, ExtractionCandidateType, Organization, OrganizationMember, OrganizationMemberPayload } from '../types';
 import { isOrganizationEntity } from '../utils/entityCompatibility';

@@ -4,7 +4,7 @@ import { EditOutlined, DeleteOutlined, ThunderboltOutlined, BranchesOutlined, Ap
 import { useStore } from '../store';
 import { useOutlineSync } from '../store/hooks';
 import { SSEPostClient } from '../utils/sseClient';
-import { SSEProgressModal } from '../components/SSEProgressModal';
+import { SSEProgressModal } from '../components/progress/SSEProgressModal';
 import { outlineApi, chapterApi, projectApi, characterApi } from '../services/api';
 import type { OutlineExpansionResponse, BatchOutlineExpansionResponse, ChapterPlanItem, ApiError, Character } from '../types';
 
