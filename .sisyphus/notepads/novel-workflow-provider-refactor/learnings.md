@@ -92,3 +92,8 @@
 - `WorldSetting.tsx` separates `当前生效世界观` manual snapshot editing from `AI结果评审`; the AI regenerate stream is treated as a result/page draft and no longer calls `projectApi.updateProject` from the AI preview path.
 - `WorldSetting` exposes focused test utilities for snapshot application and action orchestration; the jsdom test renders the page, clicks `接受结果`, and verifies the mocked result API updates the active project world fields.
 - `Inspiration.tsx` keeps generated ideas as drafts by default: users can save local inspiration drafts or create a project draft through `projectApi.createProject`; the full `AIProjectGenerator` handoff remains an explicit secondary option.
+
+## 2026-04-27 — Task 16 timeline UI/query surfaces
+- `TimelineReviewPanel` now centralizes the restrained AntD timeline query surface: chapter/order filters call `timelineApi.getProjectState`, history calls `timelineApi.getProjectHistory`, and the same table renders evidence, confidence, source offsets, validity range, status, and supersession metadata.
+- Characters, Organizations, and Careers integrate timeline panels as extra tabs inside the existing `ExtractionCandidateReviewPanel`; no route or graph surface was added, and manual CRUD/review tabs remain intact.
+- Current projection and history intentionally interpret validity differently: current rows from `/state` stay labeled `生效中`, while history rows with `valid_to_*` render ended semantics so closed relationships remain auditable after they disappear from current projection.

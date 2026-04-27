@@ -114,3 +114,12 @@
 ## 2026-04-27 — Task 15 QA Storage mock fix
 - Atlas found `frontend/src/pages/__tests__/Inspiration.test.ts` cast a partial object directly to `Storage`. Replaced it with a complete in-memory `Storage` helper (`length`, `clear`, `getItem`, `key`, `removeItem`, `setItem`) so the test remains type-safe without suppressions or `as any`.
 - Re-ran LSP diagnostics for the Inspiration test plus `npm run test -- --run Inspiration`, `npm run test -- --run world`, `npm run build`, and `npm run lint`; all passed. Forbidden-marker grep on the Inspiration test returned no matches, and the Goldfinger artifact glob remained empty.
+
+## 2026-04-27 — Task 16 verification notes
+- LSP diagnostics were clean for the changed timeline component, wrapper, pages, API/types, and focused timeline test before runtime verification.
+- `npm run test -- --run timeline`, `npm run build`, and `npm run lint` were run from `frontend/`; stdout was appended to `.sisyphus/evidence/task-16-timeline-ui.log` and stderr/warnings to `.sisyphus/evidence/task-16-timeline-ui-error.log`.
+- Required verification passed (`timelineReview.test.tsx` 3 tests, Vite build success, ESLint success). The error log contains non-blocking jsdom `window.getComputedStyle` notices from AntD/rc-table during the timeline test and the known Vite chunk-size warning.
+
+## 2026-04-27 — Task 16 QA coverage gap fix
+- QA found `timelineReview.test.tsx` only proved relationship timeline behavior even though Task 16 acceptance also requires organization-affiliation and profession timeline surfaces. Added mocked affiliation and profession current/history cases with mapped character/organization/career names, active current rows at chapter 6, and ended/superseded/rolled-back history rows after chapter 10.
+- Re-ran LSP diagnostics for the touched test, forbidden-marker grep, `npm run test -- --run timeline`, `npm run build`, and `npm run lint`; all passed. Updated stdout/stderr were appended to the Task 16 evidence logs, with only the known jsdom `getComputedStyle` notices and Vite chunk-size warning in stderr.

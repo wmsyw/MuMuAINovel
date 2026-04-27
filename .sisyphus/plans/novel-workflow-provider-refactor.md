@@ -892,7 +892,7 @@ Wave 4: Tasks 15, 16, 17, 18 — inspiration/world UI, timeline UI, cleanup/docs
 
   **Commit**: YES | Message: `frontend: refactor inspiration and world result review` | Files: [`frontend/src/pages/Inspiration.tsx`, `frontend/src/pages/WorldSetting.tsx`, `frontend/src/services/api.ts`, `frontend/src/types/index.ts`, `frontend/src/**/__tests__/**`]
 
-- [ ] 16. Add relationship, affiliation, and profession timeline UI/query surfaces
+- [x] 16. Add relationship, affiliation, and profession timeline UI/query surfaces
 
   **What to do**: Add minimal timeline viewing/query UI for character-character relationships, character-organization affiliations, and character-profession assignments. Surface current projection and historical events by chapter/order. In character/org/career pages, add timeline panels that can filter by chapter, show start/change/end events, source evidence, confidence, and rollback/supersession status. Use existing project route structure; do not introduce a separate graph visualization route in Phase 1. Backend query should support `chapter_id` or `chapter_order` and return deterministic current-vs-history payloads.
   **Must NOT do**: Do not build a full graph visualization. Do not invent in-story dates when chapter/order is available. Do not hard-delete timeline events from UI actions.
