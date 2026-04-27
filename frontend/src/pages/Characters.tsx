@@ -7,6 +7,7 @@ import { charactersPageGridConfig } from '../components/CardStyles';
 import { CharacterCard } from '../components/CharacterCard';
 import { SSELoadingOverlay } from '../components/SSELoadingOverlay';
 import ExtractionCandidateReviewPanel from '../components/ExtractionCandidateReviewPanel';
+import TimelineReviewPanel from '../components/TimelineReviewPanel';
 import type { Character, ApiError, ExtractionCandidateType } from '../types';
 import { characterApi, careerApi, settingsApi } from '../services/api';
 import { SSEPostClient } from '../utils/sseClient';
@@ -743,6 +744,21 @@ export default function Characters() {
         onCanonicalChanged={async () => {
           await refreshCharacters();
         }}
+        extraTabs={[
+          {
+            key: 'relationship-timeline',
+            label: '关系时间线',
+            children: (
+              <TimelineReviewPanel
+                projectId={currentProject.id}
+                title="人物关系时间线"
+                eventTypes={['relationship']}
+                characters={characterList}
+                organizationCharacters={organizationList}
+              />
+            ),
+          },
+        ]}
         canonicalChildren={(
           <>
       {characters.length > 0 && (

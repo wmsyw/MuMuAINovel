@@ -5,6 +5,7 @@ import { PlusOutlined, UserOutlined, EditOutlined, DeleteOutlined, UnorderedList
 import { useStore } from '../store';
 import { useCharacterSync } from '../store/hooks';
 import ExtractionCandidateReviewPanel from '../components/ExtractionCandidateReviewPanel';
+import TimelineReviewPanel from '../components/TimelineReviewPanel';
 import { characterApi, organizationApi } from '../services/api';
 import type { Character, ExtractionCandidateType, Organization, OrganizationMember, OrganizationMemberPayload } from '../types';
 
@@ -324,6 +325,21 @@ export default function Organizations() {
             await loadMembers(selectedOrg.id);
           }
         }}
+        extraTabs={[
+          {
+            key: 'affiliation-timeline',
+            label: '归属时间线',
+            children: (
+              <TimelineReviewPanel
+                projectId={projectId}
+                title="组织归属时间线"
+                eventTypes={['affiliation']}
+                characters={characters}
+                organizations={organizations}
+              />
+            ),
+          },
+        ]}
         canonicalChildren={(
           <>
       <div style={{

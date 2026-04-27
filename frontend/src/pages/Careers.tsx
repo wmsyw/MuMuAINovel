@@ -5,7 +5,7 @@ import { useParams } from 'react-router-dom';
 import { careerApi, characterApi, settingsApi } from '../services/api';
 import SSEProgressModal from '../components/SSEProgressModal';
 import ExtractionCandidateReviewPanel from '../components/ExtractionCandidateReviewPanel';
-import ProfessionTimelinePanel from '../components/ProfessionTimelinePanel';
+import TimelineReviewPanel from '../components/TimelineReviewPanel';
 import type { Career, CareerCreateRequest, CareerStage, Character, ExtractionCandidateType } from '../types';
 
 const { TextArea } = Input;
@@ -305,7 +305,15 @@ export default function Careers() {
         {
             key: 'profession-timeline',
             label: '职业时间线',
-            children: <ProfessionTimelinePanel projectId={projectId} careers={allCareers} characters={characters} />,
+            children: (
+                <TimelineReviewPanel
+                    projectId={projectId}
+                    title="职业时间线"
+                    eventTypes={['profession']}
+                    careers={allCareers}
+                    characters={characters}
+                />
+            ),
         },
     ];
 
