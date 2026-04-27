@@ -137,3 +137,11 @@
 - User explicitly waived Docker verification with the quote `跳过docker验证`.
 - Docker build failure (exit 127, command not found) in `.sisyphus/evidence/task-18-docker-build.log` is acknowledged as an environment limitation.
 - Verification basis remains the passing backend full suite (91 passed) and frontend build/test/lint suites.
+
+## 2026-04-27 — F1 Evidence Packaging Repair
+- Resolved F1 rejection by providing the exact evidence files and passing scenario logs requested.
+
+## 2026-04-27 — Final F2/F4 verification notes
+- Bare `python` remains unavailable in this shell and `python3` lacks pytest, so backend verification used the established `uv run --python python3.11 --with ... python -m pytest ...` fallback.
+- LSP diagnostics were run across all modified source/test files but backend output is still dominated by known environment/pre-existing basedpyright noise (`fastapi`/`sqlalchemy`/`pydantic`/`pytest` unresolved, implicit `app.*` imports, SQLAlchemy unknown members). Frontend changed files were clean except pre-existing AntD deprecation hints in surrounding page code.
+- Frontend Vitest continues to emit known non-blocking jsdom `window.getComputedStyle` notices from AntD/rc-table timeline tests and Vite continues to warn about large chunks; tests/build/lint still passed.

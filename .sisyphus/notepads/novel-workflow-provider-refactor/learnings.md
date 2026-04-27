@@ -107,3 +107,21 @@
 - Docker verification is skipped per explicit user instruction: `跳过docker验证`.
 - Environment lacks `docker-compose` (exit 127), which is documented in the Task 18 evidence logs.
 - The project remains verified through the comprehensive backend pytest suite and frontend Vite/Vitest/ESLint toolchains.
+
+## 2026-04-27 — F1 Evidence Packaging Repair
+- Created missing Task 4 evidence files: task-4-provider-capabilities.log, task-4-provider-capabilities-preflight.log, task-4-provider-capabilities-fallback.log.
+- Appended passing focused evidence to task-3-backfill-error.log, task-11-triggers-error.log, task-12-entity-api-error.log, and task-17-cleanup-docs-error.log.
+- Verified all evidence logs contain real passing output using the established uv Python 3.11 fallback and frontend toolchain.
+
+## 2026-04-27 — Final F2/F4 compatibility fixes
+- Live organization compatibility now uses `OrganizationEntity` as canonical storage and `Organization` rows only as bridges; old character-shaped org payloads are normalized through `organization_compat.py` helpers before bridge/member writes.
+- Provider reasoning capability responses expose provider-specific native payload details only as read-only `provider_metadata`; persisted settings schemas and frontend shared domain types do not carry `provider_native` or `provider_payload_mappings`.
+- Frontend organization compatibility reads are centralized in `src/utils/entityCompatibility.ts`, eliminating scattered direct `.is_organization` / `.organization_type` / `.organization_purpose` dereferences while preserving the legacy API response shape used by existing screens.
+- Final verification evidence is in `.sisyphus/evidence/final-f2-f4-fixes.log`: focused backend suite `36 passed`, frontend Vitest/build/lint passed, and post-fix ast-grep/grep guards found no forbidden live dereferences/instantiations.
+
+## 2026-04-27 — Final F3 world-setting backend fix
+- World-setting accept/reject/rollback operation responses now materialize `WorldSettingResultResponse` DTOs and the active world snapshot inside `AsyncSession.run_sync`, refreshing ORM rows before leaving SQLAlchemy's greenlet context so Pydantic cannot lazy-load expired `updated_at` attributes afterward.
+
+## 2026-04-27 — Final F3 frontend loop fix
+- Frontend project refresh hooks now resolve fallback project IDs from `useStore.getState()` at call time and subscribe only to stable store action selectors, so world-setting `setCurrentProject(...)` updates do not recreate refresh callbacks or retrigger the `ProjectDetail` data-load effect.
+- `RelationshipGraph.tsx` now routes remaining legacy organization label reads through `getOrganizationType(...)`; the direct `.organization_type` / `.organization_purpose` / `.is_organization` dereference grep guard is clean under `frontend/src`.
