@@ -23,6 +23,11 @@ import type {
   GenerateCharacterRequest
 } from '../types';
 
+function getActiveProjectId(projectId?: string): string | undefined {
+  const activeProject = useStore.getState().currentProject;
+  return projectId || activeProject?.id;
+}
+
 /**
  * 项目数据同步 Hook
  */
@@ -93,11 +98,13 @@ export function useProjectSync() {
  * 角色数据同步 Hook
  */
 export function useCharacterSync() {
-  const { currentProject, setCharacters, addCharacter, removeCharacter } = useStore();
+  const setCharacters = useStore(state => state.setCharacters);
+  const addCharacter = useStore(state => state.addCharacter);
+  const removeCharacter = useStore(state => state.removeCharacter);
 
   // 刷新角色列表
   const refreshCharacters = useCallback(async (projectId?: string) => {
-    const id = projectId || currentProject?.id;
+    const id = getActiveProjectId(projectId);
     if (!id) return [];
 
     try {
@@ -110,7 +117,7 @@ export function useCharacterSync() {
       message.error('刷新角色列表失败');
       return [];
     }
-  }, [currentProject?.id, setCharacters]);
+  }, [setCharacters]);
 
   // 删除角色（带同步）
   const deleteCharacter = useCallback(async (id: string) => {
@@ -146,11 +153,14 @@ export function useCharacterSync() {
  * 大纲数据同步 Hook
  */
 export function useOutlineSync() {
-  const { currentProject, setOutlines, addOutline, updateOutline, removeOutline } = useStore();
+  const setOutlines = useStore(state => state.setOutlines);
+  const addOutline = useStore(state => state.addOutline);
+  const updateOutline = useStore(state => state.updateOutline);
+  const removeOutline = useStore(state => state.removeOutline);
 
   // 刷新大纲列表
   const refreshOutlines = useCallback(async (projectId?: string) => {
-    const id = projectId || currentProject?.id;
+    const id = getActiveProjectId(projectId);
     if (!id) return [];
 
     try {
@@ -163,7 +173,7 @@ export function useOutlineSync() {
       message.error('刷新大纲列表失败');
       return [];
     }
-  }, [currentProject?.id, setOutlines]); // 添加 currentProject?.id 到依赖数组
+  }, [setOutlines]);
 
   // 创建大纲（带同步）
   const createOutline = useCallback(async (data: OutlineCreate) => {
@@ -226,11 +236,14 @@ export function useOutlineSync() {
  * 章节数据同步 Hook
  */
 export function useChapterSync() {
-  const { currentProject, setChapters, addChapter, updateChapter, removeChapter } = useStore();
+  const setChapters = useStore(state => state.setChapters);
+  const addChapter = useStore(state => state.addChapter);
+  const updateChapter = useStore(state => state.updateChapter);
+  const removeChapter = useStore(state => state.removeChapter);
 
   // 刷新章节列表
   const refreshChapters = useCallback(async (projectId?: string) => {
-    const id = projectId || currentProject?.id;
+    const id = getActiveProjectId(projectId);
     if (!id) return [];
 
     try {
@@ -243,7 +256,7 @@ export function useChapterSync() {
       message.error('刷新章节列表失败');
       return [];
     }
-  }, [currentProject?.id, setChapters]); // 添加 currentProject?.id 到依赖数组
+  }, [setChapters]);
 
   // 创建章节（带同步）
   const createChapter = useCallback(async (data: ChapterCreate) => {

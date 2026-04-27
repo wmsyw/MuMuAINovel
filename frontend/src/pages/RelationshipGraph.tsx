@@ -21,6 +21,7 @@ import {
 } from '@xyflow/react';
 import type { Node, Edge } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import { getOrganizationPurpose, getOrganizationType, isOrganizationEntity } from '../utils/entityCompatibility';
 
 const { Text } = Typography;
 
@@ -775,7 +776,7 @@ export default function RelationshipGraph() {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
             <ApartmentOutlined style={{ fontSize: 24, color: token.colorSuccess, marginBottom: 4 }} />
             <div style={{ fontWeight: 600, fontSize: 14, color: token.colorText, maxWidth: '90%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.name}</div>
-            <div style={{ fontSize: 11, color: token.colorTextSecondary, marginTop: 2 }}>{detail?.organization_type || '组织'}</div>
+            <div style={{ fontSize: 11, color: token.colorTextSecondary, marginTop: 2 }}>{getOrganizationType(detail) || '组织'}</div>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
@@ -915,7 +916,7 @@ export default function RelationshipGraph() {
       });
 
       characters
-        .filter((character) => !character.is_organization)
+        .filter((character) => !isOrganizationEntity(character))
         .forEach((character) => {
           if (character.main_career_id) {
             const careerNodeId = `career-main-${character.main_career_id}`;
@@ -1066,7 +1067,7 @@ export default function RelationshipGraph() {
   };
 
   const renderCareerTags = () => {
-    if (!nodeDetail || nodeDetail.is_organization) return null;
+    if (!nodeDetail || isOrganizationEntity(nodeDetail)) return null;
 
     const subCareerData = safeParseSubCareers(nodeDetail.sub_careers);
 
@@ -1125,6 +1126,9 @@ export default function RelationshipGraph() {
 
   const traitList = safeParseStringArray(nodeDetail?.traits);
   const orgMembers = safeParseStringArray(nodeDetail?.organization_members);
+  const nodeDetailIsOrganization = isOrganizationEntity(nodeDetail);
+  const nodeDetailOrganizationType = getOrganizationType(nodeDetail);
+  const nodeDetailOrganizationPurpose = getOrganizationPurpose(nodeDetail);
 
   return (
     <div
@@ -1343,8 +1347,8 @@ export default function RelationshipGraph() {
     }}
             title={
               <Space>
-                {nodeDetail.is_organization ? <ApartmentOutlined /> : <UserOutlined />}
-                <span>{nodeDetail.is_organization ? '组织详情' : '角色详情'}</span>
+                {nodeDetailIsOrganization ? <ApartmentOutlined /> : <UserOutlined />}
+                <span>{nodeDetailIsOrganization ? '组织详情' : '角色详情'}</span>
               </Space>
             }
             extra={
@@ -1385,7 +1389,7 @@ export default function RelationshipGraph() {
                         width: '100%',
                         height: '100%',
                         borderRadius: '50%',
-                        backgroundColor: nodeDetail.color || (nodeDetail.is_organization ? token.colorSuccess : token.colorPrimary),
+                        backgroundColor: nodeDetail.color || (nodeDetailIsOrganization ? token.colorSuccess : token.colorPrimary),
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -1395,7 +1399,7 @@ export default function RelationshipGraph() {
                         boxShadow: `0 4px 12px ${alphaColor(token.colorTextBase, 0.18)}`,
                       }}
                     >
-                      {nodeDetail.is_organization ? <TeamOutlined /> : <UserOutlined />}
+                      {nodeDetailIsOrganization ? <TeamOutlined /> : <UserOutlined />}
                     </div>
                   )}
                   <div
@@ -1403,7 +1407,7 @@ export default function RelationshipGraph() {
                       position: 'absolute',
                       bottom: -4,
                       right: -4,
-                      background: nodeDetail.is_organization ? token.colorSuccess : (nodeDetail.role_type === 'protagonist' ? token.colorError : nodeDetail.role_type === 'antagonist' ? token.colorPrimary : token.colorInfo),
+                      background: nodeDetailIsOrganization ? token.colorSuccess : (nodeDetail.role_type === 'protagonist' ? token.colorError : nodeDetail.role_type === 'antagonist' ? token.colorPrimary : token.colorInfo),
                       borderRadius: '50%',
                       width: 28,
                       height: 28,
@@ -1415,13 +1419,13 @@ export default function RelationshipGraph() {
                       boxShadow: `0 2px 6px ${alphaColor(token.colorTextBase, 0.22)}`,
                     }}
                   >
-                    {nodeDetail.is_organization ? <ApartmentOutlined style={{ fontSize: 14 }} /> : <UserOutlined style={{ fontSize: 14 }} />}
+                    {nodeDetailIsOrganization ? <ApartmentOutlined style={{ fontSize: 14 }} /> : <UserOutlined style={{ fontSize: 14 }} />}
                   </div>
                 </div>
 
                 <div style={{ fontSize: 20, fontWeight: 600, color: token.colorText, marginBottom: 8 }}>{nodeDetail.name}</div>
                 <Space size={6} wrap style={{ justifyContent: 'center' }}>
-                  {!nodeDetail.is_organization && (
+                  {!nodeDetailIsOrganization && (
                     <Tag
                       color={
                         nodeDetail.role_type === 'protagonist'
@@ -1439,13 +1443,13 @@ export default function RelationshipGraph() {
                           : '配角'}
                     </Tag>
                   )}
-                  {nodeDetail.gender && !nodeDetail.is_organization && <Tag style={{ borderRadius: 12, padding: '0 10px' }}>{nodeDetail.gender}</Tag>}
-                  {nodeDetail.age && !nodeDetail.is_organization && <Tag style={{ borderRadius: 12, padding: '0 10px' }}>{nodeDetail.age}岁</Tag>}
+                  {nodeDetail.gender && !nodeDetailIsOrganization && <Tag style={{ borderRadius: 12, padding: '0 10px' }}>{nodeDetail.gender}</Tag>}
+                  {nodeDetail.age && !nodeDetailIsOrganization && <Tag style={{ borderRadius: 12, padding: '0 10px' }}>{nodeDetail.age}岁</Tag>}
                 </Space>
               </div>
 
               <div style={{ flex: 1, overflowY: 'auto', paddingRight: 8, paddingLeft: 4, paddingBottom: 16 }}>
-                {!nodeDetail.is_organization ? (
+                {!nodeDetailIsOrganization ? (
                   <>
                     {renderCareerTags()}
                     <InfoField label="外貌特征" value={nodeDetail.appearance} rows={2} />
@@ -1478,8 +1482,8 @@ export default function RelationshipGraph() {
                   </>
                 ) : (
                   <>
-                    <InfoField label="组织类型" value={nodeDetail.organization_type} rows={2} />
-                    <InfoField label="组织目的" value={nodeDetail.organization_purpose} rows={3} />
+                    <InfoField label="组织类型" value={nodeDetailOrganizationType} rows={2} />
+                    <InfoField label="组织目的" value={nodeDetailOrganizationPurpose} rows={3} />
                     <InfoField label="所在地" value={nodeDetail.location} rows={2} />
                     <InfoField label="组织格言" value={nodeDetail.motto} rows={2} />
 
