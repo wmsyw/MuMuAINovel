@@ -8,7 +8,7 @@ from app.models.project import Project
 from app.models.chapter import Chapter
 from app.models.character import Character
 from app.models.outline import Outline
-from app.models.relationship import CharacterRelationship, Organization, OrganizationMember
+from app.models.relationship import CharacterRelationship, Organization, OrganizationEntity, OrganizationMember
 from app.models.writing_style import WritingStyle
 from app.models.generation_history import GenerationHistory
 from app.models.career import Career, CharacterCareer
@@ -34,6 +34,7 @@ from app.schemas.import_export import (
     ImportResult
 )
 from app.logger import get_logger
+from app.services.organization_compat import add_organization_member, create_organization_entity_from_payload, ensure_organization_bridge, legacy_org_payload
 
 logger = get_logger(__name__)
 
@@ -250,15 +251,42 @@ class ImportExportService:
                 name=char.name,
                 age=char.age,
                 gender=char.gender,
-                is_organization=char.is_organization or False,
+                is_organization=False,
                 role_type=char.role_type,
                 personality=char.personality,
                 background=char.background,
                 appearance=char.appearance,
                 traits=traits,
-                organization_type=char.organization_type,
-                organization_purpose=char.organization_purpose,
+                organization_type=None,
+                organization_purpose=None,
                 created_at=char.created_at.isoformat() if char.created_at else None
+            ))
+
+        org_result = await db.execute(select(OrganizationEntity).where(OrganizationEntity.project_id == project_id))
+        for entity in org_result.scalars().all():
+            traits = None
+            if entity.traits:
+                try:
+                    traits = json.loads(entity.traits) if isinstance(entity.traits, str) else entity.traits
+                except Exception:
+                    traits = None
+            exported.append(CharacterExportData(
+                name=entity.name,
+                age=None,
+                gender=None,
+                is_organization=True,
+                role_type="organization",
+                personality=entity.personality,
+                background=entity.background,
+                appearance=None,
+                traits=traits,
+                organization_type=entity.organization_type,
+                organization_purpose=entity.organization_purpose,
+                power_level=entity.power_level,
+                location=entity.location,
+                motto=entity.motto,
+                color=entity.color,
+                created_at=entity.created_at.isoformat() if entity.created_at else None,
             ))
         
         return exported
@@ -319,28 +347,24 @@ class ImportExportService:
     async def _export_organizations(project_id: str, db: AsyncSession) -> List[OrganizationExportData]:
         """导出组织详情"""
         result = await db.execute(
-            select(Organization, Character)
-            .join(Character, Organization.character_id == Character.id)
-            .where(Organization.project_id == project_id)
+            select(OrganizationEntity).where(OrganizationEntity.project_id == project_id)
         )
-        organizations = result.all()
+        organizations = result.scalars().all()
         
         exported = []
-        for org, char in organizations:
+        for org in organizations:
             # 获取父组织名称
             parent_name = None
             if org.parent_org_id:
                 parent_result = await db.execute(
-                    select(Organization, Character)
-                    .join(Character, Organization.character_id == Character.id)
-                    .where(Organization.id == org.parent_org_id)
+                    select(OrganizationEntity).where(OrganizationEntity.id == org.parent_org_id)
                 )
-                parent_data = parent_result.first()
+                parent_data = parent_result.scalar_one_or_none()
                 if parent_data:
-                    parent_name = parent_data[1].name
+                    parent_name = parent_data.name
             
             exported.append(OrganizationExportData(
-                character_name=char.name,
+                character_name=org.name,
                 parent_org_name=parent_name,
                 power_level=org.power_level or 50,
                 member_count=org.member_count or 0,
@@ -355,15 +379,14 @@ class ImportExportService:
     async def _export_organization_members(project_id: str, db: AsyncSession) -> List[OrganizationMemberExportData]:
         """导出组织成员"""
         result = await db.execute(
-            select(OrganizationMember, Organization, Character)
-            .join(Organization, OrganizationMember.organization_id == Organization.id)
-            .join(Character, Organization.character_id == Character.id)
-            .where(Organization.project_id == project_id)
+            select(OrganizationMember, OrganizationEntity)
+            .join(OrganizationEntity, OrganizationMember.organization_entity_id == OrganizationEntity.id)
+            .where(OrganizationEntity.project_id == project_id)
         )
         members = result.all()
         
         exported = []
-        for member, org, org_char in members:
+        for member, org_entity in members:
             # 获取成员角色名称
             char_result = await db.execute(
                 select(Character).where(Character.id == member.character_id)
@@ -372,7 +395,7 @@ class ImportExportService:
             
             if member_char:
                 exported.append(OrganizationMemberExportData(
-                    organization_name=org_char.name,
+                    organization_name=org_entity.name,
                     character_name=member_char.name,
                     position=member.position,
                     rank=member.rank or 0,
@@ -918,20 +941,27 @@ class ImportExportService:
             traits = char_data.get("traits")
             if isinstance(traits, list):
                 traits = json.dumps(traits, ensure_ascii=False)
+            if char_data.get("is_organization", False):
+                org_entity, _ = await create_organization_entity_from_payload(
+                    project_id=project_id,
+                    payload={**char_data, "traits": traits},
+                    db=db,
+                    source="imported",
+                    name=char_data.get("name"),
+                )
+                char_mapping[char_data.get("name")] = org_entity.id
+                continue
             
             character = Character(
                 project_id=project_id,
                 name=char_data.get("name"),
                 age=char_data.get("age"),
                 gender=char_data.get("gender"),
-                is_organization=char_data.get("is_organization", False),
                 role_type=char_data.get("role_type"),
                 personality=char_data.get("personality"),
                 background=char_data.get("background"),
                 appearance=char_data.get("appearance"),
                 traits=traits,
-                organization_type=char_data.get("organization_type"),
-                organization_purpose=char_data.get("organization_purpose")
             )
             db.add(character)
             await db.flush()  # 获取ID
@@ -1012,36 +1042,45 @@ class ImportExportService:
             char_id = char_mapping.get(char_name)
             
             if char_id:
-                organization = Organization(
-                    project_id=project_id,
-                    character_id=char_id,
-                    power_level=org_data.get("power_level", 50),
-                    member_count=org_data.get("member_count", 0),
-                    location=org_data.get("location"),
-                    motto=org_data.get("motto"),
-                    color=org_data.get("color")
-                )
-                db.add(organization)
-                temp_orgs.append((organization, org_data.get("parent_org_name")))
+                entity = (await db.execute(select(OrganizationEntity).where(OrganizationEntity.id == char_id))).scalar_one_or_none()
+                if entity is None:
+                    entity, organization = await create_organization_entity_from_payload(
+                        project_id=project_id,
+                        payload={
+                            "name": char_name,
+                            "power_level": org_data.get("power_level", 50),
+                            "member_count": org_data.get("member_count", 0),
+                            "location": org_data.get("location"),
+                            "motto": org_data.get("motto"),
+                            "color": org_data.get("color"),
+                        },
+                        db=db,
+                        source="imported",
+                        name=char_name,
+                    )
+                else:
+                    entity.power_level = org_data.get("power_level", entity.power_level)
+                    entity.member_count = org_data.get("member_count", entity.member_count)
+                    entity.location = org_data.get("location", entity.location)
+                    entity.motto = org_data.get("motto", entity.motto)
+                    entity.color = org_data.get("color", entity.color)
+                    organization = await ensure_organization_bridge(entity, db)
+                temp_orgs.append((entity, organization, org_data.get("parent_org_name")))
         
         await db.flush()  # 获取所有组织的ID
         
         # 建立名称到ID的映射
-        for org, _ in temp_orgs:
-            # 通过character_id查找角色名
-            result = await db.execute(
-                select(Character).where(Character.id == org.character_id)
-            )
-            char = result.scalar_one_or_none()
-            if char:
-                org_mapping[char.name] = org.id
+        for entity, bridge, _ in temp_orgs:
+            org_mapping[entity.name] = bridge.id
         
         # 第二遍：设置父组织关系
-        for org, parent_name in temp_orgs:
+        for entity, _bridge, parent_name in temp_orgs:
             if parent_name:
-                parent_id = org_mapping.get(parent_name)
-                if parent_id:
-                    org.parent_org_id = parent_id
+                parent_bridge_id = org_mapping.get(parent_name)
+                if parent_bridge_id:
+                    parent_bridge = (await db.execute(select(Organization).where(Organization.id == parent_bridge_id))).scalar_one_or_none()
+                    if parent_bridge:
+                        entity.parent_org_id = parent_bridge.organization_entity_id
         
         return org_mapping
     
@@ -1062,8 +1101,12 @@ class ImportExportService:
             char_id = char_mapping.get(char_name)
             
             if org_id and char_id:
+                bridge = (await db.execute(select(Organization).where(Organization.id == org_id))).scalar_one_or_none()
+                if not bridge or not bridge.organization_entity_id:
+                    continue
                 member = OrganizationMember(
                     organization_id=org_id,
+                    organization_entity_id=bridge.organization_entity_id,
                     character_id=char_id,
                     position=member_data.get("position"),
                     rank=member_data.get("rank", 0),
@@ -1403,13 +1446,17 @@ class ImportExportService:
         """
         logger.info(f"开始导出角色/组织: {len(character_ids)} 个")
         
-        # 查询角色数据
+        # 查询角色和 canonical 组织数据
         result = await db.execute(
             select(Character).where(Character.id.in_(character_ids))
         )
         characters = result.scalars().all()
+        org_result = await db.execute(
+            select(OrganizationEntity).where(OrganizationEntity.id.in_(character_ids))
+        )
+        organizations = org_result.scalars().all()
         
-        if not characters:
+        if not characters and not organizations:
             raise ValueError("未找到指定的角色/组织")
         
         # 导出角色数据
@@ -1428,14 +1475,14 @@ class ImportExportService:
                 "name": char.name,
                 "age": char.age,
                 "gender": char.gender,
-                "is_organization": char.is_organization or False,
+                "is_organization": False,
                 "role_type": char.role_type,
                 "personality": char.personality,
                 "background": char.background,
                 "appearance": char.appearance,
                 "traits": traits,
-                "organization_type": char.organization_type,
-                "organization_purpose": char.organization_purpose,
+                "organization_type": None,
+                "organization_purpose": None,
                 "avatar_url": char.avatar_url,
                 "main_career_id": char.main_career_id,
                 "main_career_stage": char.main_career_stage,
@@ -1443,48 +1490,40 @@ class ImportExportService:
                 "created_at": char.created_at.isoformat() if char.created_at else None
             }
             
-            # 如果是组织，添加组织专属字段
-            if char.is_organization:
-                org_result = await db.execute(
-                    select(Organization).where(Organization.character_id == char.id)
-                )
-                org = org_result.scalar_one_or_none()
-                
-                if org:
-                    char_data.update({
-                        "power_level": org.power_level,
-                        "location": org.location,
-                        "motto": org.motto,
-                        "color": org.color
-                    })
-                    
-                    # 从 OrganizationMember 表导出结构化成员数据
-                    members_result = await db.execute(
-                        select(OrganizationMember).where(OrganizationMember.organization_id == org.id)
-                    )
-                    members = members_result.scalars().all()
-                    if members:
-                        char_data["organization_members_data"] = [
-                            {
-                                "character_id": m.character_id,
-                                "position": m.position,
-                                "rank": m.rank,
-                                "loyalty": m.loyalty,
-                                "contribution": m.contribution,
-                                "status": m.status,
-                                "joined_at": m.joined_at,
-                                "source": m.source
-                            }
-                            for m in members
-                        ]
-            
+            exported_characters.append(char_data)
+
+        for entity in organizations:
+            bridge = (await db.execute(select(Organization).where(Organization.organization_entity_id == entity.id))).scalar_one_or_none()
+            char_data = legacy_org_payload(entity, bridge)
+            if isinstance(char_data.get("traits"), str):
+                try:
+                    char_data["traits"] = json.loads(char_data["traits"])
+                except Exception:
+                    char_data["traits"] = None
+            members = (await db.execute(
+                select(OrganizationMember).where(OrganizationMember.organization_entity_id == entity.id)
+            )).scalars().all()
+            if members:
+                char_data["organization_members_data"] = [
+                    {
+                        "character_id": m.character_id,
+                        "position": m.position,
+                        "rank": m.rank,
+                        "loyalty": m.loyalty,
+                        "contribution": m.contribution,
+                        "status": m.status,
+                        "joined_at": m.joined_at,
+                        "source": m.source,
+                    }
+                    for m in members
+                ]
             exported_characters.append(char_data)
         
         export_data = {
             "version": ImportExportService.CURRENT_VERSION,
             "export_time": datetime.utcnow().isoformat(),
             "export_type": "characters",
-            "count": len(exported_characters),
+                "count": len(exported_characters),
             "data": exported_characters
         }
         
@@ -1569,20 +1608,66 @@ class ImportExportService:
                     
                     is_organization = char_data.get("is_organization", False)
                     
+                    if is_organization:
+                        org_entity, organization = await create_organization_entity_from_payload(
+                            project_id=project_id,
+                            payload={**char_data, "traits": traits},
+                            db=db,
+                            source="imported",
+                            name=name,
+                        )
+                        imported_organizations.append(name)
+
+                        members_data = char_data.get("organization_members_data", [])
+                        if members_data and isinstance(members_data, list):
+                            imported_member_count = 0
+                            for m_data in members_data:
+                                try:
+                                    member_char_id = m_data.get("character_id")
+                                    if not member_char_id:
+                                        continue
+                                    member_char_result = await db.execute(
+                                        select(Character).where(
+                                            Character.id == member_char_id,
+                                            Character.project_id == project_id,
+                                        )
+                                    )
+                                    if member_char_result.scalar_one_or_none():
+                                        await add_organization_member(
+                                            db=db,
+                                            bridge=organization,
+                                            entity=org_entity,
+                                            character_id=member_char_id,
+                                            position=m_data.get("position", "成员"),
+                                            rank=m_data.get("rank", 0),
+                                            loyalty=m_data.get("loyalty", 50),
+                                            contribution=m_data.get("contribution", 0),
+                                            status=m_data.get("status", "active"),
+                                            joined_at=m_data.get("joined_at"),
+                                            source=m_data.get("source", "imported"),
+                                        )
+                                        imported_member_count += 1
+                                except Exception as me:
+                                    logger.warning(f"导入组织成员失败: {str(me)}")
+
+                            if imported_member_count > 0:
+                                org_entity.member_count = imported_member_count
+                                logger.info(f"导入组织'{name}'的 {imported_member_count} 个成员")
+
+                        logger.info(f"导入组织成功: {name}")
+                        continue
+
                     # 创建角色
                     character = Character(
                         project_id=project_id,
                         name=name,
                         age=char_data.get("age"),
                         gender=char_data.get("gender"),
-                        is_organization=is_organization,
                         role_type=char_data.get("role_type"),
                         personality=char_data.get("personality"),
                         background=char_data.get("background"),
                         appearance=char_data.get("appearance"),
                         traits=traits,
-                        organization_type=char_data.get("organization_type"),
-                        organization_purpose=char_data.get("organization_purpose"),
                         avatar_url=char_data.get("avatar_url"),
                         main_career_id=None,  # 职业ID需要验证后再设置
                         main_career_stage=char_data.get("main_career_stage"),
@@ -1670,60 +1755,7 @@ class ImportExportService:
                         except Exception as e:
                             warnings.append(f"角色'{name}'的副职业数据解析失败: {str(e)}")
                     
-                    # 如果是组织，创建Organization记录
-                    if is_organization:
-                        organization = Organization(
-                            character_id=character.id,
-                            project_id=project_id,
-                            member_count=0,
-                            power_level=char_data.get("power_level", 50),
-                            location=char_data.get("location"),
-                            motto=char_data.get("motto"),
-                            color=char_data.get("color")
-                        )
-                        db.add(organization)
-                        await db.flush()
-                        
-                        # 导入组织成员数据（如果有）
-                        members_data = char_data.get("organization_members_data", [])
-                        if members_data and isinstance(members_data, list):
-                            imported_member_count = 0
-                            for m_data in members_data:
-                                try:
-                                    member_char_id = m_data.get("character_id")
-                                    if not member_char_id:
-                                        continue
-                                    # 验证成员角色是否存在于目标项目
-                                    member_char_result = await db.execute(
-                                        select(Character).where(
-                                            Character.id == member_char_id,
-                                            Character.project_id == project_id
-                                        )
-                                    )
-                                    if member_char_result.scalar_one_or_none():
-                                        member = OrganizationMember(
-                                            organization_id=organization.id,
-                                            character_id=member_char_id,
-                                            position=m_data.get("position", "成员"),
-                                            rank=m_data.get("rank", 0),
-                                            loyalty=m_data.get("loyalty", 50),
-                                            contribution=m_data.get("contribution", 0),
-                                            status=m_data.get("status", "active"),
-                                            joined_at=m_data.get("joined_at"),
-                                            source=m_data.get("source", "imported")
-                                        )
-                                        db.add(member)
-                                        imported_member_count += 1
-                                except Exception as me:
-                                    logger.warning(f"导入组织成员失败: {str(me)}")
-                            
-                            if imported_member_count > 0:
-                                organization.member_count = imported_member_count
-                                logger.info(f"导入组织'{name}'的 {imported_member_count} 个成员")
-                        
-                        imported_organizations.append(name)
-                    else:
-                        imported_characters.append(name)
+                    imported_characters.append(name)
                     
                     logger.info(f"导入{'组织' if is_organization else '角色'}成功: {name}")
                     

@@ -27,7 +27,7 @@ from app.models.mcp_plugin import MCPPlugin
 from app.models.outline import Outline
 from app.models.project import Project
 from app.models.project_default_style import ProjectDefaultStyle
-from app.models.relationship import CharacterRelationship, Organization, OrganizationMember, RelationshipType
+from app.models.relationship import CharacterRelationship, Organization, OrganizationEntity, OrganizationMember, RelationshipType
 from app.models.settings import Settings
 from app.models.writing_style import WritingStyle
 from app.schemas.book_import import (
@@ -44,6 +44,7 @@ from app.schemas.book_import import (
 )
 from app.services.ai_service import AIService, create_user_ai_service_with_mcp
 from app.services.entity_generation_policy_service import entity_generation_policy_service
+from app.services.organization_compat import add_organization_member, create_organization_entity_from_payload
 from app.services.extraction_service import run_project_extraction_trigger_after_commit
 from app.services.prompt_service import PromptService
 from app.services.txt_parser_service import txt_parser_service
@@ -2028,13 +2029,15 @@ class BookImportService:
         character_name_to_obj: dict[str, Character] = {c.name: c for c in existing_chars}
 
         existing_orgs_result = await db.execute(
-            select(Organization, Character.name)
-            .join(Character, Organization.character_id == Character.id)
-            .where(Organization.project_id == project.id)
+            select(OrganizationEntity, Organization)
+            .outerjoin(Organization, Organization.organization_entity_id == OrganizationEntity.id)
+            .where(OrganizationEntity.project_id == project.id)
         )
-        organization_name_to_obj: dict[str, Organization] = {
-            row[1]: row[0] for row in existing_orgs_result.all() if row[1]
-        }
+        organization_name_to_obj: dict[str, tuple[OrganizationEntity, Organization]] = {}
+        for entity, bridge in existing_orgs_result.all():
+            if entity and bridge:
+                organization_name_to_obj[entity.name] = (entity, bridge)
+                existing_names.add(entity.name)
 
         existing_member_result = await db.execute(
             select(OrganizationMember.organization_id, OrganizationMember.character_id)
@@ -2058,6 +2061,7 @@ class BookImportService:
 
         created = 0
         created_items: list[tuple[Character, dict[str, Any]]] = []
+        created_org_items: list[tuple[OrganizationEntity, Organization, dict[str, Any]]] = []
         created_organization_ids: list[str] = []
 
         # 第一阶段：创建 Character / Organization 实体
@@ -2070,41 +2074,34 @@ class BookImportService:
                 continue
 
             is_organization = bool(item.get("is_organization", False))
+            if is_organization:
+                entity, bridge = await create_organization_entity_from_payload(
+                    project_id=project.id,
+                    payload=item,
+                    db=db,
+                    source="ai",
+                    name=raw_name[:100],
+                )
+                created_organization_ids.append(entity.id)
+                organization_name_to_obj[entity.name] = (entity, bridge)
+                created_org_items.append((entity, bridge, item))
+                existing_names.add(raw_name)
+                created += 1
+                continue
+
             character = Character(
                 project_id=project.id,
                 name=raw_name[:100],
-                age=(str(item.get("age")) if item.get("age") is not None else None) if not is_organization else None,
-                gender=item.get("gender") if not is_organization else None,
-                is_organization=is_organization,
+                age=str(item.get("age")) if item.get("age") is not None else None,
+                gender=item.get("gender"),
                 role_type=(item.get("role_type") or "supporting")[:50],
                 personality=item.get("personality"),
                 background=item.get("background"),
                 appearance=item.get("appearance"),
-                organization_type=item.get("organization_type") if is_organization else None,
-                organization_purpose=item.get("organization_purpose") if is_organization else None,
-                organization_members=(
-                    json.dumps(item.get("organization_members"), ensure_ascii=False)
-                    if item.get("organization_members") is not None else None
-                ),
                 traits=json.dumps(item.get("traits", []), ensure_ascii=False) if item.get("traits") else None,
             )
             db.add(character)
             await db.flush()
-
-            if is_organization:
-                organization = Organization(
-                    character_id=character.id,
-                    project_id=project.id,
-                    power_level=max(0, min(_to_int(item.get("power_level", 50), 50), 100)),
-                    member_count=0,
-                    location=item.get("location"),
-                    motto=item.get("motto"),
-                    color=item.get("color"),
-                )
-                db.add(organization)
-                await db.flush()
-                created_organization_ids.append(organization.id)
-                organization_name_to_obj[character.name] = organization
 
             created_items.append((character, item))
             character_name_to_obj[character.name] = character
@@ -2116,9 +2113,6 @@ class BookImportService:
             career_pairs: set[tuple[str, str]] = set()
 
             for character, item in created_items:
-                if character.is_organization:
-                    continue
-
                 # 兼容两种字段：career_assignment(批量) / career_info(单角色)
                 assignment = item.get("career_assignment")
                 if not isinstance(assignment, dict):
@@ -2197,9 +2191,6 @@ class BookImportService:
 
         # 第三阶段：创建角色关系（relationships_array / relationships）
         for character, item in created_items:
-            if character.is_organization:
-                continue
-
             relationships_data = item.get("relationships_array")
             if not isinstance(relationships_data, list):
                 legacy_relationships = item.get("relationships")
@@ -2214,7 +2205,7 @@ class BookImportService:
                     continue
 
                 target_char = character_name_to_obj.get(target_name)
-                if not target_char or target_char.is_organization:
+                if not target_char:
                     continue
                 if target_char.id == character.id:
                     continue
@@ -2247,9 +2238,6 @@ class BookImportService:
 
         # 第四阶段：创建组织成员关系（优先使用角色上的 organization_memberships）
         for character, item in created_items:
-            if character.is_organization:
-                continue
-
             org_memberships = item.get("organization_memberships")
             if not isinstance(org_memberships, list):
                 continue
@@ -2262,37 +2250,32 @@ class BookImportService:
                 if not org_name:
                     continue
 
-                org = organization_name_to_obj.get(org_name)
-                if not org:
+                org_pair = organization_name_to_obj.get(org_name)
+                if not org_pair:
                     continue
+                org_entity, org_bridge = org_pair
 
-                pair = (org.id, character.id)
+                pair = (org_bridge.id, character.id)
                 if pair in member_pairs:
                     continue
 
-                db.add(
-                    OrganizationMember(
-                        organization_id=org.id,
-                        character_id=character.id,
-                        position=(membership.get("position") or "成员")[:100],
-                        rank=max(0, min(_to_int(membership.get("rank", 0), 0), 10)),
-                        loyalty=max(0, min(_to_int(membership.get("loyalty", 50), 50), 100)),
-                        joined_at=membership.get("joined_at"),
-                        status=(membership.get("status") or "active")[:20],
-                        source="ai",
-                    )
+                await add_organization_member(
+                    db=db,
+                    bridge=org_bridge,
+                    entity=org_entity,
+                    character_id=character.id,
+                    position=(membership.get("position") or "成员")[:100],
+                    rank=max(0, min(_to_int(membership.get("rank", 0), 0), 10)),
+                    loyalty=max(0, min(_to_int(membership.get("loyalty", 50), 50), 100)),
+                    joined_at=membership.get("joined_at"),
+                    status=(membership.get("status") or "active")[:20],
+                    source="ai",
                 )
                 member_pairs.add(pair)
-                org.member_count = (org.member_count or 0) + 1
+                org_entity.member_count = (org_entity.member_count or 0) + 1
 
         # 第五阶段：回填组织对象里的 organization_members（按名称补充成员）
-        for character, item in created_items:
-            if not character.is_organization:
-                continue
-
-            org = organization_name_to_obj.get(character.name)
-            if not org:
-                continue
+        for org_entity, org_bridge, item in created_org_items:
 
             member_names_raw = item.get("organization_members")
             member_names: list[str] = []
@@ -2303,33 +2286,33 @@ class BookImportService:
 
             for member_name in member_names:
                 member_char = character_name_to_obj.get(member_name)
-                if not member_char or member_char.is_organization:
+                if not member_char:
                     continue
 
-                pair = (org.id, member_char.id)
+                pair = (org_bridge.id, member_char.id)
                 if pair in member_pairs:
                     continue
 
-                db.add(
-                    OrganizationMember(
-                        organization_id=org.id,
-                        character_id=member_char.id,
-                        position="成员",
-                        rank=0,
-                        loyalty=50,
-                        status="active",
-                        source="ai",
-                    )
+                await add_organization_member(
+                    db=db,
+                    bridge=org_bridge,
+                    entity=org_entity,
+                    character_id=member_char.id,
+                    position="成员",
+                    rank=0,
+                    loyalty=50,
+                    status="active",
+                    source="ai",
                 )
                 member_pairs.add(pair)
-                org.member_count = (org.member_count or 0) + 1
+                org_entity.member_count = (org_entity.member_count or 0) + 1
 
         await db.flush()
         entity_generation_policy_service.record_override_audit(
             db,
             character_policy_decision,
-            [character.id for character, _ in created_items if not character.is_organization],
-            extra_payload={"generated_count": len([1 for character, _ in created_items if not character.is_organization])},
+            [character.id for character, _ in created_items],
+            extra_payload={"generated_count": len(created_items)},
         )
         entity_generation_policy_service.record_override_audit(
             db,
