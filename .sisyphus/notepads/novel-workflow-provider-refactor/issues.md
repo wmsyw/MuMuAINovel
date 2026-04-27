@@ -132,3 +132,8 @@
 ## Task 17 Cleanup: Diagnostic Noise Reduction
 - Removed unused `pytest` import from `backend/tests/test_generation_bypass_audit.py` to resolve basedpyright warnings.
 - Added type annotations to `get_calls_in_order` helper to improve static analysis compatibility.
+
+## 2026-04-27 — Task 18 Docker verification waiver
+- User explicitly waived Docker verification with the quote `跳过docker验证`.
+- Docker build failure (exit 127, command not found) in `.sisyphus/evidence/task-18-docker-build.log` is acknowledged as an environment limitation.
+- Verification basis remains the passing backend full suite (91 passed) and frontend build/test/lint suites.

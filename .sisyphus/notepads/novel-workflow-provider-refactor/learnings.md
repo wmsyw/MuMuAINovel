@@ -102,3 +102,8 @@
 - Static audit tests using Python's `ast` module are effective for verifying call ordering and argument presence without running the full application.
 - Centralizing policy evaluation in services (`AutoCharacterService`, `AutoOrganizationService`) ensures that all entry points (API, background tasks) are protected.
 - Documentation should explicitly cover feature flags and migration paths to manage user expectations during major refactors.
+
+## 2026-04-27 — Task 18 Docker verification waiver
+- Docker verification is skipped per explicit user instruction: `跳过docker验证`.
+- Environment lacks `docker-compose` (exit 127), which is documented in the Task 18 evidence logs.
+- The project remains verified through the comprehensive backend pytest suite and frontend Vite/Vitest/ESLint toolchains.
