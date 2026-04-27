@@ -125,3 +125,11 @@
 ## 2026-04-27 — Final F3 frontend loop fix
 - Frontend project refresh hooks now resolve fallback project IDs from `useStore.getState()` at call time and subscribe only to stable store action selectors, so world-setting `setCurrentProject(...)` updates do not recreate refresh callbacks or retrigger the `ProjectDetail` data-load effect.
 - `RelationshipGraph.tsx` now routes remaining legacy organization label reads through `getOrganizationType(...)`; the direct `.organization_type` / `.organization_purpose` / `.is_organization` dereference grep guard is clean under `frontend/src`.
+
+## 2026-04-27 — Final F2 provider payload plumbing fix
+- Anthropic and Gemini provider-native reasoning payloads must be applied in the clients, not inferred from model names: providers now pass `ReasoningConfig.provider_payload` through all sync/stream paths, while clients deep-merge the mapped payload into request kwargs/JSON.
+- Gemini mappings target `generationConfig.thinkingConfig`, so client merging must preserve existing `temperature` and `maxOutputTokens`; regression tests assert the final request JSON rather than only method signatures.
+
+## 2026-04-27 — Final F2 frontend legacy field boundary fix
+- Legacy character-shaped organization field ownership is now centralized in `frontend/src/utils/entityCompatibility.ts`: page code, API typings, and shared frontend types use helper constants/types/builders instead of spelling the old DTO keys directly.
+- `Characters.tsx` preserves the backend legacy payload shape for manual organization creation and AI organization generation by using the compatibility adapter, while grep for the forbidden legacy keys now resolves only to the compatibility boundary.
