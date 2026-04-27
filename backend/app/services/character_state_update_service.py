@@ -5,7 +5,8 @@ from sqlalchemy import select, or_, and_
 from app.config import settings as app_settings
 from app.models.chapter import Chapter
 from app.models.character import Character
-from app.models.relationship import CharacterRelationship, Organization, OrganizationMember
+from app.models.relationship import CharacterRelationship, OrganizationEntity, OrganizationMember
+from app.services.organization_compat import add_organization_member, ensure_organization_bridge
 from app.services.extraction_service import ExtractionTriggerService
 from app.logger import get_logger
 import uuid
@@ -86,32 +87,21 @@ class CharacterStateUpdateService:
 
         logger.info(f"🔍 开始分析第{chapter_number}章的角色状态、关系和组织变化...")
 
-        # 预加载项目所有角色（含组织，按名称索引，减少重复查询）
+        # 预加载项目所有角色，按名称索引，减少重复查询
         all_characters_result = await db.execute(
             select(Character).where(Character.project_id == project_id)
         )
         all_characters = all_characters_result.scalars().all()
         
-        # 非组织角色按名称索引
         characters_by_name: Dict[str, Character] = {
-            c.name: c for c in all_characters if not c.is_organization
+            c.name: c for c in all_characters
         }
         
-        # 预加载组织信息（按组织角色名称索引）
+        # 预加载组织信息（按 canonical 组织名称索引）
         orgs_result = await db.execute(
-            select(Organization).where(Organization.project_id == project_id)
+            select(OrganizationEntity).where(OrganizationEntity.project_id == project_id)
         )
-        all_orgs = orgs_result.scalars().all()
-        
-        # 构建 character_id -> name 的反向映射
-        char_id_to_name: Dict[str, str] = {c.id: c.name for c in all_characters}
-        
-        # 组织名称 -> Organization 映射
-        org_by_name: Dict[str, Organization] = {}
-        for org in all_orgs:
-            org_char_name = char_id_to_name.get(org.character_id)
-            if org_char_name:
-                org_by_name[org_char_name] = org
+        org_by_name: Dict[str, OrganizationEntity] = {org.name: org for org in orgs_result.scalars().all()}
 
         for char_state in character_states:
             char_name = char_state.get('character_name')
@@ -670,7 +660,7 @@ class CharacterStateUpdateService:
         character: Character,
         organization_changes: List[Dict[str, Any]],
         chapter_number: int,
-        org_by_name: Dict[str, Organization],
+        org_by_name: Dict[str, OrganizationEntity],
         changes: List[str]
     ) -> int:
         """
@@ -682,7 +672,7 @@ class CharacterStateUpdateService:
             character: 角色对象
             organization_changes: 组织变动列表
             chapter_number: 章节号
-            org_by_name: 组织名称到Organization对象的映射
+            org_by_name: 组织名称到 OrganizationEntity 对象的映射
             changes: 变更日志列表
             
         Returns:
@@ -709,16 +699,17 @@ class CharacterStateUpdateService:
                     continue
                 
                 # 查找组织
-                organization = org_by_name.get(org_name)
-                if not organization:
+                organization_entity = org_by_name.get(org_name)
+                if not organization_entity:
                     logger.warning(f"  ⚠️ 组织不存在: {org_name}，跳过组织变动更新")
                     continue
+                organization_bridge = await ensure_organization_bridge(organization_entity, db)
                 
                 # 查找已有成员关系
                 existing_member_result = await db.execute(
                     select(OrganizationMember).where(
                         and_(
-                            OrganizationMember.organization_id == organization.id,
+                            OrganizationMember.organization_entity_id == organization_entity.id,
                             OrganizationMember.character_id == character.id
                         )
                     )
@@ -750,9 +741,10 @@ class CharacterStateUpdateService:
                             logger.info(f"  ✅ {character.name} 重新加入 {org_name}")
                     else:
                         # 创建新成员关系
-                        new_member = OrganizationMember(
-                            id=str(uuid.uuid4()),
-                            organization_id=organization.id,
+                        await add_organization_member(
+                            db=db,
+                            bridge=organization_bridge,
+                            entity=organization_entity,
                             character_id=character.id,
                             position=new_position or '成员',
                             rank=0,
@@ -762,8 +754,7 @@ class CharacterStateUpdateService:
                             source='analysis',
                             notes=f"[第{chapter_number}章] {description}" if description else None
                         )
-                        db.add(new_member)
-                        organization.member_count = (organization.member_count or 0) + 1
+                        organization_entity.member_count = (organization_entity.member_count or 0) + 1
                         updated_count += 1
                         changes.append(f"🏛️ {character.name} 加入 {org_name}({new_position or '成员'})")
                         logger.info(f"  ✅ {character.name} 加入 {org_name} 为 {new_position or '成员'}")
@@ -881,27 +872,16 @@ class CharacterStateUpdateService:
         
         logger.info(f"🏛️ 开始更新第{chapter_number}章的组织自身状态...")
         
-        # 预加载项目所有组织角色
-        all_chars_result = await db.execute(
-            select(Character).where(
-                Character.project_id == project_id,
-                Character.is_organization == True
-            )
+        # 预加载 canonical 组织实体
+        orgs_result = await db.execute(
+            select(OrganizationEntity).where(OrganizationEntity.project_id == project_id)
         )
-        org_chars = all_chars_result.scalars().all()
-        org_char_by_name: Dict[str, Character] = {c.name: c for c in org_chars}
-        
-        # 预加载组织详情
-        char_ids = [c.id for c in org_chars]
-        if not char_ids:
+        org_entities = orgs_result.scalars().all()
+        org_by_name: Dict[str, OrganizationEntity] = {org.name: org for org in org_entities}
+
+        if not org_entities:
             logger.info("🏛️ 项目中无组织，跳过组织状态更新")
             return result
-        
-        orgs_result = await db.execute(
-            select(Organization).where(Organization.character_id.in_(char_ids))
-        )
-        all_orgs = orgs_result.scalars().all()
-        org_by_char_id: Dict[str, Organization] = {org.character_id: org for org in all_orgs}
         
         for org_state in organization_states:
             try:
@@ -909,14 +889,9 @@ class CharacterStateUpdateService:
                 if not org_name:
                     continue
                 
-                org_char = org_char_by_name.get(org_name)
-                if not org_char:
-                    logger.warning(f"  ⚠️ 组织不存在: {org_name}，跳过状态更新")
-                    continue
-                
-                organization = org_by_char_id.get(org_char.id)
+                organization = org_by_name.get(org_name)
                 if not organization:
-                    logger.warning(f"  ⚠️ 组织 {org_name} 无详情记录，跳过状态更新")
+                    logger.warning(f"  ⚠️ 组织不存在: {org_name}，跳过状态更新")
                     continue
                 
                 updated = False
@@ -926,17 +901,15 @@ class CharacterStateUpdateService:
                 is_destroyed = org_state.get('is_destroyed', False)
                 if is_destroyed:
                     # 组织覆灭：级联处理
-                    org_char.status = 'destroyed'
-                    org_char.status_changed_chapter = chapter_number
-                    org_char.current_state = f"覆灭（第{chapter_number}章）"
-                    org_char.state_updated_chapter = chapter_number
+                    organization.status = 'destroyed'
+                    organization.current_state = f"覆灭（第{chapter_number}章）"
                     organization.power_level = 0
                     
                     # 所有活跃成员标记为retired
                     members_result = await db.execute(
                         select(OrganizationMember).where(
                             and_(
-                                OrganizationMember.organization_id == organization.id,
+                                OrganizationMember.organization_entity_id == organization.id,
                                 OrganizationMember.status == 'active'
                             )
                         )
@@ -978,16 +951,14 @@ class CharacterStateUpdateService:
                 # 宗旨/目标变化
                 new_purpose = org_state.get('new_purpose')
                 if new_purpose and isinstance(new_purpose, str):
-                    old_purpose = (org_char.organization_purpose or '未设定')[:30]
-                    org_char.organization_purpose = new_purpose
+                    organization.organization_purpose = new_purpose
                     change_parts.append(f"宗旨变更")
                     updated = True
                 
                 # 状态描述 -> 更新到 Character 的 current_state
                 status_desc = org_state.get('status_description')
                 if status_desc and isinstance(status_desc, str):
-                    org_char.current_state = status_desc
-                    org_char.state_updated_chapter = chapter_number
+                    organization.current_state = status_desc
                     if not change_parts:  # 如果只有状态描述没有其他变化
                         change_parts.append(f"状态:{status_desc[:30]}")
                     updated = True

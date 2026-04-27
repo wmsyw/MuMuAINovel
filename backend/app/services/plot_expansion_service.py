@@ -7,6 +7,7 @@ import json
 from app.models.outline import Outline
 from app.models.project import Project
 from app.models.character import Character
+from app.models.relationship import OrganizationEntity
 from app.models.chapter import Chapter
 from app.services.ai_service import AIService
 from app.services.prompt_service import prompt_service, PromptService
@@ -99,11 +100,17 @@ class PlotExpansionService:
             select(Character).where(Character.project_id == project.id)
         )
         characters = characters_result.scalars().all()
-        characters_info = "\n".join([
-            f"- {char.name} ({'组织' if char.is_organization else '角色'}, {char.role_type}): "
-            f"{char.personality[:100] if char.personality else '暂无描述'}"
+        orgs_result = await db.execute(select(OrganizationEntity).where(OrganizationEntity.project_id == project.id))
+        organizations = orgs_result.scalars().all()
+        character_lines = [
+            f"- {char.name} (角色, {char.role_type}): {char.personality[:100] if char.personality else '暂无描述'}"
             for char in characters
-        ])
+        ]
+        character_lines.extend(
+            f"- {org.name} (组织, organization): {org.personality[:100] if org.personality else org.background[:100] if org.background else '暂无描述'}"
+            for org in organizations
+        )
+        characters_info = "\n".join(character_lines)
         
         # 获取大纲上下文（前后大纲）
         context_info = await self._get_outline_context(outline, project.id, db)
@@ -173,11 +180,17 @@ class PlotExpansionService:
             select(Character).where(Character.project_id == project.id)
         )
         characters = characters_result.scalars().all()
-        characters_info = "\n".join([
-            f"- {char.name} ({'组织' if char.is_organization else '角色'}, {char.role_type}): "
-            f"{char.personality[:100] if char.personality else '暂无描述'}"
+        orgs_result = await db.execute(select(OrganizationEntity).where(OrganizationEntity.project_id == project.id))
+        organizations = orgs_result.scalars().all()
+        character_lines = [
+            f"- {char.name} (角色, {char.role_type}): {char.personality[:100] if char.personality else '暂无描述'}"
             for char in characters
-        ])
+        ]
+        character_lines.extend(
+            f"- {org.name} (组织, organization): {org.personality[:100] if org.personality else org.background[:100] if org.background else '暂无描述'}"
+            for org in organizations
+        )
+        characters_info = "\n".join(character_lines)
         
         # 获取大纲上下文
         context_info = await self._get_outline_context(outline, project.id, db)

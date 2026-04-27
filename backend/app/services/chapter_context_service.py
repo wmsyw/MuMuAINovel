@@ -13,7 +13,7 @@ from app.models.character import Character
 from app.models.career import Career, CharacterCareer
 from app.models.memory import StoryMemory
 from app.models.foreshadow import Foreshadow
-from app.models.relationship import CharacterRelationship, Organization, OrganizationMember
+from app.models.relationship import CharacterRelationship, OrganizationEntity, OrganizationMember
 from app.logger import get_logger
 
 logger = get_logger(__name__)
@@ -370,16 +370,14 @@ class OneToManyContextBuilder:
                 char_rels_map[r.character_to_id].append(r)
         
         # === 批量查询组织成员数据 ===
-        non_org_ids = [c.id for c in characters if not c.is_organization]
-        org_memberships_map: Dict[str, List] = {cid: [] for cid in non_org_ids}
+        character_member_ids = [c.id for c in characters]
+        org_memberships_map: Dict[str, List] = {cid: [] for cid in character_member_ids}
         
-        if non_org_ids:
+        if character_member_ids:
             member_result = await db.execute(
-                select(OrganizationMember, Character.name).join(
-                    Organization, OrganizationMember.organization_id == Organization.id
-                ).join(
-                    Character, Organization.character_id == Character.id
-                ).where(OrganizationMember.character_id.in_(non_org_ids))
+                select(OrganizationMember, OrganizationEntity.name)
+                .join(OrganizationEntity, OrganizationMember.organization_entity_id == OrganizationEntity.id)
+                .where(OrganizationMember.character_id.in_(character_member_ids))
             )
             for m, org_name in member_result.all():
                 if m.character_id in org_memberships_map:
@@ -397,7 +395,7 @@ class OneToManyContextBuilder:
             career_ids.add(cc.career_id)
         # 也加入 main_career_id
         for c in characters:
-            if not c.is_organization and c.main_career_id:
+            if c.main_career_id:
                 career_ids.add(c.main_career_id)
         
         careers_map: Dict[str, Career] = {}
@@ -417,37 +415,25 @@ class OneToManyContextBuilder:
             else:
                 char_career_relations[cc.character_id]['sub'].append(cc)
         
-        # === 查询组织角色的成员列表 ===
-        org_chars = [c for c in characters if c.is_organization]
+        # === 查询组织成员列表 ===
+        orgs_result = await db.execute(
+            select(OrganizationEntity).where(OrganizationEntity.project_id == project.id)
+        )
+        org_entities = orgs_result.scalars().all()
         org_members_map: Dict[str, List] = {}
-        
-        if org_chars:
-            org_char_ids = [c.id for c in org_chars]
-            orgs_result = await db.execute(
-                select(Organization).where(Organization.character_id.in_(org_char_ids))
+        if org_entities:
+            members_result = await db.execute(
+                select(OrganizationMember, Character.name)
+                .join(Character, OrganizationMember.character_id == Character.id)
+                .where(OrganizationMember.organization_entity_id.in_([org.id for org in org_entities]))
             )
-            orgs = orgs_result.scalars().all()
-            
-            if orgs:
-                org_id_to_char_id = {o.id: o.character_id for o in orgs}
-                org_ids = [o.id for o in orgs]
-                
-                members_result = await db.execute(
-                    select(OrganizationMember, Character.name).join(
-                        Character, OrganizationMember.character_id == Character.id
-                    ).where(OrganizationMember.organization_id.in_(org_ids))
-                )
-                for m, member_name in members_result.all():
-                    char_id = org_id_to_char_id.get(m.organization_id)
-                    if char_id:
-                        if char_id not in org_members_map:
-                            org_members_map[char_id] = []
-                        org_members_map[char_id].append((m, member_name))
+            for m, member_name in members_result.all():
+                org_members_map.setdefault(m.organization_entity_id, []).append((m, member_name))
         
         # === 构建完整版角色信息 ===
         characters_info_parts = []
         for c in characters:
-            entity_type = '组织' if c.is_organization else '角色'
+            entity_type = '角色'
             role_type_map = {
                 'protagonist': '主角',
                 'antagonist': '反派',
@@ -503,14 +489,14 @@ class OneToManyContextBuilder:
                             except (json.JSONDecodeError, AttributeError, TypeError):
                                 stage_name = f'第{cc.current_stage}阶'
                             info_lines.append(f"  副职业: {career.name} ({cc.current_stage}/{career.max_stage}阶 - {stage_name})")
-            elif not c.is_organization and c.main_career_id:
+            elif c.main_career_id:
                 career = careers_map.get(c.main_career_id)
                 if career:
                     stage = c.main_career_stage or 1
                     info_lines.append(f"  主职业: {career.name}（第{stage}阶段）")
             
             # 角色关系
-            if not c.is_organization and c.id in char_rels_map:
+            if c.id in char_rels_map:
                 rels = char_rels_map[c.id]
                 if rels:
                     rel_parts = []
@@ -524,25 +510,30 @@ class OneToManyContextBuilder:
                     info_lines.append(f"  关系网络: {'；'.join(rel_parts)}")
             
             # 组织归属
-            if not c.is_organization and c.id in org_memberships_map:
+            if c.id in org_memberships_map:
                 memberships = org_memberships_map[c.id]
                 if memberships:
                     org_parts = [f"{org_name}（{m.position}）" for m, org_name in memberships[:2]]
                     info_lines.append(f"  组织归属: {'、'.join(org_parts)}")
             
-            # 组织特有信息
-            if c.is_organization:
-                if c.organization_type:
-                    info_lines.append(f"  组织类型: {c.organization_type}")
-                if c.organization_purpose:
-                    info_lines.append(f"  组织目的: {c.organization_purpose[:100]}")
-                if c.id in org_members_map:
-                    members = org_members_map[c.id]
-                    if members:
-                        member_parts = [f"{name}（{m.position}）" for m, name in members[:5]]
-                        info_lines.append(f"  组织成员: {'、'.join(member_parts)}")
-            
             characters_info_parts.append("\n".join(info_lines))
+
+        for org_entity in org_entities:
+            org_lines = [f"【{org_entity.name}】(组织, organization)"]
+            if org_entity.organization_type:
+                org_lines.append(f"  组织类型: {org_entity.organization_type}")
+            if org_entity.organization_purpose:
+                org_lines.append(f"  组织目的: {org_entity.organization_purpose[:100]}")
+            if org_entity.personality:
+                org_lines.append(f"  组织特性: {org_entity.personality[:100]}")
+            if org_entity.background:
+                org_lines.append(f"  背景: {org_entity.background[:150]}")
+            if org_entity.id in org_members_map:
+                members = org_members_map[org_entity.id]
+                if members:
+                    member_parts = [f"{name}（{m.position}）" for m, name in members[:5]]
+                    org_lines.append(f"  组织成员: {'、'.join(member_parts)}")
+            characters_info_parts.append("\n".join(org_lines))
         
         characters_result_str = "\n\n".join(characters_info_parts)
         logger.info(f"  ✅ [1-N完整版] 构建了 {len(characters_info_parts)} 个角色信息，总长度: {len(characters_result_str)} 字符")
@@ -1309,6 +1300,9 @@ class OneToOneContextBuilder:
                 char_career_relations[cc.character_id]['main'].append(cc)
             else:
                 char_career_relations[cc.character_id]['sub'].append(cc)
+
+        orgs_result = await db.execute(select(OrganizationEntity).where(OrganizationEntity.project_id == project_id))
+        organization_entities = orgs_result.scalars().all()
         
         # 构建角色信息字符串
         characters_info_parts = []
@@ -1318,7 +1312,7 @@ class OneToOneContextBuilder:
                 continue
             
             # === 角色基本信息 ===
-            entity_type = '组织' if c.is_organization else '角色'
+            entity_type = '角色'
             role_type_map = {
                 'protagonist': '主角',
                 'antagonist': '反派',
@@ -1393,64 +1387,60 @@ class OneToOneContextBuilder:
                             info_lines.append(f"    - {career.name} ({cc.current_stage}/{career.max_stage}阶 - {stage_name})")
             
             # === 角色关系信息 ===
-            if not c.is_organization:
-                from sqlalchemy import or_
-                rels_result = await db.execute(
-                    select(CharacterRelationship).where(
-                        CharacterRelationship.project_id == project_id,
-                        or_(
-                            CharacterRelationship.character_from_id == c.id,
-                            CharacterRelationship.character_to_id == c.id
-                        )
+            from sqlalchemy import or_
+            rels_result = await db.execute(
+                select(CharacterRelationship).where(
+                    CharacterRelationship.project_id == project_id,
+                    or_(
+                        CharacterRelationship.character_from_id == c.id,
+                        CharacterRelationship.character_to_id == c.id
                     )
                 )
-                rels = rels_result.scalars().all()
-                if rels:
-                    related_ids = set()
+            )
+            rels = rels_result.scalars().all()
+            if rels:
+                related_ids = set()
+                for r in rels:
+                    related_ids.add(r.character_from_id)
+                    related_ids.add(r.character_to_id)
+                related_ids.discard(c.id)
+                if related_ids:
+                    names_result = await db.execute(
+                        select(Character.id, Character.name).where(Character.id.in_(related_ids))
+                    )
+                    name_map = {row.id: row.name for row in names_result}
+                    rel_parts = []
                     for r in rels:
-                        related_ids.add(r.character_from_id)
-                        related_ids.add(r.character_to_id)
-                    related_ids.discard(c.id)
-                    if related_ids:
-                        names_result = await db.execute(
-                            select(Character.id, Character.name).where(Character.id.in_(related_ids))
-                        )
-                        name_map = {row.id: row.name for row in names_result}
-                        rel_parts = []
-                        for r in rels:
-                            if r.character_from_id == c.id:
-                                target_name = name_map.get(r.character_to_id, "未知")
-                            else:
-                                target_name = name_map.get(r.character_from_id, "未知")
-                            rel_name = r.relationship_name or "相关"
-                            rel_parts.append(f"与{target_name}：{rel_name}")
-                        info_lines.append(f"  关系网络: {'；'.join(rel_parts)}")
-            
-            # === 组织特有信息 ===
-            if c.is_organization:
-                if c.organization_type:
-                    info_lines.append(f"  组织类型: {c.organization_type}")
-                if c.organization_purpose:
-                    info_lines.append(f"  组织目的: {c.organization_purpose[:100]}")
-                # 从 OrganizationMember 表动态查询组织成员
-                org_result = await db.execute(
-                    select(Organization).where(Organization.character_id == c.id)
-                )
-                org = org_result.scalar_one_or_none()
-                if org:
-                    members_result = await db.execute(
-                        select(OrganizationMember, Character.name).join(
-                            Character, OrganizationMember.character_id == Character.id
-                        ).where(OrganizationMember.organization_id == org.id)
-                    )
-                    members = members_result.all()
-                    if members:
-                        member_parts = [f"{name}（{m.position}）" for m, name in members]
-                        info_lines.append(f"  组织成员: {'、'.join(member_parts)[:100]}")
+                        if r.character_from_id == c.id:
+                            target_name = name_map.get(r.character_to_id, "未知")
+                        else:
+                            target_name = name_map.get(r.character_from_id, "未知")
+                        rel_name = r.relationship_name or "相关"
+                        rel_parts.append(f"与{target_name}：{rel_name}")
+                    info_lines.append(f"  关系网络: {'；'.join(rel_parts)}")
             
             # 组合完整信息
             full_info = "\n".join(info_lines)
             characters_info_parts.append(full_info)
+
+        for org_entity in organization_entities:
+            org_lines = [f"【{org_entity.name}】(组织, organization)"]
+            if org_entity.organization_type:
+                org_lines.append(f"  组织类型: {org_entity.organization_type}")
+            if org_entity.organization_purpose:
+                org_lines.append(f"  组织目的: {org_entity.organization_purpose[:100]}")
+            if org_entity.personality:
+                org_lines.append(f"  组织特性: {org_entity.personality[:100]}")
+            members_result = await db.execute(
+                select(OrganizationMember, Character.name)
+                .join(Character, OrganizationMember.character_id == Character.id)
+                .where(OrganizationMember.organization_entity_id == org_entity.id)
+            )
+            members = members_result.all()
+            if members:
+                member_parts = [f"{name}（{m.position}）" for m, name in members]
+                org_lines.append(f"  组织成员: {'、'.join(member_parts)[:100]}")
+            characters_info_parts.append("\n".join(org_lines))
         
         characters_result = "\n\n".join(characters_info_parts)
         logger.info(f"  ✅ 构建了 {len(characters_info_parts)} 个角色的完整信息，总长度: {len(characters_result)} 字符")
@@ -1593,4 +1583,3 @@ class OneToOneContextBuilder:
         except Exception as e:
             logger.error(f"❌ 获取伏笔提醒失败: {str(e)}")
             return None
-
