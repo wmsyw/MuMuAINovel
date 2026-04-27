@@ -12,13 +12,14 @@ from app.models.character import Character
 from app.models.outline import Outline
 from app.models.chapter import Chapter
 from app.models.career import Career, CharacterCareer
-from app.models.relationship import CharacterRelationship, Organization, OrganizationMember, RelationshipType
+from app.models.relationship import CharacterRelationship, Organization, OrganizationEntity, OrganizationMember, RelationshipType
 from app.models.writing_style import WritingStyle
 from app.models.project_default_style import ProjectDefaultStyle
 from app.services.ai_service import AIService
 from app.services.entity_generation_policy_service import entity_generation_policy_service
 from app.services.prompt_service import prompt_service, PromptService
 from app.services.plot_expansion_service import PlotExpansionService
+from app.services.organization_compat import add_organization_member, create_organization_entity_from_payload
 from app.logger import get_logger
 from app.utils.sse_response import SSEResponse, create_sse_response, WizardProgressTracker
 from app.api.settings import get_user_ai_service
@@ -913,8 +914,9 @@ async def characters_generator(
         
         yield await tracker.saving("保存角色到数据库...")
         
-        # 第一阶段：创建所有Character记录
+        # 第一阶段：创建所有 Character / OrganizationEntity 记录
         created_characters = []
+        created_organizations: list[tuple[OrganizationEntity, Organization, dict[str, Any]]] = []
         character_name_to_obj = {}  # 名称到对象的映射，用于后续关系创建
         
         for char_data in all_characters:
@@ -936,22 +938,28 @@ async def characters_generator(
             elif isinstance(char_data.get("relationships"), str):
                 relationships_text = char_data.get("relationships")
             
-            # 判断是否为组织
-            is_organization = char_data.get("is_organization", False)
+            is_org_payload = bool(char_data.get("is_organization", False))
+            if is_org_payload:
+                entity, bridge = await create_organization_entity_from_payload(
+                    project_id=project_id,
+                    payload=char_data,
+                    db=db,
+                    source="ai",
+                    name=char_data.get("name", "未命名组织"),
+                )
+                created_organizations.append((entity, bridge, char_data))
+                continue
             
             character = Character(
                 project_id=project_id,
                 name=char_data.get("name", "未命名角色"),
-                age=str(char_data.get("age", "")) if not is_organization else None,
-                gender=char_data.get("gender") if not is_organization else None,
-                is_organization=is_organization,
+                age=str(char_data.get("age", "")),
+                gender=char_data.get("gender"),
                 role_type=char_data.get("role_type", "supporting"),
                 personality=char_data.get("personality", ""),
                 background=char_data.get("background", ""),
                 appearance=char_data.get("appearance", ""),
                 relationships=relationships_text,
-                organization_type=char_data.get("organization_type") if is_organization else None,
-                organization_purpose=char_data.get("organization_purpose") if is_organization else None,
                 traits=json.dumps(char_data.get("traits", []), ensure_ascii=False) if char_data.get("traits") else None
             )
             db.add(character)
@@ -968,10 +976,6 @@ async def characters_generator(
             career_name_to_obj = {c.name: c for c in careers}
             
             for character, char_data in created_characters:
-                # 跳过组织
-                if character.is_organization:
-                    continue
-                
                 try:
                     career_assignment = char_data.get("career_assignment", {})
                     
@@ -1051,38 +1055,15 @@ async def characters_generator(
         for character, _ in created_characters:
             await db.refresh(character)
             character_name_to_obj[character.name] = character
-            logger.info(f"向导创建角色：{character.name} (ID: {character.id}, 是否组织: {character.is_organization})")
+            logger.info(f"向导创建角色：{character.name} (ID: {character.id})")
         
-        # 第三阶段：为is_organization=True的角色创建Organization记录
-        yield await tracker.saving("创建组织记录...", 0.5)
-        organization_name_to_obj = {}  # 组织名称到Organization对象的映射
+        # 第三阶段：建立组织名称映射
+        yield await tracker.saving("准备组织记录...", 0.5)
+        organization_name_to_obj: dict[str, tuple[OrganizationEntity, Organization]] = {}
         
-        for character, char_data in created_characters:
-            if character.is_organization:
-                # 检查是否已存在Organization记录
-                org_check = await db.execute(
-                    select(Organization).where(Organization.character_id == character.id)
-                )
-                existing_org = org_check.scalar_one_or_none()
-                
-                if not existing_org:
-                    # 创建Organization记录
-                    org = Organization(
-                        character_id=character.id,
-                        project_id=project_id,
-                        member_count=0,  # 初始为0，后续添加成员时会更新
-                        power_level=char_data.get("power_level", 50),
-                        location=char_data.get("location"),
-                        motto=char_data.get("motto"),
-                        color=char_data.get("color")
-                    )
-                    db.add(org)
-                    logger.info(f"向导创建组织记录：{character.name}")
-                else:
-                    org = existing_org
-                
-                # 建立组织名称映射（无论是新建还是已存在）
-                organization_name_to_obj[character.name] = org
+        for entity, bridge, _ in created_organizations:
+            organization_name_to_obj[entity.name] = (entity, bridge)
+            logger.info(f"向导创建组织记录：{entity.name}")
         
         await db.flush()  # 确保Organization记录有ID
         
@@ -1096,9 +1077,6 @@ async def characters_generator(
         
         for character, char_data in created_characters:
             # 跳过组织实体的角色关系处理（组织通过成员关系关联）
-            if character.is_organization:
-                continue
-            
             # 处理relationships数组
             relationships_data = char_data.get("relationships_array", [])
             if not relationships_data and isinstance(char_data.get("relationships"), list):
@@ -1164,9 +1142,6 @@ async def characters_generator(
         
         for character, char_data in created_characters:
             # 跳过组织实体本身
-            if character.is_organization:
-                continue
-            
             # 处理组织成员关系
             org_memberships = char_data.get("organization_memberships", [])
             if org_memberships and isinstance(org_memberships, list):
@@ -1178,13 +1153,14 @@ async def characters_generator(
                             continue
                         
                         # 使用映射快速查找组织
-                        org = organization_name_to_obj.get(org_name)
+                        org_pair = organization_name_to_obj.get(org_name)
                         
-                        if org:
+                        if org_pair:
+                            org_entity, org_bridge = org_pair
                             # 检查是否已存在成员关系
                             existing_member = await db.execute(
                                 select(OrganizationMember).where(
-                                    OrganizationMember.organization_id == org.id,
+                                    OrganizationMember.organization_entity_id == org_entity.id,
                                     OrganizationMember.character_id == character.id
                                 )
                             )
@@ -1193,20 +1169,21 @@ async def characters_generator(
                                 continue
                             
                             # 创建成员关系
-                            member = OrganizationMember(
-                                organization_id=org.id,
+                            await add_organization_member(
+                                db=db,
+                                bridge=org_bridge,
+                                entity=org_entity,
                                 character_id=character.id,
                                 position=membership.get("position", "成员"),
                                 rank=membership.get("rank", 0),
                                 loyalty=membership.get("loyalty", 50),
                                 joined_at=membership.get("joined_at"),
                                 status=membership.get("status", "active"),
-                                source="ai"
+                                source="ai",
                             )
-                            db.add(member)
                             
                             # 更新组织成员计数
-                            org.member_count += 1
+                            org_entity.member_count = (org_entity.member_count or 0) + 1
                             
                             members_created += 1
                             logger.info(f"  ✅ 向导添加成员：{character.name} -> {org_name} ({membership.get('position')})")
@@ -1218,7 +1195,7 @@ async def characters_generator(
                         continue
         
         logger.info(f"📊 向导数据统计：")
-        logger.info(f"  - 创建角色/组织：{len(created_characters)} 个")
+        logger.info(f"  - 创建角色/组织：{len(created_characters) + len(created_organizations)} 个")
         logger.info(f"  - 创建组织详情：{len(organization_name_to_obj)} 个")
         logger.info(f"  - 创建角色关系：{relationships_created} 条")
         logger.info(f"  - 创建组织成员：{members_created} 条")
@@ -1231,8 +1208,8 @@ async def characters_generator(
         entity_generation_policy_service.record_override_audit(
             db,
             policy_decision,
-            [character.id for character, _ in created_characters],
-            extra_payload={"generated_count": len(created_characters)},
+            [character.id for character, _ in created_characters] + [entity.id for entity, _, _ in created_organizations],
+            extra_payload={"generated_count": len(created_characters) + len(created_organizations)},
         )
         
         await db.commit()
@@ -1245,8 +1222,8 @@ async def characters_generator(
         
         # 发送结果
         yield await tracker.result({
-            "message": f"成功生成{len(created_characters)}个角色/组织（分{total_batches}批完成）",
-            "count": len(created_characters),
+            "message": f"成功生成{len(created_characters) + len(created_organizations)}个角色/组织（分{total_batches}批完成）",
+            "count": len(created_characters) + len(created_organizations),
             "batches": total_batches,
             "characters": [
                 {
@@ -1255,19 +1232,39 @@ async def characters_generator(
                     "name": char.name,
                     "age": char.age,
                     "gender": char.gender,
-                    "is_organization": char.is_organization,
+                    "is_organization": False,
                     "role_type": char.role_type,
                     "personality": char.personality,
                     "background": char.background,
                     "appearance": char.appearance,
                     "relationships": "",
-                    "organization_type": char.organization_type,
-                    "organization_purpose": char.organization_purpose,
+                    "organization_type": None,
+                    "organization_purpose": None,
                     "organization_members": "",
                     "traits": char.traits,
                     "created_at": char.created_at.isoformat() if char.created_at else None,
                     "updated_at": char.updated_at.isoformat() if char.updated_at else None
                 } for char in created_characters
+            ] + [
+                {
+                    "id": entity.id,
+                    "project_id": entity.project_id,
+                    "name": entity.name,
+                    "age": None,
+                    "gender": None,
+                    "is_organization": True,
+                    "role_type": "organization",
+                    "personality": entity.personality,
+                    "background": entity.background,
+                    "appearance": None,
+                    "relationships": "",
+                    "organization_type": entity.organization_type,
+                    "organization_purpose": entity.organization_purpose,
+                    "organization_members": "",
+                    "traits": entity.traits,
+                    "created_at": entity.created_at.isoformat() if entity.created_at else None,
+                    "updated_at": entity.updated_at.isoformat() if entity.updated_at else None,
+                } for entity, _, _ in created_organizations
             ]
         })
         
@@ -1347,11 +1344,18 @@ async def outline_generator(
             select(Character).where(Character.project_id == project_id)
         )
         characters = result.scalars().all()
+        orgs_result = await db.execute(select(OrganizationEntity).where(OrganizationEntity.project_id == project_id))
+        organizations = orgs_result.scalars().all()
         
-        characters_info = "\n".join([
-            f"- {char.name} ({'组织' if char.is_organization else '角色'}, {char.role_type}): {char.personality[:100] if char.personality else '暂无描述'}"
+        character_lines = [
+            f"- {char.name} (角色, {char.role_type}): {char.personality[:100] if char.personality else '暂无描述'}"
             for char in characters
-        ])
+        ]
+        character_lines.extend(
+            f"- {org.name} (组织, organization): {org.personality[:100] if org.personality else org.background[:100] if org.background else '暂无描述'}"
+            for org in organizations
+        )
+        characters_info = "\n".join(character_lines)
         
         # 准备提示词
         yield await tracker.preparing(f"准备生成{outline_count}个大纲节点...")

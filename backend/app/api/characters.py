@@ -760,21 +760,22 @@ async def create_character(
     await verify_project_access(character_data.project_id, user_id, db)
     
     try:
-        if character_data.is_organization:
+        request_data = character_data.model_dump()
+        if request_data.get("is_organization", False):
             org_entity = OrganizationEntity(
                 project_id=character_data.project_id,
                 name=character_data.name,
                 normalized_name=normalized_name(character_data.name),
                 personality=character_data.personality,
                 background=character_data.background,
-                traits=character_data.traits,
-                avatar_url=character_data.avatar_url,
-                organization_type=character_data.organization_type,
-                organization_purpose=character_data.organization_purpose,
-                power_level=character_data.power_level or 50,
-                location=character_data.location,
-                motto=character_data.motto,
-                color=character_data.color,
+                traits=request_data.get("traits"),
+                avatar_url=request_data.get("avatar_url"),
+                organization_type=request_data.get("organization_type"),
+                organization_purpose=request_data.get("organization_purpose"),
+                power_level=request_data.get("power_level") or 50,
+                location=request_data.get("location"),
+                motto=request_data.get("motto"),
+                color=request_data.get("color"),
                 source="manual",
             )
             db.add(org_entity)

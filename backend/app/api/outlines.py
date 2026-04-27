@@ -11,7 +11,7 @@ from app.models.outline import Outline
 from app.models.project import Project
 from app.models.chapter import Chapter
 from app.models.character import Character
-from app.models.relationship import CharacterRelationship, Organization, OrganizationMember
+from app.models.relationship import CharacterRelationship, Organization, OrganizationEntity, OrganizationMember
 from app.models.generation_history import GenerationHistory
 from app.schemas.outline import (
     OutlineCreate,
@@ -49,7 +49,7 @@ def _build_chapters_brief(outlines: List[Outline], max_recent: int = 20) -> str:
 def _build_characters_info(characters: List[Character]) -> str:
     """构建角色信息字符串"""
     return "\n".join([
-        f"- {char.name} ({'组织' if char.is_organization else '角色'}, {char.role_type}): "
+        f"- {char.name} (角色, {char.role_type}): "
         f"{char.personality[:100] if char.personality else '暂无描述'}"
         for char in characters
     ])
@@ -578,12 +578,14 @@ async def _build_outline_continue_context(
         # 3. 所有角色的全部信息(包括职业信息)
         if characters:
             from app.models.career import Career, CharacterCareer
+            orgs_result = await db.execute(select(OrganizationEntity).where(OrganizationEntity.project_id == project.id))
+            organizations = orgs_result.scalars().all()
             
             char_texts = []
             char_texts.append("【角色信息】")
             
             for char in characters:
-                char_text = f"\n{char.name}（{'组织' if char.is_organization else '角色'}，{char.role_type}）"
+                char_text = f"\n{char.name}（角色，{char.role_type}）"
                 
                 if char.personality:
                     char_text += f"\n  性格特点：{char.personality}"
@@ -631,49 +633,47 @@ async def _build_outline_continue_context(
                             rel_parts.append(f"与{target_name}：{rel_name}")
                         char_text += f"\n  关系网络：{'；'.join(rel_parts)}"
                 
-                # 组织特有字段
-                if char.is_organization:
-                    if char.organization_type:
-                        char_text += f"\n  组织类型：{char.organization_type}"
-                    if char.organization_purpose:
-                        char_text += f"\n  组织宗旨：{char.organization_purpose}"
-                    # 从 OrganizationMember 表动态查询组织成员
-                    org_result = await db.execute(
-                        select(Organization).where(Organization.character_id == char.id)
-                    )
-                    org = org_result.scalar_one_or_none()
-                    if org:
-                        members_result = await db.execute(
-                            select(OrganizationMember, Character.name).join(
-                                Character, OrganizationMember.character_id == Character.id
-                            ).where(OrganizationMember.organization_id == org.id)
-                        )
-                        members = members_result.all()
-                        if members:
-                            member_parts = [f"{name}（{m.position}）" for m, name in members]
-                            char_text += f"\n  组织成员：{'、'.join(member_parts)}"
-                
                 # 查询角色的职业信息
-                if not char.is_organization:
-                    try:
-                        career_result = await db.execute(
-                            select(Career, CharacterCareer)
-                            .join(CharacterCareer, Career.id == CharacterCareer.career_id)
-                            .where(CharacterCareer.character_id == char.id)
-                        )
-                        career_data = career_result.first()
-                        
-                        if career_data:
-                            career, char_career = career_data
-                            char_text += f"\n  职业：{career.name}"
-                            if char_career.current_stage:
-                                char_text += f"（{char_career.current_stage}阶段）"
-                            if char_career.career_type:
-                                char_text += f"\n  职业类型：{char_career.career_type}"
-                    except Exception as e:
-                        logger.warning(f"查询角色 {char.name} 的职业信息失败: {str(e)}")
+                try:
+                    career_result = await db.execute(
+                        select(Career, CharacterCareer)
+                        .join(CharacterCareer, Career.id == CharacterCareer.career_id)
+                        .where(CharacterCareer.character_id == char.id)
+                    )
+                    career_data = career_result.first()
+
+                    if career_data:
+                        career, char_career = career_data
+                        char_text += f"\n  职业：{career.name}"
+                        if char_career.current_stage:
+                            char_text += f"（{char_career.current_stage}阶段）"
+                        if char_career.career_type:
+                            char_text += f"\n  职业类型：{char_career.career_type}"
+                except Exception as e:
+                    logger.warning(f"查询角色 {char.name} 的职业信息失败: {str(e)}")
                 
                 char_texts.append(char_text)
+
+            for org_entity in organizations:
+                org_text = f"\n{org_entity.name}（组织，organization）"
+                if org_entity.personality:
+                    org_text += f"\n  组织特性：{org_entity.personality}"
+                if org_entity.background:
+                    org_text += f"\n  背景设定：{org_entity.background}"
+                if org_entity.organization_type:
+                    org_text += f"\n  组织类型：{org_entity.organization_type}"
+                if org_entity.organization_purpose:
+                    org_text += f"\n  组织宗旨：{org_entity.organization_purpose}"
+                members_result = await db.execute(
+                    select(OrganizationMember, Character.name)
+                    .join(Character, OrganizationMember.character_id == Character.id)
+                    .where(OrganizationMember.organization_entity_id == org_entity.id)
+                )
+                members = members_result.all()
+                if members:
+                    member_parts = [f"{name}（{m.position}）" for m, name in members]
+                    org_text += f"\n  组织成员：{'、'.join(member_parts)}"
+                char_texts.append(org_text)
             
             context['characters_info'] = "\n".join(char_texts)
             logger.info(f"  ✅ 角色信息：{len(characters)}个角色")

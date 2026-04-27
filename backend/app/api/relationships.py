@@ -9,6 +9,7 @@ from app.models.relationship import (
     RelationshipType,
     CharacterRelationship,
     Organization,
+    OrganizationEntity,
     OrganizationMember
 )
 from app.models.character import Character
@@ -101,12 +102,26 @@ async def get_relationship_graph(
         RelationshipGraphNode(
             id=c.id,
             name=c.name,
-            type="organization" if c.is_organization else "character",
+            type="character",
             role_type=c.role_type,
             avatar=c.avatar_url
         )
         for c in characters
     ]
+    orgs_result = await db.execute(
+        select(OrganizationEntity).where(OrganizationEntity.project_id == project_id)
+    )
+    organizations = orgs_result.scalars().all()
+    nodes.extend(
+        RelationshipGraphNode(
+            id=org.id,
+            name=org.name,
+            type="organization",
+            role_type="organization",
+            avatar=org.avatar_url,
+        )
+        for org in organizations
+    )
     
     # 获取所有角色关系（边）
     rels_result = await db.execute(
@@ -128,24 +143,21 @@ async def get_relationship_graph(
     ]
 
     # 获取组织成员关系（组织 -> 成员）并追加到图谱边
-    # source 使用组织对应的角色ID（Organization.character_id），确保与节点ID一致
+    # source 使用 canonical OrganizationEntity.id，确保与组织节点一致
     members_result = await db.execute(
-        select(OrganizationMember, Organization).join(
-            Organization,
-            OrganizationMember.organization_id == Organization.id
-        ).where(Organization.project_id == project_id)
+        select(OrganizationMember).where(OrganizationMember.organization_entity_id.in_([org.id for org in organizations]))
     )
-    org_members = members_result.all()
+    org_members = members_result.scalars().all()
 
     member_links = [
         RelationshipGraphLink(
-            source=org.character_id,
+            source=member.organization_entity_id,
             target=member.character_id,
             relationship=f"组织成员·{member.position}",
             intimacy=member.loyalty,
             status=member.status
         )
-        for member, org in org_members
+        for member in org_members
     ]
 
     links.extend(member_links)

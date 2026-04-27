@@ -24,6 +24,7 @@ from app.models.career import Career, CharacterCareer
 from app.models.relationship import (
     CharacterRelationship,
     Organization,
+    OrganizationEntity,
     OrganizationMember,
 )
 from app.models.generation_history import GenerationHistory
@@ -591,17 +592,21 @@ async def build_characters_info_with_careers(
             char_rels_map[r.character_to_id].append(r)
 
     # 获取所有组织及其成员关系（一次性查询）
+    org_entities_result = await db.execute(
+        select(OrganizationEntity).where(OrganizationEntity.project_id == project_id)
+    )
+    org_entities = org_entities_result.scalars().all()
+    org_entity_map = {entity.id: entity for entity in org_entities}
     orgs_result = await db.execute(
         select(Organization).where(Organization.project_id == project_id)
     )
     all_orgs = orgs_result.scalars().all()
 
-    # 构建组织ID到组织名称的映射（通过关联的Character记录）
+    # 构建组织ID到组织名称的映射（通过 canonical OrganizationEntity）
     org_name_map = {}  # org_id -> org_name
-    char_id_to_org = {}  # character_id -> Organization（用于组织实体补充详情）
     for org in all_orgs:
-        org_name_map[org.id] = all_char_name_map.get(org.character_id, "未知组织")
-        char_id_to_org[org.character_id] = org
+        entity = org_entity_map.get(org.organization_entity_id)
+        org_name_map[org.id] = entity.name if entity else "未知组织"
 
     # 获取所有组织的成员关系（一次性查询）
     org_ids = [org.id for org in all_orgs]
@@ -620,9 +625,8 @@ async def build_characters_info_with_careers(
         if m.organization_id in org_members_map:
             org_members_map[m.organization_id].append(m)
 
-    # 获取涉及当前非组织角色的成员关系
-    non_org_char_ids = [c.id for c in characters if not c.is_organization]
-    char_org_map: dict[str, list] = {cid: [] for cid in non_org_char_ids}
+    # 获取涉及当前角色的成员关系
+    char_org_map: dict[str, list] = {cid: [] for cid in character_ids}
     for m in all_org_members:
         if m.character_id in char_org_map:
             char_org_map[m.character_id].append(m)
@@ -653,7 +657,7 @@ async def build_characters_info_with_careers(
     characters_info_parts = []
     for c in characters:
         # 基本信息（含存活状态标记）
-        entity_type = "组织" if c.is_organization else "角色"
+        entity_type = "角色"
         status_marker = ""
         char_status = getattr(c, "status", None) or "active"
         if char_status != "active":
@@ -666,44 +670,8 @@ async def build_characters_info_with_careers(
             status_marker = f" [{STATUS_MARKERS.get(char_status, char_status)}]"
         base_info = f"- {c.name}({entity_type}, {c.role_type}){status_marker}"
 
-        # 组织实体：补充组织详情
+        # 组织实体详情由 OrganizationEntity 单独追加
         org_detail_str = ""
-        if c.is_organization and c.id in char_id_to_org:
-            org = char_id_to_org[c.id]
-            org_detail_parts = []
-            if c.organization_type:
-                org_detail_parts.append(f"类型:{c.organization_type}")
-            if c.organization_purpose:
-                purpose_preview = (
-                    c.organization_purpose[:60]
-                    if len(c.organization_purpose) > 60
-                    else c.organization_purpose
-                )
-                org_detail_parts.append(f"宗旨:{purpose_preview}")
-            if org.power_level is not None:
-                org_detail_parts.append(f"势力等级:{org.power_level}")
-            if org.location:
-                org_detail_parts.append(f"据点:{org.location}")
-            if org.motto:
-                org_detail_parts.append(f"口号:{org.motto}")
-            if org.member_count:
-                org_detail_parts.append(f"成员数:{org.member_count}")
-            if org_detail_parts:
-                org_detail_str = f" | {', '.join(org_detail_parts)}"
-
-            # 显示组织的核心成员列表（最多5个）
-            if org.id in org_members_map and org_members_map[org.id]:
-                member_parts = []
-                for m in sorted(org_members_map[org.id], key=lambda x: -(x.rank or 0))[
-                    :5
-                ]:
-                    m_name = all_char_name_map.get(m.character_id, "未知")
-                    m_desc = f"{m_name}({m.position})"
-                    if m.status and m.status != "active":
-                        m_desc += f"[{m.status}]"
-                    member_parts.append(m_desc)
-                if member_parts:
-                    org_detail_str += f" | 成员: {', '.join(member_parts)}"
 
         # 职业信息
         career_info_str = ""
@@ -736,7 +704,7 @@ async def build_characters_info_with_careers(
 
         # 组织成员信息（非组织角色才显示所属组织）
         org_str = ""
-        if not c.is_organization and c.id in char_org_map and char_org_map[c.id]:
+        if c.id in char_org_map and char_org_map[c.id]:
             org_parts = []
             for m in char_org_map[c.id][:3]:  # 最多显示3个组织
                 o_name = org_name_map.get(m.organization_id, "未知组织")
@@ -803,6 +771,37 @@ async def build_characters_info_with_careers(
             + personality_str
         )
         characters_info_parts.append(full_info)
+
+    for entity in org_entities:
+        org_bridge = next((org for org in all_orgs if org.organization_entity_id == entity.id), None)
+        org_detail_parts = []
+        if entity.organization_type:
+            org_detail_parts.append(f"类型:{entity.organization_type}")
+        if entity.organization_purpose:
+            purpose_preview = entity.organization_purpose[:60] if len(entity.organization_purpose) > 60 else entity.organization_purpose
+            org_detail_parts.append(f"宗旨:{purpose_preview}")
+        if entity.power_level is not None:
+            org_detail_parts.append(f"势力等级:{entity.power_level}")
+        if entity.location:
+            org_detail_parts.append(f"据点:{entity.location}")
+        if entity.motto:
+            org_detail_parts.append(f"口号:{entity.motto}")
+        if entity.member_count:
+            org_detail_parts.append(f"成员数:{entity.member_count}")
+        if org_bridge and org_bridge.id in org_members_map and org_members_map[org_bridge.id]:
+            member_parts = []
+            for m in sorted(org_members_map[org_bridge.id], key=lambda x: -(x.rank or 0))[:5]:
+                m_name = all_char_name_map.get(m.character_id, "未知")
+                m_desc = f"{m_name}({m.position})"
+                if m.status and m.status != "active":
+                    m_desc += f"[{m.status}]"
+                member_parts.append(m_desc)
+            if member_parts:
+                org_detail_parts.append(f"成员:{', '.join(member_parts)}")
+        status_marker = f" [{entity.status}]" if entity.status != "active" else ""
+        detail = f" | {', '.join(org_detail_parts)}" if org_detail_parts else ""
+        description = entity.personality or entity.background or "暂无描述"
+        characters_info_parts.append(f"- {entity.name}(组织, organization){status_marker}{detail} | 描述: {description[:80]}")
 
     return "\n".join(characters_info_parts)
 
