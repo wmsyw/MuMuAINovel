@@ -123,3 +123,12 @@
 ## 2026-04-27 — Task 16 QA coverage gap fix
 - QA found `timelineReview.test.tsx` only proved relationship timeline behavior even though Task 16 acceptance also requires organization-affiliation and profession timeline surfaces. Added mocked affiliation and profession current/history cases with mapped character/organization/career names, active current rows at chapter 6, and ended/superseded/rolled-back history rows after chapter 10.
 - Re-ran LSP diagnostics for the touched test, forbidden-marker grep, `npm run test -- --run timeline`, `npm run build`, and `npm run lint`; all passed. Updated stdout/stderr were appended to the Task 16 evidence logs, with only the known jsdom `getComputedStyle` notices and Vite chunk-size warning in stderr.
+
+## Task 17: Cleanup and Documentation
+- Bare `python` command was unavailable in the environment, requiring `uv run --python python3.11` for backend tests.
+- Initial implementation of Task 17 had weak static tests and incomplete documentation, which were addressed in subsequent iterations.
+- Docker command was unavailable in the environment, so Docker build smoke test was skipped with a note in evidence.
+
+## Task 17 Cleanup: Diagnostic Noise Reduction
+- Removed unused `pytest` import from `backend/tests/test_generation_bypass_audit.py` to resolve basedpyright warnings.
+- Added type annotations to `get_calls_in_order` helper to improve static analysis compatibility.

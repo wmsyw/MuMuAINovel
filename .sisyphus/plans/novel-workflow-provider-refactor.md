@@ -933,7 +933,7 @@ Wave 4: Tasks 15, 16, 17, 18 — inspiration/world UI, timeline UI, cleanup/docs
 
   **Commit**: YES | Message: `frontend: add relationship timeline view` | Files: [`frontend/src/pages/Characters.tsx`, `frontend/src/pages/Organizations.tsx`, `frontend/src/pages/Careers.tsx`, `frontend/src/components/**Timeline**`, `frontend/src/services/api.ts`, `frontend/src/types/index.ts`, `frontend/src/**/__tests__/**`]
 
-- [ ] 17. Remove bypasses, document behavior, deprecate legacy services, and mark deprecated generation paths
+- [x] 17. Remove bypasses, document behavior, deprecate legacy services, and mark deprecated generation paths
 
   **What to do**: Audit all old entity/world generation paths and either route them through new policy/services or mark them deprecated with safe wrappers.
 

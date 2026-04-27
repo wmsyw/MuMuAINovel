@@ -97,3 +97,8 @@
 - `TimelineReviewPanel` now centralizes the restrained AntD timeline query surface: chapter/order filters call `timelineApi.getProjectState`, history calls `timelineApi.getProjectHistory`, and the same table renders evidence, confidence, source offsets, validity range, status, and supersession metadata.
 - Characters, Organizations, and Careers integrate timeline panels as extra tabs inside the existing `ExtractionCandidateReviewPanel`; no route or graph surface was added, and manual CRUD/review tabs remain intact.
 - Current projection and history intentionally interpret validity differently: current rows from `/state` stay labeled `生效中`, while history rows with `valid_to_*` render ended semantics so closed relationships remain auditable after they disappear from current projection.
+
+## Task 17: Cleanup and Documentation
+- Static audit tests using Python's `ast` module are effective for verifying call ordering and argument presence without running the full application.
+- Centralizing policy evaluation in services (`AutoCharacterService`, `AutoOrganizationService`) ensures that all entry points (API, background tasks) are protected.
+- Documentation should explicitly cover feature flags and migration paths to manage user expectations during major refactors.
