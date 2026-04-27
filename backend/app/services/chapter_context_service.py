@@ -13,10 +13,26 @@ from app.models.character import Character
 from app.models.career import Career, CharacterCareer
 from app.models.memory import StoryMemory
 from app.models.foreshadow import Foreshadow
-from app.models.relationship import CharacterRelationship, OrganizationEntity, OrganizationMember
+from app.models.relationship import EntityRelationship, OrganizationEntity, OrganizationMember
+from app.models.goldfinger import Goldfinger, GoldfingerHistoryEvent
 from app.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+MAX_GOLDFINGER_CONTEXT_ITEMS = 8
+MAX_GOLDFINGER_HISTORY_EVENTS = 3
+MAX_GOLDFINGER_SUMMARY_CHARS = 300
+GOLDFINGER_STATUS_PRIORITY = {
+    "active": 30,
+    "cooldown": 24,
+    "upgrading": 24,
+    "latent": 10,
+    "sealed": 6,
+    "unknown": 4,
+    "completed": 2,
+    "lost": 0,
+}
 
 
 @dataclass
@@ -53,6 +69,7 @@ class OneToManyContext:
     # === P1-重要信息 ===
     chapter_characters: str = ""        # 完整版角色信息（含年龄、外貌、背景、关系、组织）
     chapter_careers: Optional[str] = None  # 独立的职业详情（含完整阶段体系）
+    goldfinger_context: Optional[str] = None  # 已审核金手指上下文
     emotional_tone: str = ""
     
     # === P2-参考信息 ===
@@ -66,9 +83,9 @@ class OneToManyContext:
         """计算总上下文长度"""
         total = 0
         for field_name in ['chapter_outline', 'recent_chapters_context', 'continuation_point',
-                          'chapter_characters', 'chapter_careers',
-                          'relevant_memories', 'foreshadow_reminders',
-                          'previous_chapter_summary']:
+                           'chapter_characters', 'chapter_careers',
+                           'goldfinger_context', 'relevant_memories', 'foreshadow_reminders',
+                           'previous_chapter_summary']:
             value = getattr(self, field_name, None)
             if value:
                 total += len(value)
@@ -107,6 +124,7 @@ class OneToOneContext:
     previous_chapter_summary: Optional[str] = None  # 上一章剧情摘要
     chapter_characters: str = ""        # 从structure.characters获取
     chapter_careers: Optional[str] = None  # 本章涉及的职业完整信息
+    goldfinger_context: Optional[str] = None  # 已审核金手指上下文
     
     # === P2-参考信息 ===
     foreshadow_reminders: Optional[str] = None
@@ -119,12 +137,259 @@ class OneToOneContext:
         """计算总上下文长度"""
         total = 0
         for field_name in ['chapter_outline', 'continuation_point', 'previous_chapter_summary',
-                          'chapter_characters', 'chapter_careers', 'foreshadow_reminders',
-                          'relevant_memories']:
+                           'chapter_characters', 'chapter_careers', 'goldfinger_context', 'foreshadow_reminders',
+                           'relevant_memories']:
             value = getattr(self, field_name, None)
             if value:
                 total += len(value)
         return total
+
+
+def _truncate_chinese_chars(value: Any, max_chars: int) -> str:
+    """按中文字符直觉截断文本，确保返回长度不超过 max_chars。"""
+    text = str(value or "").strip().replace("\r", " ").replace("\n", " ")
+    if len(text) <= max_chars:
+        return text
+    return text[: max_chars - 1].rstrip() + "…"
+
+
+def _coerce_list(value: Any) -> list[Any]:
+    """将JSON字段规整为列表，避免把完整JSON原样塞入提示词。"""
+    if value is None or value == "":
+        return []
+    if isinstance(value, list):
+        return value
+    return [value]
+
+
+def _compact_json_item(item: Any) -> str:
+    """提取JSON片段的可读摘要，优先使用常见名称/描述字段。"""
+    if item is None:
+        return ""
+    if isinstance(item, dict):
+        name = item.get("title") or item.get("name") or item.get("label") or item.get("type")
+        status = item.get("status")
+        description = (
+            item.get("description")
+            or item.get("content")
+            or item.get("summary")
+            or item.get("rule")
+            or item.get("value")
+        )
+        parts = [str(part) for part in (name, status, description) if part]
+        if parts:
+            return "-".join(parts)
+        compact_pairs = []
+        for key, value in list(item.items())[:2]:
+            if value not in (None, "", [], {}):
+                compact_pairs.append(f"{key}:{value}")
+        return "；".join(compact_pairs)
+    if isinstance(item, (list, tuple)):
+        return "、".join(_compact_json_item(child) for child in item[:2] if child)
+    return str(item)
+
+
+def _compact_json_summary(value: Any, *, max_items: int = 3, max_chars: int = 120) -> str:
+    """将规则/任务/奖励等JSON字段压缩为短摘要。"""
+    items = [_compact_json_item(item) for item in _coerce_list(value)[:max_items]]
+    items = [item for item in items if item]
+    if not items:
+        return ""
+    summary = "；".join(items)
+    total_items = len(_coerce_list(value))
+    if total_items > max_items:
+        summary += f"；等{total_items}项"
+    return _truncate_chinese_chars(summary, max_chars)
+
+
+def _extract_character_names_from_outline(chapter: Chapter, outline: Optional[Outline]) -> list[str]:
+    """提取本章显式角色焦点，用于金手指拥有者相关性排序。"""
+    names: list[str] = []
+
+    if chapter.expansion_plan:
+        try:
+            plan = json.loads(chapter.expansion_plan)
+            for item in plan.get("character_focus", []) or []:
+                name = item.get("name") if isinstance(item, dict) else item
+                if name:
+                    names.append(str(name))
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    if outline and outline.structure:
+        try:
+            structure = json.loads(outline.structure)
+            for item in structure.get("characters", []) or []:
+                name = item.get("name") if isinstance(item, dict) else item
+                if name:
+                    names.append(str(name))
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    # 保持顺序去重，确保排序稳定。
+    seen = set()
+    unique_names = []
+    for name in names:
+        if name not in seen:
+            seen.add(name)
+            unique_names.append(name)
+    return unique_names
+
+
+def _build_goldfinger_relevance_text(chapter: Chapter, outline: Optional[Outline], chapter_outline: str) -> str:
+    """聚合显式大纲/章节文本，用于判断金手指是否被本章点名。"""
+    parts = [chapter.title or "", chapter.summary or "", chapter_outline or ""]
+    if chapter.expansion_plan:
+        try:
+            parts.append(json.dumps(json.loads(chapter.expansion_plan), ensure_ascii=False))
+        except (json.JSONDecodeError, TypeError):
+            parts.append(chapter.expansion_plan)
+    if outline:
+        parts.extend([outline.title or "", outline.content or ""])
+        if outline.structure:
+            try:
+                parts.append(json.dumps(json.loads(outline.structure), ensure_ascii=False))
+            except (json.JSONDecodeError, TypeError):
+                parts.append(outline.structure)
+    return "\n".join(part for part in parts if part)
+
+
+def _goldfinger_aliases(goldfinger: Goldfinger) -> list[str]:
+    aliases = []
+    for item in _coerce_list(goldfinger.aliases):
+        if item:
+            aliases.append(str(item))
+    return aliases
+
+
+def _score_goldfinger_for_chapter(
+    goldfinger: Goldfinger,
+    *,
+    focus_character_names: list[str],
+    relevance_text: str,
+    history_events: list[GoldfingerHistoryEvent],
+) -> int:
+    """用简单确定性规则为本章金手指上下文排序。"""
+    score = GOLDFINGER_STATUS_PRIORITY.get(goldfinger.status or "unknown", 0)
+
+    terms = [goldfinger.name or "", goldfinger.normalized_name or "", *_goldfinger_aliases(goldfinger)]
+    if any(term and term in relevance_text for term in terms):
+        score += 50
+
+    owner_name = goldfinger.owner_character_name or ""
+    if owner_name and owner_name in focus_character_names:
+        score += 35
+    elif owner_name and owner_name in relevance_text:
+        score += 20
+
+    if history_events:
+        score += 15
+
+    return score
+
+
+def _format_goldfinger_history(events: list[GoldfingerHistoryEvent]) -> str:
+    history_parts = []
+    for event in events[:MAX_GOLDFINGER_HISTORY_EVENTS]:
+        event_type = event.event_type or "记录"
+        evidence = _truncate_chinese_chars(event.evidence_excerpt, 70)
+        new_value = _compact_json_summary(event.new_value, max_items=2, max_chars=70)
+        if evidence:
+            history_parts.append(f"{event_type}：{evidence}")
+        elif new_value:
+            history_parts.append(f"{event_type}：{new_value}")
+        else:
+            history_parts.append(event_type)
+    return "；".join(history_parts)
+
+
+def _format_goldfinger_block(goldfinger: Goldfinger, history_events: list[GoldfingerHistoryEvent]) -> list[str]:
+    attrs = []
+    if goldfinger.owner_character_name:
+        attrs.append(f"拥有者：{goldfinger.owner_character_name}")
+    if goldfinger.type:
+        attrs.append(f"类型：{goldfinger.type}")
+    attrs.append(f"状态：{goldfinger.status or 'unknown'}")
+
+    lines = [f"- 【{goldfinger.name}】（{'；'.join(attrs)}）"]
+    summary = _truncate_chinese_chars(goldfinger.summary, MAX_GOLDFINGER_SUMMARY_CHARS)
+    if summary:
+        lines.append(f"  概要：{summary}")
+
+    compact_fields = [
+        ("规则", goldfinger.rules),
+        ("任务", goldfinger.tasks),
+        ("奖励", goldfinger.rewards),
+        ("限制", goldfinger.limits),
+        ("触发", goldfinger.trigger_conditions),
+        ("冷却", goldfinger.cooldown),
+    ]
+    for label, value in compact_fields:
+        compact = _compact_json_summary(value)
+        if compact:
+            lines.append(f"  {label}：{compact}")
+
+    history = _format_goldfinger_history(history_events)
+    if history:
+        lines.append(f"  近期历史：{history}")
+
+    return lines
+
+
+async def _build_goldfinger_generation_context(
+    *,
+    chapter: Chapter,
+    project_id: str,
+    outline: Optional[Outline],
+    db: AsyncSession,
+    chapter_outline: str,
+) -> tuple[Optional[str], int]:
+    """构建章节生成专用的已审核金手指上下文。"""
+    try:
+        goldfinger_result = await db.execute(
+            select(Goldfinger).where(Goldfinger.project_id == project_id)
+        )
+        goldfingers = list(goldfinger_result.scalars().all())
+        if not goldfingers:
+            return None, 0
+
+        goldfinger_ids = [goldfinger.id for goldfinger in goldfingers]
+        history_result = await db.execute(
+            select(GoldfingerHistoryEvent)
+            .where(GoldfingerHistoryEvent.project_id == project_id)
+            .where(GoldfingerHistoryEvent.goldfinger_id.in_(goldfinger_ids))
+            .order_by(GoldfingerHistoryEvent.created_at.desc(), GoldfingerHistoryEvent.id.desc())
+        )
+        history_by_goldfinger: dict[str, list[GoldfingerHistoryEvent]] = {}
+        for event in history_result.scalars().all():
+            events = history_by_goldfinger.setdefault(event.goldfinger_id, [])
+            if len(events) < MAX_GOLDFINGER_HISTORY_EVENTS:
+                events.append(event)
+
+        focus_character_names = _extract_character_names_from_outline(chapter, outline)
+        relevance_text = _build_goldfinger_relevance_text(chapter, outline, chapter_outline)
+        ranked_goldfingers = sorted(
+            goldfingers,
+            key=lambda goldfinger: (
+                -_score_goldfinger_for_chapter(
+                    goldfinger,
+                    focus_character_names=focus_character_names,
+                    relevance_text=relevance_text,
+                    history_events=history_by_goldfinger.get(goldfinger.id, []),
+                ),
+                goldfinger.name or "",
+                goldfinger.id or "",
+            ),
+        )[:MAX_GOLDFINGER_CONTEXT_ITEMS]
+
+        lines = ["【金手指上下文（仅已审核规范事实）】"]
+        for goldfinger in ranked_goldfingers:
+            lines.extend(_format_goldfinger_block(goldfinger, history_by_goldfinger.get(goldfinger.id, [])))
+
+        return "\n".join(lines), len(ranked_goldfingers)
+    except Exception as e:
+        logger.error(f"❌ 构建金手指上下文失败: {str(e)}")
+        return None, 0
 
 
 # ==================== 1-N模式上下文构建器 ====================
@@ -244,6 +509,15 @@ class OneToManyContextBuilder:
         context.emotional_tone = self._extract_emotional_tone(chapter, outline)
         logger.info(f"  ✅ 角色信息: {len(context.chapter_characters)}字符")
         logger.info(f"  ✅ 职业信息: {len(context.chapter_careers or '')}字符")
+
+        context.goldfinger_context, goldfinger_count = await _build_goldfinger_generation_context(
+            chapter=chapter,
+            project_id=project.id,
+            outline=outline,
+            db=db,
+            chapter_outline=context.chapter_outline,
+        )
+        logger.info(f"  ✅ 金手指上下文: {goldfinger_count}个，{len(context.goldfinger_context or '')}字符")
         
         # === P2-参考信息（始终启用）===
         if self.memory_service:
@@ -269,6 +543,8 @@ class OneToManyContextBuilder:
             "continuation_length": len(context.continuation_point or ""),
             "characters_length": len(context.chapter_characters),
             "careers_length": len(context.chapter_careers or ""),
+            "goldfinger_length": len(context.goldfinger_context or ""),
+            "goldfinger_count": goldfinger_count,
             "recent_context_length": len(context.recent_chapters_context or ""),
             "memories_length": len(context.relevant_memories or ""),
             "foreshadow_length": len(context.foreshadow_reminders or ""),
@@ -351,11 +627,13 @@ class OneToManyContextBuilder:
         
         # === 批量查询关系数据 ===
         rels_result = await db.execute(
-            select(CharacterRelationship).where(
-                CharacterRelationship.project_id == project.id,
+            select(EntityRelationship).where(
+                EntityRelationship.project_id == project.id,
+                EntityRelationship.from_entity_type == "character",
+                EntityRelationship.to_entity_type == "character",
                 or_(
-                    CharacterRelationship.character_from_id.in_(character_ids),
-                    CharacterRelationship.character_to_id.in_(character_ids)
+                    EntityRelationship.from_entity_id.in_(character_ids),
+                    EntityRelationship.to_entity_id.in_(character_ids)
                 )
             )
         )
@@ -1115,6 +1393,15 @@ class OneToOneContextBuilder:
             context.chapter_characters = "暂无角色信息"
             context.chapter_careers = None
             logger.info(f"  ⚠️ P1-角色信息: 无")
+
+        context.goldfinger_context, goldfinger_count = await _build_goldfinger_generation_context(
+            chapter=chapter,
+            project_id=project.id,
+            outline=outline,
+            db=db,
+            chapter_outline=context.chapter_outline,
+        )
+        logger.info(f"  ✅ P1-金手指上下文: {goldfinger_count}个，{len(context.goldfinger_context or '')}字符")
         
         # === P2-参考信息 ===
         # 1. 伏笔提醒
@@ -1178,6 +1465,8 @@ class OneToOneContextBuilder:
             "outline_length": len(context.chapter_outline),
             "characters_length": len(context.chapter_characters),
             "careers_length": len(context.chapter_careers or ""),
+            "goldfinger_length": len(context.goldfinger_context or ""),
+            "goldfinger_count": goldfinger_count,
             "foreshadow_length": len(context.foreshadow_reminders or ""),
             "memories_length": len(context.relevant_memories or ""),
             "total_length": context.get_total_context_length()
@@ -1389,11 +1678,13 @@ class OneToOneContextBuilder:
             # === 角色关系信息 ===
             from sqlalchemy import or_
             rels_result = await db.execute(
-                select(CharacterRelationship).where(
-                    CharacterRelationship.project_id == project_id,
+                select(EntityRelationship).where(
+                    EntityRelationship.project_id == project_id,
+                    EntityRelationship.from_entity_type == "character",
+                    EntityRelationship.to_entity_type == "character",
                     or_(
-                        CharacterRelationship.character_from_id == c.id,
-                        CharacterRelationship.character_to_id == c.id
+                        EntityRelationship.from_entity_id == c.id,
+                        EntityRelationship.to_entity_id == c.id
                     )
                 )
             )

@@ -133,7 +133,7 @@ from app.api import (
     auth, users, settings, writing_styles, memories,
     mcp_plugins, admin, inspiration, prompt_templates,
     changelog, careers, foreshadows, prompt_workshop, book_import,
-    project_covers, extraction, timeline, world_setting_results
+    project_covers, extraction, timeline, world_setting_results, goldfingers, sync
 )
 
 app.include_router(auth.router, prefix="/api")
@@ -151,7 +151,9 @@ app.include_router(careers.router, prefix="/api")  # 职业管理API
 app.include_router(chapters.router, prefix="/api")
 app.include_router(relationships.router, prefix="/api")
 app.include_router(organizations.router, prefix="/api")
+app.include_router(goldfingers.router, prefix="/api")  # 金手指管理API
 app.include_router(extraction.router, prefix="/api")  # 抽取候选评审API
+app.include_router(sync.router, prefix="/api")  # 章节事实同步API
 app.include_router(timeline.router, prefix="/api")  # 时间线查询API
 app.include_router(world_setting_results.router, prefix="/api")  # 世界观结果评审API
 app.include_router(writing_styles.router, prefix="/api")

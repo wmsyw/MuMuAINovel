@@ -11,7 +11,7 @@ from app.models.outline import Outline
 from app.models.project import Project
 from app.models.chapter import Chapter
 from app.models.character import Character
-from app.models.relationship import CharacterRelationship, Organization, OrganizationEntity, OrganizationMember
+from app.models.relationship import EntityRelationship, Organization, OrganizationEntity, OrganizationMember
 from app.models.generation_history import GenerationHistory
 from app.schemas.outline import (
     OutlineCreate,
@@ -599,14 +599,16 @@ async def _build_outline_continue_context(
                 if char.traits:
                     char_text += f"\n  特征标签：{char.traits}"
                 
-                # 从 character_relationships 表查询关系
+                # 从 entity_relationships 表查询关系
                 from sqlalchemy import or_
                 rels_result = await db.execute(
-                    select(CharacterRelationship).where(
-                        CharacterRelationship.project_id == project.id,
+                    select(EntityRelationship).where(
+                        EntityRelationship.project_id == project.id,
+                        EntityRelationship.from_entity_type == "character",
+                        EntityRelationship.to_entity_type == "character",
                         or_(
-                            CharacterRelationship.character_from_id == char.id,
-                            CharacterRelationship.character_to_id == char.id
+                            EntityRelationship.from_entity_id == char.id,
+                            EntityRelationship.to_entity_id == char.id
                         )
                     )
                 )

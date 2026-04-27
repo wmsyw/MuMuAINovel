@@ -819,6 +819,11 @@ class PromptService:
 - 角色的能力表现须符合其职业和阶段设定
 </characters>
 
+<goldfingers priority="P1">
+【金手指/系统上下文 - 仅使用已审核事实】
+{goldfinger_context}
+</goldfingers>
+
 <careers priority="P2">
 【本章职业】
 {chapter_careers}
@@ -840,6 +845,7 @@ class PromptService:
 ✅ 保持角色性格、说话方式一致
 ✅ 角色互动须符合关系设定（师徒、朋友、敌对等）
 ✅ 组织相关情节须体现成员身份和职位层级
+✅ 金手指/系统能力只能依据已审核上下文描写，遵守其状态、触发、冷却、限制和历史证据
 ✅ 字数控制在目标范围内
 ✅ 如有伏笔提醒，请在本章中适当埋入或回收相应伏笔
 
@@ -883,6 +889,11 @@ class PromptService:
 {characters_info}
 </characters>
 
+<goldfingers priority="P1">
+【金手指/系统上下文 - 仅使用已审核事实】
+{goldfinger_context}
+</goldfingers>
+
 <careers priority="P2">
 【本章职业】
 {chapter_careers}
@@ -902,6 +913,7 @@ class PromptService:
 【必须遵守】
 ✅ 严格按照大纲推进情节
 ✅ 保持角色性格、说话方式一致
+✅ 金手指/系统能力只能依据已审核上下文描写，遵守其状态、触发、冷却、限制和历史证据
 ✅ 字数需要严格控制在目标字数内
 ✅ 如有伏笔提醒，请在本章中适当埋入或回收相应伏笔
 
@@ -954,6 +966,11 @@ class PromptService:
 {characters_info}
 </characters>
 
+<goldfingers priority="P1">
+【金手指/系统上下文 - 仅使用已审核事实】
+{goldfinger_context}
+</goldfingers>
+
 <careers priority="P2">
 【本章职业】
 {chapter_careers}
@@ -974,6 +991,7 @@ class PromptService:
 ✅ 严格按照大纲推进情节
 ✅ 自然承接上一章末尾内容，保持连贯性
 ✅ 保持角色性格、说话方式一致
+✅ 金手指/系统能力只能依据已审核上下文描写，遵守其状态、触发、冷却、限制和历史证据
 ✅ 字数需要严格控制在目标字数内
 ✅ 如有伏笔提醒，请在本章中适当埋入或回收相应伏笔
 
@@ -1048,6 +1066,11 @@ class PromptService:
 - 角色的能力表现须符合其职业和阶段设定
 </characters>
 
+<goldfingers priority="P1">
+【金手指/系统上下文 - 仅使用已审核事实】
+{goldfinger_context}
+</goldfingers>
+
 <careers priority="P2">
 【本章职业】
 {chapter_careers}
@@ -1070,6 +1093,7 @@ class PromptService:
 ✅ 保持角色性格、说话方式一致
 ✅ 角色互动须符合关系设定（师徒、朋友、敌对等）
 ✅ 组织相关情节须体现成员身份和职位层级
+✅ 金手指/系统能力只能依据已审核上下文描写，遵守其状态、触发、冷却、限制和历史证据
 ✅ 字数控制在目标范围内
 ✅ 如有伏笔提醒，请在本章中适当埋入或回收相应伏笔
 
@@ -1404,6 +1428,17 @@ class PromptService:
   - is_destroyed: 组织是否被覆灭（true/false，默认false）
   - 仅当章节明确描述组织被彻底消灭、瓦解、灭亡时设为true
 
+**5c. 金手指/系统变化追踪 (Goldfinger Changes) - 可选但重要**
+仅当章节明确出现主角系统、特殊能力、神器、血脉、外挂、规则面板、任务奖励等“金手指”事实时填写 goldfinger_changes：
+- 必须逐字提供 evidence_excerpt，复制原文中支撑该事实的8-50字片段
+- 必须提供 name 与 normalized_name；normalized_name 使用去空格、小写后的稳定名称
+- 如能确定拥有者，填写 owner_character_name，并尽量匹配已有角色；不确定时在 conflict_hint 说明
+- type 可选：system/ability/artifact/bloodline/panel/space/other
+- status 可选值：latent/active/sealed/cooldown/upgrading/lost/completed/unknown
+- operation 可选值：upsert/add/update/remove/seal/lost；删除、失去、封印等破坏性变化必须有明确原文证据
+- 只提取原文明确支持的增量事实：别名、任务、奖励、触发条件、冷却、使用示例、非冲突概要
+- 不要凭空推断规则和限制；规则 rules、限制 limits 必须来自清晰原文
+
 **6. 关键情节点 (Plot Points)**
 列出3-5个核心情节点：
 - 情节内容
@@ -1569,6 +1604,28 @@ class PromptService:
       "is_destroyed": false
     }}
   ],
+  "goldfinger_changes": [
+    {{
+      "name": "天命系统",
+      "normalized_name": "天命系统",
+      "owner_character_name": "张三",
+      "owner_character_id": null,
+      "type": "system",
+      "status": "active",
+      "summary": "发布任务并根据完成情况发放奖励",
+      "rules": ["只有宿主主动接受任务才会触发惩罚"],
+      "tasks": [{{"title": "三日内救下师姐", "status": "active"}}],
+      "rewards": [{{"name": "悟性提升", "amount": "+1"}}],
+      "limits": ["冷却期间不能连续领取同类任务"],
+      "trigger_conditions": ["宿主濒死时首次激活"],
+      "cooldown": {{"chapters": 3}},
+      "aliases": ["系统", "天命面板"],
+      "operation": "upsert",
+      "evidence_excerpt": "天命系统在他濒死时苏醒，发布三日任务",
+      "confidence": 0.94,
+      "conflict_hint": null
+    }}
+  ],
   "pacing": "varied",
   "dialogue_ratio": 0.4,
   "description_ratio": 0.3,
@@ -1595,6 +1652,9 @@ class PromptService:
 ✅ 职业变化可选：仅当章节明确描述时填写
 ✅ 组织变化可选：仅当章节明确描述角色与组织关系变动时填写（character_states中的organization_changes）
 ✅ 组织状态可选：仅当章节明确描述组织势力/据点/目标变化时填写（organization_states顶级字段）
+✅ 金手指变化可选：仅当章节明确出现系统/能力/神器/血脉/外挂变化时填写（goldfinger_changes顶级字段）
+✅ 金手指证据必填：goldfinger_changes 每项 evidence_excerpt 必须逐字复制原文证据
+✅ 金手指字段完整：goldfinger_changes 每项必须包含 name、normalized_name、owner_character_name、owner_character_id、type、status、summary、rules、tasks、rewards、limits、trigger_conditions、cooldown、aliases、operation、evidence_excerpt、confidence、conflict_hint
 ✅ 存活状态谨慎：survival_status仅当章节有明确死亡/失踪/退场描写时填写，默认null
 ✅ 组织覆灭谨慎：is_destroyed仅当组织被彻底消灭时设true，组织受损不算覆灭
 ✅ 【伏笔ID追踪】回收伏笔时，必须从【已埋入伏笔列表】中查找匹配的ID填入 reference_foreshadow_id
@@ -1621,6 +1681,8 @@ class PromptService:
 ❌ 遗漏必填的keyword字段
 ❌ 无根据地添加职业变化
 ❌ 无根据地添加组织变化或组织状态变化
+❌ 无根据地添加金手指变化、规则、限制、任务或奖励
+❌ 对删除/失去/封印类金手指变化缺少原文证据
 ❌ 无确切剧情依据地标记角色死亡或组织覆灭
 ❌ 所有章节都打7-8分的"安全分"
 ❌ 高分章节给大量建议，或低分章节不给建议
@@ -3013,6 +3075,8 @@ class PromptService:
                     kwargs["genre"]
                 )
 
+            kwargs.setdefault("goldfinger_context", "暂无金手指信息")
+
             # 如果模板中没有 {genre_strategy} 占位符，format 会忽略多余参数
             # 但为了安全起见，我们可以检查一下
             return template.format(**kwargs)
@@ -3396,6 +3460,7 @@ class PromptService:
                     "target_word_count",
                     "narrative_perspective",
                     "characters_info",
+                    "goldfinger_context",
                 ],
             },
             "CHAPTER_GENERATION_ONE_TO_MANY_NEXT": {
@@ -3411,6 +3476,7 @@ class PromptService:
                     "target_word_count",
                     "narrative_perspective",
                     "characters_info",
+                    "goldfinger_context",
                     "continuation_point",
                     "foreshadow_reminders",
                     "relevant_memories",
@@ -3431,6 +3497,7 @@ class PromptService:
                     "target_word_count",
                     "narrative_perspective",
                     "characters_info",
+                    "goldfinger_context",
                     "chapter_careers",
                 ],
             },
@@ -3448,6 +3515,7 @@ class PromptService:
                     "narrative_perspective",
                     "previous_chapter_content",
                     "characters_info",
+                    "goldfinger_context",
                     "chapter_careers",
                     "foreshadow_reminders",
                     "relevant_memories",

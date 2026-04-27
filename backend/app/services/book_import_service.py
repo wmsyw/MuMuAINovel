@@ -27,7 +27,7 @@ from app.models.mcp_plugin import MCPPlugin
 from app.models.outline import Outline
 from app.models.project import Project
 from app.models.project_default_style import ProjectDefaultStyle
-from app.models.relationship import CharacterRelationship, Organization, OrganizationEntity, OrganizationMember, RelationshipType
+from app.models.relationship import EntityRelationship, Organization, OrganizationEntity, OrganizationMember, RelationshipType
 from app.models.settings import Settings
 from app.models.writing_style import WritingStyle
 from app.schemas.book_import import (
@@ -47,6 +47,7 @@ from app.services.entity_generation_policy_service import entity_generation_poli
 from app.services.organization_compat import add_organization_member, create_organization_entity_from_payload
 from app.services.extraction_service import run_project_extraction_trigger_after_commit
 from app.services.prompt_service import PromptService
+from app.services.relationship_merge_service import RelationshipMergeService
 from app.services.txt_parser_service import txt_parser_service
 
 logger = get_logger(__name__)
@@ -741,7 +742,7 @@ class BookImportService:
         char_ids_result = await db.execute(select(Character.id).where(Character.project_id == project_id))
         char_ids = [row[0] for row in char_ids_result.fetchall()]
 
-        await db.execute(delete(CharacterRelationship).where(CharacterRelationship.project_id == project_id))
+        await db.execute(delete(EntityRelationship).where(EntityRelationship.project_id == project_id))
         await db.execute(delete(OrganizationMember).where(OrganizationMember.character_id.in_(char_ids)))
         await db.execute(delete(Organization).where(Organization.project_id == project_id))
         await db.execute(delete(CharacterCareer).where(CharacterCareer.character_id.in_(char_ids)))
@@ -2047,8 +2048,12 @@ class BookImportService:
         member_pairs = {(row[0], row[1]) for row in existing_member_result.all()}
 
         existing_rel_result = await db.execute(
-            select(CharacterRelationship.character_from_id, CharacterRelationship.character_to_id)
-            .where(CharacterRelationship.project_id == project.id)
+            select(EntityRelationship.from_entity_id, EntityRelationship.to_entity_id)
+            .where(
+                EntityRelationship.project_id == project.id,
+                EntityRelationship.from_entity_type == "character",
+                EntityRelationship.to_entity_type == "character",
+            )
         )
         relationship_pairs = {(row[0], row[1]) for row in existing_rel_result.all()}
 
@@ -2221,20 +2226,21 @@ class BookImportService:
                 if description is not None:
                     description = str(description)
 
-                db.add(
-                    CharacterRelationship(
-                        project_id=project.id,
-                        character_from_id=character.id,
-                        character_to_id=target_char.id,
-                        relationship_type_id=relationship_type_map.get(relationship_name),
-                        relationship_name=relationship_name,
-                        intimacy_level=intimacy_level,
-                        status=status,
-                        description=description,
-                        source="ai",
-                    )
+                merge_result = await RelationshipMergeService(db).merge_character_relationship(
+                    project_id=project.id,
+                    character_from_id=character.id,
+                    character_to_id=target_char.id,
+                    relationship_type_id=relationship_type_map.get(relationship_name),
+                    relationship_name=relationship_name,
+                    intimacy_level=intimacy_level,
+                    status=status,
+                    description=description,
+                    source="ai",
+                    confidence=1.0,
+                    allow_conflict_apply=True,
                 )
-                relationship_pairs.add(pair)
+                if merge_result.relationship is not None:
+                    relationship_pairs.add(pair)
 
         # 第四阶段：创建组织成员关系（优先使用角色上的 organization_memberships）
         for character, item in created_items:

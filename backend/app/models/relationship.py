@@ -23,7 +23,11 @@ class RelationshipType(Base):
 
 
 class CharacterRelationship(Base):
-    """角色关系表"""
+    """[DEPRECATED] 旧角色关系表。
+
+    Compatibility storage only. New relationship writes must target
+    EntityRelationship with character/organization typed endpoints.
+    """
     __tablename__ = "character_relationships"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()), comment="关系ID")
@@ -83,6 +87,16 @@ class EntityRelationship(Base):
         Index("idx_entity_relationships_from", "from_entity_type", "from_entity_id"),
         Index("idx_entity_relationships_to", "to_entity_type", "to_entity_id"),
     )
+
+    @property
+    def character_from_id(self) -> str | None:
+        """Compatibility projection for legacy character relationship consumers."""
+        return self.from_entity_id if self.from_entity_type == "character" else None
+
+    @property
+    def character_to_id(self) -> str | None:
+        """Compatibility projection for legacy character relationship consumers."""
+        return self.to_entity_id if self.to_entity_type == "character" else None
 
 
 class Organization(Base):
@@ -251,6 +265,7 @@ class ExtractionCandidate(Base):
     reviewer_user_id = Column(String(100), comment="评审用户ID")
     reviewed_at = Column(DateTime, comment="评审时间")
     accepted_at = Column(DateTime, comment="接受时间")
+    review_required_reason = Column(Text, comment="需要人工评审原因")
     rejection_reason = Column(Text, comment="拒绝原因")
     supersedes_candidate_id = Column(String(36), ForeignKey("extraction_candidates.id", ondelete="SET NULL"), comment="被替代候选ID")
     rollback_of_candidate_id = Column(String(36), ForeignKey("extraction_candidates.id", ondelete="SET NULL"), comment="回滚的候选ID")

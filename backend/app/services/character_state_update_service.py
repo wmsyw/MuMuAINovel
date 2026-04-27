@@ -5,11 +5,11 @@ from sqlalchemy import select, or_, and_
 from app.config import settings as app_settings
 from app.models.chapter import Chapter
 from app.models.character import Character
-from app.models.relationship import CharacterRelationship, OrganizationEntity, OrganizationMember
+from app.models.relationship import EntityRelationship, OrganizationEntity, OrganizationMember
 from app.services.organization_compat import add_organization_member, ensure_organization_bridge
 from app.services.extraction_service import ExtractionTriggerService
+from app.services.relationship_merge_service import RelationshipMergeService
 from app.logger import get_logger
-import uuid
 
 logger = get_logger(__name__)
 
@@ -426,13 +426,15 @@ class CharacterStateUpdateService:
         
         # 级联更新：所有活跃关系变为 past
         rels_result = await db.execute(
-            select(CharacterRelationship).where(
+            select(EntityRelationship).where(
                 and_(
-                    CharacterRelationship.project_id == project_id,
-                    CharacterRelationship.status == 'active',
+                    EntityRelationship.project_id == project_id,
+                    EntityRelationship.status == 'active',
+                    EntityRelationship.from_entity_type == "character",
+                    EntityRelationship.to_entity_type == "character",
                     or_(
-                        CharacterRelationship.character_from_id == character.id,
-                        CharacterRelationship.character_to_id == character.id
+                        EntityRelationship.from_entity_id == character.id,
+                        EntityRelationship.to_entity_id == character.id
                     )
                 )
             )
@@ -567,84 +569,53 @@ class CharacterStateUpdateService:
                 if character.id == target_character.id:
                     continue
 
-                # 查询是否已存在关系（A→B 或 B→A）
-                existing_rel_result = await db.execute(
-                    select(CharacterRelationship).where(
-                        and_(
-                            CharacterRelationship.project_id == project_id,
-                            or_(
-                                and_(
-                                    CharacterRelationship.character_from_id == character.id,
-                                    CharacterRelationship.character_to_id == target_character.id
-                                ),
-                                and_(
-                                    CharacterRelationship.character_from_id == target_character.id,
-                                    CharacterRelationship.character_to_id == character.id
-                                )
-                            )
-                        )
-                    )
-                )
-                existing_rel = existing_rel_result.scalar_one_or_none()
-
                 # 计算亲密度调整
                 intimacy_delta = CharacterStateUpdateService._calculate_intimacy_delta(change_desc)
+                merge_service = RelationshipMergeService(db)
+                existing_rel = await merge_service._find_existing_character_relationship(project_id, character.id, target_character.id)
+                old_intimacy = existing_rel.intimacy_level if existing_rel and existing_rel.intimacy_level is not None else 50
+                new_intimacy = max(-100, min(100, old_intimacy + intimacy_delta)) if existing_rel else max(-100, min(100, 50 + intimacy_delta))
+                chapter_note = f"[第{chapter_number}章] {change_desc}"
+                description = f"{existing_rel.description}\n{chapter_note}" if existing_rel and existing_rel.description else chapter_note
+                merge_result = await merge_service.merge_character_relationship(
+                    project_id=project_id,
+                    character_from_id=character.id,
+                    character_to_id=target_character.id,
+                    relationship_type_id=None,
+                    relationship_name=change_desc,
+                    intimacy_level=new_intimacy,
+                    status="active",
+                    description=description,
+                    source="analysis",
+                    source_chapter_id=chapter_id,
+                    evidence_excerpt=change_desc,
+                    confidence=0.84,
+                    allow_conflict_apply=True,
+                    merge_decision="analysis_applied",
+                )
 
-                if existing_rel:
-                    # 更新已有关系
-                    # 更新关系名称为最新的变化描述（以AI分析结果为准）
-                    existing_rel.relationship_name = change_desc
-                    
-                    # 追加变更记录到描述
-                    chapter_note = f"[第{chapter_number}章] {change_desc}"
-                    if existing_rel.description:
-                        existing_rel.description = f"{existing_rel.description}\n{chapter_note}"
-                    else:
-                        existing_rel.description = chapter_note
-
-                    # 调整亲密度
+                if existing_rel and merge_result.relationship:
                     if intimacy_delta != 0:
-                        old_intimacy = existing_rel.intimacy_level or 0
-                        new_intimacy = max(-100, min(100, old_intimacy + intimacy_delta))
-                        existing_rel.intimacy_level = new_intimacy
                         logger.info(
                             f"  📊 {character.name}↔{target_name} 亲密度: "
                             f"{old_intimacy} → {new_intimacy} ({'+' if intimacy_delta > 0 else ''}{intimacy_delta})"
                         )
-
                     updated_count += 1
                     changes.append(
                         f"🔄 {character.name}↔{target_name} 关系更新: {change_desc}"
                     )
                     logger.info(f"  ✅ 更新关系: {character.name}↔{target_name} - {change_desc}")
-
-                else:
-                    # 创建新关系 — 关系名称直接使用AI的变化描述
-                    # 设定初始亲密度
-                    initial_intimacy = max(-100, min(100, 50 + intimacy_delta))
-
-                    new_relationship = CharacterRelationship(
-                        id=str(uuid.uuid4()),
-                        project_id=project_id,
-                        character_from_id=character.id,
-                        character_to_id=target_character.id,
-                        relationship_type_id=None,  # 不强制关联预定义类型
-                        relationship_name=change_desc,  # 直接使用AI分析返回的描述
-                        intimacy_level=initial_intimacy,
-                        status="active",
-                        description=f"[第{chapter_number}章] {change_desc}",
-                        source="analysis"
-                    )
-                    db.add(new_relationship)
-
+                elif merge_result.relationship:
                     created_count += 1
                     changes.append(
                         f"✨ {character.name}→{target_name} 新关系: {change_desc}"
                     )
                     logger.info(
                         f"  ✅ 创建关系: {character.name}→{target_name} "
-                        f"({change_desc}, 亲密度:{initial_intimacy})"
+                        f"({change_desc}, 亲密度:{new_intimacy})"
                     )
+                else:
+                    logger.info(f"  📋 关系候选待评审: {character.name}↔{target_name} - {merge_result.reason}")
 
             except Exception as item_error:
                 logger.error(

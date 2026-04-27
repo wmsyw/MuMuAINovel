@@ -4,6 +4,7 @@ import importlib.util
 from pathlib import Path
 
 import sqlalchemy as sa
+import pytest
 from alembic.operations import Operations
 from alembic.runtime.migration import MigrationContext
 
@@ -12,10 +13,12 @@ from app.database import Base
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 SQLITE_MIGRATION = BACKEND_ROOT / "alembic/sqlite/versions/20260426_1202_c8d9e0f1a2b3_extraction_graph_org_split.py"
+SQLITE_GOLDFINGER_MIGRATION = BACKEND_ROOT / "alembic/sqlite/versions/20260427_0902_e0f1a2b3c4d5_add_goldfinger_schema.py"
+SQLITE_RELATIONSHIP_BACKFILL_MIGRATION = BACKEND_ROOT / "alembic/sqlite/versions/20260427_1302_f1a2b3c4d5e7_backfill_character_relationships_to_entity.py"
 
 
-def load_sqlite_migration():
-    spec = importlib.util.spec_from_file_location("sqlite_extraction_graph_org_split", SQLITE_MIGRATION)
+def load_sqlite_migration(path: Path, module_name: str):
+    spec = importlib.util.spec_from_file_location(module_name, path)
     assert spec is not None
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
@@ -85,6 +88,7 @@ def create_minimal_legacy_schema(connection: sa.Connection) -> None:
     )
     sa.Table("chapters", metadata, sa.Column("id", sa.String(36), primary_key=True))
     sa.Table("careers", metadata, sa.Column("id", sa.String(36), primary_key=True))
+    sa.Table("users", metadata, sa.Column("user_id", sa.String(100), primary_key=True))
     sa.Table("relationship_types", metadata, sa.Column("id", sa.Integer(), primary_key=True))
     sa.Table(
         "character_relationships",
@@ -158,10 +162,15 @@ def create_minimal_legacy_schema(connection: sa.Connection) -> None:
 
 
 def upgrade_legacy_schema(connection: sa.Connection) -> None:
-    migration = load_sqlite_migration()
     context = MigrationContext.configure(connection)
-    migration.op = Operations(context)
-    migration.upgrade()
+    for path, module_name in (
+        (SQLITE_MIGRATION, "sqlite_extraction_graph_org_split"),
+        (SQLITE_GOLDFINGER_MIGRATION, "sqlite_goldfinger_schema"),
+        (SQLITE_RELATIONSHIP_BACKFILL_MIGRATION, "sqlite_relationship_backfill"),
+    ):
+        migration = load_sqlite_migration(path, module_name)
+        migration.op = Operations(context)
+        migration.upgrade()
 
 
 def test_fresh_database_has_extraction_graph_schema() -> None:
@@ -178,10 +187,32 @@ def test_fresh_database_has_extraction_graph_schema() -> None:
             "entity_provenance",
             "relationship_timeline_events",
             "world_setting_results",
+            "goldfingers",
+            "goldfinger_history_events",
         }.issubset(inspector.get_table_names())
         assert "is_organization" not in {column["name"] for column in inspector.get_columns("characters")}
         assert "canonical_target_type" in {column["name"] for column in inspector.get_columns("extraction_candidates")}
+        assert "review_required_reason" in {column["name"] for column in inspector.get_columns("extraction_candidates")}
         assert "canonical_entity_type" not in {column["name"] for column in inspector.get_columns("extraction_candidates")}
+
+
+def test_goldfinger_status_rejects_invalid_values() -> None:
+    engine = sa.create_engine("sqlite:///:memory:")
+    with engine.begin() as connection:
+        Base.metadata.create_all(connection)
+        goldfingers = Base.metadata.tables["goldfingers"]
+
+        with pytest.raises(sa.exc.IntegrityError):
+            connection.execute(sa.insert(goldfingers).values(
+                id="gf-invalid-status",
+                project_id="project-1",
+                name="错误状态系统",
+                normalized_name="错误状态系统",
+                status="super_active",
+            ))
+
+        count = connection.execute(sa.select(sa.func.count()).select_from(goldfingers)).scalar_one()
+        assert count == 0
 
 
 def test_org_split_migration_preserves_data() -> None:
@@ -262,6 +293,51 @@ def test_entity_relationship_migration_preserves_old_relationship_endpoints() ->
         assert relationship["legacy_character_relationship_id"] == "rel-1"
 
 
+def test_relationship_backfill_migration_copies_post_upgrade_legacy_character_edges() -> None:
+    engine = sa.create_engine("sqlite:///:memory:")
+    with engine.begin() as connection:
+        create_minimal_legacy_schema(connection)
+        # Run only the schema migrations first, then insert a late legacy row to
+        # verify the Task 5 data-only backfill covers already-upgraded systems.
+        for path, module_name in (
+            (SQLITE_MIGRATION, "sqlite_extraction_graph_org_split_late"),
+            (SQLITE_GOLDFINGER_MIGRATION, "sqlite_goldfinger_schema_late"),
+        ):
+            migration = load_sqlite_migration(path, module_name)
+            migration.op = Operations(MigrationContext.configure(connection))
+            migration.upgrade()
+
+        connection.execute(sa.text(
+            """
+            INSERT INTO character_relationships (
+                id, project_id, character_from_id, character_to_id, relationship_type_id,
+                relationship_name, intimacy_level, status, description, started_at, ended_at, source
+            ) VALUES (
+                'rel-late', 'project-1', 'char-1', 'char-1', NULL,
+                '自省', 50, 'active', '后续旧路径写入', '第二章', NULL, 'manual'
+            )
+            """
+        ))
+
+        migration = load_sqlite_migration(SQLITE_RELATIONSHIP_BACKFILL_MIGRATION, "sqlite_relationship_backfill_late")
+        migration.op = Operations(MigrationContext.configure(connection))
+        migration.upgrade()
+
+        relationship = connection.execute(sa.text(
+            """
+            SELECT from_entity_type, from_entity_id, to_entity_type, to_entity_id,
+                   relationship_name, legacy_character_relationship_id
+            FROM entity_relationships
+            WHERE legacy_character_relationship_id = 'rel-late'
+            """
+        )).mappings().one()
+        assert relationship["from_entity_type"] == "character"
+        assert relationship["from_entity_id"] == "char-1"
+        assert relationship["to_entity_type"] == "character"
+        assert relationship["to_entity_id"] == "char-1"
+        assert relationship["relationship_name"] == "自省"
+
+
 def test_settings_columns_are_added_by_migration() -> None:
     engine = sa.create_engine("sqlite:///:memory:")
     with engine.begin() as connection:
@@ -271,3 +347,62 @@ def test_settings_columns_are_added_by_migration() -> None:
         assert settings_columns["default_reasoning_intensity"]["nullable"] is False
         assert settings_columns["reasoning_overrides"]["nullable"] is True
         assert settings_columns["allow_ai_entity_generation"]["nullable"] is False
+
+
+def test_goldfinger_migration_adds_tables_review_reason_and_status_constraint() -> None:
+    engine = sa.create_engine("sqlite:///:memory:")
+    with engine.begin() as connection:
+        create_minimal_legacy_schema(connection)
+        upgrade_legacy_schema(connection)
+        inspector = sa.inspect(connection)
+
+        assert {"goldfingers", "goldfinger_history_events"}.issubset(inspector.get_table_names())
+        goldfinger_columns = {column["name"] for column in inspector.get_columns("goldfingers")}
+        assert {
+            "id",
+            "project_id",
+            "name",
+            "normalized_name",
+            "owner_character_id",
+            "owner_character_name",
+            "type",
+            "status",
+            "summary",
+            "rules",
+            "tasks",
+            "rewards",
+            "limits",
+            "trigger_conditions",
+            "cooldown",
+            "aliases",
+            "metadata",
+            "created_at",
+            "updated_at",
+            "created_by",
+            "updated_by",
+            "source",
+            "confidence",
+            "last_source_chapter_id",
+        }.issubset(goldfinger_columns)
+        history_columns = {column["name"] for column in inspector.get_columns("goldfinger_history_events")}
+        assert {
+            "goldfinger_id",
+            "project_id",
+            "chapter_id",
+            "event_type",
+            "old_value",
+            "new_value",
+            "evidence_excerpt",
+            "confidence",
+            "source_type",
+            "created_at",
+        }.issubset(history_columns)
+        assert "review_required_reason" in {column["name"] for column in inspector.get_columns("extraction_candidates")}
+
+        with pytest.raises(sa.exc.IntegrityError):
+            connection.execute(sa.text(
+                """
+                INSERT INTO goldfingers (id, project_id, name, normalized_name, status)
+                VALUES ('gf-invalid', 'project-1', '错误状态系统', '错误状态系统', 'super_active')
+                """
+            ))

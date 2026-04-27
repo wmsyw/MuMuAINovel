@@ -22,7 +22,7 @@ from app.models.outline import Outline
 from app.models.character import Character
 from app.models.career import Career, CharacterCareer
 from app.models.relationship import (
-    CharacterRelationship,
+    EntityRelationship,
     Organization,
     OrganizationEntity,
     OrganizationMember,
@@ -65,6 +65,7 @@ from app.services.plot_analyzer import PlotAnalyzer
 from app.services.memory_service import memory_service
 from app.services.foreshadow_service import foreshadow_service
 from app.services.chapter_regenerator import ChapterRegenerator
+from app.services.chapter_fact_sync_service import ChapterFactSyncService
 from app.services.extraction_service import run_extraction_trigger_after_commit
 from app.logger import get_logger
 from app.api.settings import get_user_ai_service
@@ -83,6 +84,62 @@ async def get_db_write_lock(user_id: str) -> Lock:
         db_write_locks[user_id] = Lock()
         logger.debug(f"🔒 为用户 {user_id} 创建数据库写入锁")
     return db_write_locks[user_id]
+
+
+def _schedule_chapter_fact_sync_fire_and_forget(
+    *,
+    user_id: str,
+    project_id: str,
+    chapter_id: str,
+    content: str | None,
+    source: str,
+    source_metadata: dict | None = None,
+) -> asyncio.Task | None:
+    """Schedule relationship/goldfinger sync without blocking chapter saves."""
+    if not content or not content.strip():
+        return None
+    task = asyncio.create_task(
+        _schedule_chapter_fact_sync_job(
+            user_id=user_id,
+            project_id=project_id,
+            chapter_id=chapter_id,
+            content=content,
+            source=source,
+            source_metadata=source_metadata,
+        )
+    )
+    return task
+
+
+async def _schedule_chapter_fact_sync_job(
+    *,
+    user_id: str,
+    project_id: str,
+    chapter_id: str,
+    content: str,
+    source: str,
+    source_metadata: dict | None = None,
+) -> None:
+    """Open an isolated DB session and persist ChapterFactSyncService runs."""
+    try:
+        from app.database import get_engine
+        from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+
+        engine = await get_engine(user_id)
+        AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+        async with AsyncSessionLocal() as session:
+            await session.run_sync(
+                lambda sync_session: ChapterFactSyncService(sync_session).schedule_for_chapter(
+                    project_id=project_id,
+                    chapter_id=chapter_id,
+                    content=content,
+                    source=source,
+                    source_metadata=source_metadata or {},
+                )
+            )
+            await session.commit()
+    except Exception as exc:
+        logger.warning("⚠️ 章节事实同步调度失败（已忽略，不阻断保存）: %s", exc)
 
 
 @router.post("", response_model=ChapterResponse, summary="创建章节")
@@ -373,12 +430,12 @@ async def update_chapter(
     await db.refresh(chapter)
 
     if "content" in update_data and chapter.content and chapter.content.strip():
-        _ = await run_extraction_trigger_after_commit(
-            db,
+        _schedule_chapter_fact_sync_fire_and_forget(
+            user_id=str(user_id),
             project_id=chapter.project_id,
             chapter_id=chapter.id,
-            user_id=str(user_id),
-            trigger_source="chapter_save",
+            content=chapter.content,
+            source="chapter_save",
             source_metadata={"operation": "update_chapter"},
         )
 
@@ -573,11 +630,13 @@ async def build_characters_info_with_careers(
     from sqlalchemy import or_
 
     rels_result = await db.execute(
-        select(CharacterRelationship).where(
-            CharacterRelationship.project_id == project_id,
+        select(EntityRelationship).where(
+            EntityRelationship.project_id == project_id,
+            EntityRelationship.from_entity_type == "character",
+            EntityRelationship.to_entity_type == "character",
             or_(
-                CharacterRelationship.character_from_id.in_(character_ids),
-                CharacterRelationship.character_to_id.in_(character_ids),
+                EntityRelationship.from_entity_id.in_(character_ids),
+                EntityRelationship.to_entity_id.in_(character_ids),
             ),
         )
     )
@@ -1307,51 +1366,23 @@ async def analyze_chapter_background(
             except Exception as e:
                 logger.error(f"❌ 状态维护失败: {str(e)}", exc_info=True)
 
-        # 👤 更新角色心理状态和关系（根据分析结果）
-        if analysis_result.get("character_states"):
-            try:
-                from app.services.character_state_update_service import (
-                    CharacterStateUpdateService,
-                )
-
-                logger.info(f"👤 开始根据分析结果更新角色状态、关系和组织成员...")
-                async with write_lock:
-                    state_update_result = (
-                        await CharacterStateUpdateService.update_from_analysis(
-                            db=db_session,
-                            project_id=project_id,
-                            character_states=analysis_result.get(
-                                "character_states", []
-                            ),
-                            chapter_id=chapter_id,
-                            chapter_number=chapter.chapter_number,
-                        )
-                    )
-
-                total_state_changes = (
-                    state_update_result["state_updated_count"]
-                    + state_update_result["relationship_created_count"]
-                    + state_update_result["relationship_updated_count"]
-                    + state_update_result.get("org_updated_count", 0)
-                )
-                if total_state_changes > 0:
-                    logger.info(
-                        f"✅ 角色状态更新: 心理状态{state_update_result['state_updated_count']}个, "
-                        f"新建关系{state_update_result['relationship_created_count']}个, "
-                        f"更新关系{state_update_result['relationship_updated_count']}个, "
-                        f"组织变动{state_update_result.get('org_updated_count', 0)}个"
-                    )
-                    if state_update_result["changes"]:
-                        for change in state_update_result["changes"][:8]:
-                            logger.info(f"  - {change}")
-                else:
-                    logger.info("ℹ️ 本章节无角色状态、关系或组织变化")
-
-            except Exception as state_error:
-                # 角色状态更新失败不应影响整个分析流程
-                logger.error(
-                    f"⚠️ 更新角色状态、关系和组织失败: {str(state_error)}", exc_info=True
-                )
+        # 👤 关系/金手指事实统一进入 ChapterFactSyncService，避免直接写旧关系表
+        if analysis_result.get("character_states") or analysis_result.get("goldfinger_changes"):
+            _schedule_chapter_fact_sync_fire_and_forget(
+                user_id=user_id,
+                project_id=project_id,
+                chapter_id=chapter_id,
+                content=chapter.content,
+                source="chapter_analysis",
+                source_metadata={
+                    "operation": "analyze_chapter_background",
+                    "task_id": task_id,
+                    "chapter_number": chapter.chapter_number,
+                    "has_character_states": bool(analysis_result.get("character_states")),
+                    "has_goldfinger_changes": bool(analysis_result.get("goldfinger_changes")),
+                },
+            )
+            logger.info("📋 已调度章节事实同步（关系/金手指），不直接写入角色关系表")
 
         # 🏛️ 更新组织自身状态（根据分析结果）
         if analysis_result.get("organization_states"):
@@ -1673,6 +1704,9 @@ async def generate_chapter_content_stream(
                         f"  - 角色信息: {chapter_context.context_stats.get('characters_length', 0)} 字符"
                     )
                     logger.info(
+                        f"  - 金手指上下文: {chapter_context.context_stats.get('goldfinger_length', 0)} 字符"
+                    )
+                    logger.info(
                         f"  - 伏笔提醒: {chapter_context.context_stats.get('foreshadow_length', 0)} 字符"
                     )
                     logger.info(
@@ -1707,6 +1741,9 @@ async def generate_chapter_content_stream(
                     )
                     logger.info(
                         f"  - 角色信息: {chapter_context.context_stats.get('characters_length', 0)} 字符"
+                    )
+                    logger.info(
+                        f"  - 金手指上下文: {chapter_context.context_stats.get('goldfinger_length', 0)} 字符"
                     )
                     logger.info(
                         f"  - 相关记忆: {chapter_context.context_stats.get('memories_length', 0)} 字符"
@@ -1755,6 +1792,8 @@ async def generate_chapter_content_stream(
                             or "（无上一章摘要）",
                             characters_info=chapter_context.chapter_characters
                             or "暂无角色信息",
+                            goldfinger_context=chapter_context.goldfinger_context
+                            or "暂无金手指信息",
                             chapter_careers=chapter_context.chapter_careers
                             or "暂无职业信息",
                             foreshadow_reminders=chapter_context.foreshadow_reminders
@@ -1781,6 +1820,8 @@ async def generate_chapter_content_stream(
                             narrative_perspective=chapter_perspective,
                             characters_info=chapter_context.chapter_characters
                             or "暂无角色信息",
+                            goldfinger_context=chapter_context.goldfinger_context
+                            or "暂无金手指信息",
                             chapter_careers=chapter_context.chapter_careers
                             or "暂无职业信息",
                             foreshadow_reminders=chapter_context.foreshadow_reminders
@@ -1819,6 +1860,8 @@ async def generate_chapter_content_stream(
                             narrative_perspective=chapter_perspective,
                             characters_info=chapter_context.chapter_characters
                             or "暂无角色信息",
+                            goldfinger_context=chapter_context.goldfinger_context
+                            or "暂无金手指信息",
                             chapter_careers=chapter_context.chapter_careers
                             or "暂无职业信息",
                             foreshadow_reminders=chapter_context.foreshadow_reminders
@@ -1850,6 +1893,8 @@ async def generate_chapter_content_stream(
                             narrative_perspective=chapter_perspective,
                             characters_info=chapter_context.chapter_characters
                             or "暂无角色信息",
+                            goldfinger_context=chapter_context.goldfinger_context
+                            or "暂无金手指信息",
                             chapter_careers=chapter_context.chapter_careers
                             or "暂无职业信息",
                             foreshadow_reminders=chapter_context.foreshadow_reminders
@@ -1971,12 +2016,12 @@ async def generate_chapter_content_stream(
                 db_committed = True
                 await db_session.refresh(current_chapter)
 
-                _ = await run_extraction_trigger_after_commit(
-                    db_session,
+                _schedule_chapter_fact_sync_fire_and_forget(
+                    user_id=current_user_id,
                     project_id=project.id,
                     chapter_id=current_chapter.id,
-                    user_id=current_user_id,
-                    trigger_source="chapter_generation",
+                    content=full_content,
+                    source="chapter_generation",
                     source_metadata={"operation": "generate_chapter_content_stream"},
                 )
 
@@ -3380,6 +3425,9 @@ async def generate_single_chapter_for_batch(
         f"  - 相关记忆: {chapter_context.context_stats.get('memory_count', 0)} 条"
     )
     logger.info(
+        f"  - 金手指上下文: {chapter_context.context_stats.get('goldfinger_count', 0)} 个"
+    )
+    logger.info(
         f"  - 总上下文长度: {chapter_context.context_stats.get('total_length', 0)} 字符"
     )
 
@@ -3403,6 +3451,7 @@ async def generate_single_chapter_for_batch(
                 narrative_perspective=project.narrative_perspective or "第三人称",
                 previous_chapter_content=chapter_context.continuation_point,
                 characters_info=chapter_context.chapter_characters or "暂无角色信息",
+                goldfinger_context=chapter_context.goldfinger_context or "暂无金手指信息",
                 chapter_careers=chapter_context.chapter_careers or "暂无职业信息",
                 foreshadow_reminders=chapter_context.foreshadow_reminders
                 or "暂无需要关注的伏笔",
@@ -3424,6 +3473,7 @@ async def generate_single_chapter_for_batch(
                 genre=project.genre or "未设定",
                 narrative_perspective=project.narrative_perspective or "第三人称",
                 characters_info=chapter_context.chapter_characters or "暂无角色信息",
+                goldfinger_context=chapter_context.goldfinger_context or "暂无金手指信息",
                 chapter_careers=chapter_context.chapter_careers or "暂无职业信息",
                 foreshadow_reminders=chapter_context.foreshadow_reminders
                 or "暂无需要关注的伏笔",
@@ -3455,6 +3505,7 @@ async def generate_single_chapter_for_batch(
                 genre=project.genre or "未设定",
                 narrative_perspective=project.narrative_perspective or "第三人称",
                 characters_info=chapter_context.chapter_characters or "暂无角色信息",
+                goldfinger_context=chapter_context.goldfinger_context or "暂无金手指信息",
                 chapter_careers=chapter_context.chapter_careers or "暂无职业信息",
                 foreshadow_reminders=chapter_context.foreshadow_reminders
                 or "暂无需要关注的伏笔",
@@ -3477,6 +3528,7 @@ async def generate_single_chapter_for_batch(
                 genre=project.genre or "未设定",
                 narrative_perspective=project.narrative_perspective or "第三人称",
                 characters_info=chapter_context.chapter_characters or "暂无角色信息",
+                goldfinger_context=chapter_context.goldfinger_context or "暂无金手指信息",
                 chapter_careers=chapter_context.chapter_careers or "暂无职业信息",
                 foreshadow_reminders=chapter_context.foreshadow_reminders
                 or "暂无需要关注的伏笔",
@@ -3556,6 +3608,20 @@ async def generate_single_chapter_for_batch(
 
         await db_session.commit()
         await db_session.refresh(chapter)
+
+    _schedule_chapter_fact_sync_fire_and_forget(
+        user_id=user_id,
+        project_id=chapter.project_id,
+        chapter_id=chapter.id,
+        content=full_content,
+        source="chapter_generation",
+        source_metadata={
+            "operation": "generate_single_chapter_for_batch",
+            "chapter_number": chapter.chapter_number,
+            "old_word_count": old_word_count,
+            "new_word_count": new_word_count,
+        },
+    )
 
     logger.info(
         f"✅ 单章节生成完成: 第{chapter.chapter_number}章，共 {new_word_count} 字"
@@ -4441,6 +4507,22 @@ async def apply_partial_regenerate(
 
     await db.commit()
     await db.refresh(chapter)
+
+    _schedule_chapter_fact_sync_fire_and_forget(
+        user_id=str(user_id),
+        project_id=chapter.project_id,
+        chapter_id=chapter.id,
+        content=chapter.content,
+        source="chapter_partial_regenerate",
+        source_metadata={
+            "operation": "apply_partial_regenerate",
+            "start_position": start_position,
+            "end_position": end_position,
+            "old_word_count": old_word_count,
+            "new_word_count": new_word_count,
+            "replacement_word_count": len(new_text),
+        },
+    )
 
     logger.info(
         f"✅ 局部重写已应用: 章节{chapter_id}, {old_word_count}字 -> {new_word_count}字"

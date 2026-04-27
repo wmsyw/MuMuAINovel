@@ -10,7 +10,7 @@ from app.database import get_db
 from app.utils.sse_response import SSEResponse, create_sse_response, WizardProgressTracker
 from app.models.character import Character
 from app.models.generation_history import GenerationHistory
-from app.models.relationship import CharacterRelationship, Organization, OrganizationEntity, OrganizationMember, RelationshipType
+from app.models.relationship import EntityRelationship, Organization, OrganizationEntity, OrganizationMember, RelationshipType
 from app.schemas.character import (
     CharacterCreate,
     CharacterUpdate,
@@ -22,6 +22,7 @@ from app.services.ai_service import AIService
 from app.services.entity_generation_policy_service import entity_generation_policy_service
 from app.services.prompt_service import PromptService
 from app.services.import_export_service import ImportExportService
+from app.services.relationship_merge_service import RelationshipMergeService
 from app.schemas.import_export import CharactersExportRequest, CharactersImportResult
 from app.logger import get_logger
 from app.api.settings import get_user_ai_service
@@ -33,16 +34,18 @@ logger = get_logger(__name__)
 
 
 async def _build_relationships_summary(character_id: str, project_id: str, db: AsyncSession) -> str:
-    """从 character_relationships 表构建角色关系摘要文本"""
+    """从 entity_relationships 表构建角色关系摘要文本"""
     from sqlalchemy import or_
     
     # 查询该角色参与的所有关系
     rels_result = await db.execute(
-        select(CharacterRelationship).where(
-            CharacterRelationship.project_id == project_id,
+        select(EntityRelationship).where(
+            EntityRelationship.project_id == project_id,
+            EntityRelationship.from_entity_type == "character",
+            EntityRelationship.to_entity_type == "character",
             or_(
-                CharacterRelationship.character_from_id == character_id,
-                CharacterRelationship.character_to_id == character_id
+                EntityRelationship.from_entity_id == character_id,
+                EntityRelationship.to_entity_id == character_id
             )
         )
     )
@@ -1318,29 +1321,14 @@ async def generate_character_stream(
                             
                             if target_char:
                                 # 检查是否已存在相同关系
-                                existing_rel = await db.execute(
-                                    select(CharacterRelationship).where(
-                                        CharacterRelationship.project_id == request.project_id,
-                                        CharacterRelationship.character_from_id == character.id,
-                                        CharacterRelationship.character_to_id == target_char.id
-                                    )
-                                )
-                                if existing_rel.scalar_one_or_none():
+                                merge_service = RelationshipMergeService(db)
+                                existing_rel = await merge_service._find_existing_character_relationship(request.project_id, character.id, target_char.id)
+                                if existing_rel is not None:
                                     logger.debug(f"  ℹ️  关系已存在：{character.name} -> {target_name}")
                                     continue
-                                
-                                relationship = CharacterRelationship(
-                                    project_id=request.project_id,
-                                    character_from_id=character.id,
-                                    character_to_id=target_char.id,
-                                    relationship_name=rel.get("relationship_type", "未知关系"),
-                                    intimacy_level=rel.get("intimacy_level", 50),
-                                    description=rel.get("description", ""),
-                                    started_at=rel.get("started_at"),
-                                    source="ai"
-                                )
-                                
+
                                 # 匹配预定义关系类型
+                                relationship_type_id = None
                                 rel_type_result = await db.execute(
                                     select(RelationshipType).where(
                                         RelationshipType.name == rel.get("relationship_type")
@@ -1348,11 +1336,24 @@ async def generate_character_stream(
                                 )
                                 rel_type = rel_type_result.scalar_one_or_none()
                                 if rel_type:
-                                    relationship.relationship_type_id = rel_type.id
-                                
-                                db.add(relationship)
-                                created_rels += 1
-                                logger.info(f"  ✅ 创建关系：{character.name} -> {target_name} ({rel.get('relationship_type')})")
+                                    relationship_type_id = rel_type.id
+
+                                merge_result = await merge_service.merge_character_relationship(
+                                    project_id=request.project_id,
+                                    character_from_id=character.id,
+                                    character_to_id=target_char.id,
+                                    relationship_type_id=relationship_type_id,
+                                    relationship_name=rel.get("relationship_type", "未知关系"),
+                                    intimacy_level=rel.get("intimacy_level", 50),
+                                    description=rel.get("description", ""),
+                                    started_at=rel.get("started_at"),
+                                    source="ai",
+                                    confidence=1.0,
+                                    allow_conflict_apply=True,
+                                )
+                                if merge_result.relationship is not None:
+                                    created_rels += 1
+                                    logger.info(f"  ✅ 创建关系：{character.name} -> {target_name} ({rel.get('relationship_type')})")
                             else:
                                 logger.warning(f"  ⚠️  目标角色不存在：{target_name}")
                                 

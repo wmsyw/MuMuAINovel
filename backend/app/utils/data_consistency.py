@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import Optional, Tuple, List
 from app.models.character import Character
-from app.models.relationship import Organization, OrganizationEntity, OrganizationMember, CharacterRelationship
+from app.models.relationship import Organization, OrganizationEntity, OrganizationMember, EntityRelationship
 from app.services.organization_compat import ensure_organization_bridge
 from app.logger import get_logger
 
@@ -160,7 +160,7 @@ async def validate_relationships(
     """
     验证项目中的关系数据完整性
     
-    检查所有关系中的character_from_id和character_to_id是否都指向存在的角色
+    检查所有角色关系中的from/to实体是否都指向存在的角色
     
     Args:
         project_id: 项目ID
@@ -173,7 +173,11 @@ async def validate_relationships(
     
     # 获取所有关系
     result = await db.execute(
-        select(CharacterRelationship).where(CharacterRelationship.project_id == project_id)
+        select(EntityRelationship).where(
+            EntityRelationship.project_id == project_id,
+            EntityRelationship.from_entity_type == "character",
+            EntityRelationship.to_entity_type == "character",
+        )
     )
     relationships = result.scalars().all()
     

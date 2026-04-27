@@ -8,7 +8,7 @@ from app.models.project import Project
 from app.models.chapter import Chapter
 from app.models.character import Character
 from app.models.outline import Outline
-from app.models.relationship import CharacterRelationship, Organization, OrganizationEntity, OrganizationMember
+from app.models.relationship import EntityRelationship, Organization, OrganizationEntity, OrganizationMember
 from app.models.writing_style import WritingStyle
 from app.models.generation_history import GenerationHistory
 from app.models.career import Career, CharacterCareer
@@ -35,6 +35,7 @@ from app.schemas.import_export import (
 )
 from app.logger import get_logger
 from app.services.organization_compat import add_organization_member, create_organization_entity_from_payload, ensure_organization_bridge, legacy_org_payload
+from app.services.relationship_merge_service import RelationshipMergeService
 
 logger = get_logger(__name__)
 
@@ -316,9 +317,13 @@ class ImportExportService:
     async def _export_relationships(project_id: str, db: AsyncSession) -> List[RelationshipExportData]:
         """导出关系"""
         result = await db.execute(
-            select(CharacterRelationship, Character)
-            .join(Character, CharacterRelationship.character_from_id == Character.id)
-            .where(CharacterRelationship.project_id == project_id)
+            select(EntityRelationship, Character)
+            .join(Character, EntityRelationship.from_entity_id == Character.id)
+            .where(
+                EntityRelationship.project_id == project_id,
+                EntityRelationship.from_entity_type == "character",
+                EntityRelationship.to_entity_type == "character",
+            )
         )
         relationships = result.all()
         
@@ -326,7 +331,7 @@ class ImportExportService:
         for rel, char_from in relationships:
             # 获取目标角色名称
             target_result = await db.execute(
-                select(Character).where(Character.id == rel.character_to_id)
+                select(Character).where(Character.id == rel.to_entity_id)
             )
             char_to = target_result.scalar_one_or_none()
             
@@ -1010,7 +1015,7 @@ class ImportExportService:
             target_id = char_mapping.get(target_name)
             
             if source_id and target_id:
-                relationship = CharacterRelationship(
+                merge_result = await RelationshipMergeService(db).merge_character_relationship(
                     project_id=project_id,
                     character_from_id=source_id,
                     character_to_id=target_id,
@@ -1018,10 +1023,13 @@ class ImportExportService:
                     intimacy_level=rel_data.get("intimacy_level", 50),
                     status=rel_data.get("status", "active"),
                     description=rel_data.get("description"),
-                    started_at=rel_data.get("started_at")
+                    started_at=rel_data.get("started_at"),
+                    source="imported",
+                    confidence=1.0,
+                    allow_conflict_apply=True,
                 )
-                db.add(relationship)
-                count += 1
+                if merge_result.relationship is not None and merge_result.changed:
+                    count += 1
         
         return count
     

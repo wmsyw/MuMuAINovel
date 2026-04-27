@@ -5,11 +5,12 @@ from sqlalchemy import select
 import json
 
 from app.models.character import Character
-from app.models.relationship import CharacterRelationship, RelationshipType
+from app.models.relationship import EntityRelationship, RelationshipType
 from app.models.project import Project
 from app.services.ai_service import AIService
 from app.services.entity_generation_policy_service import entity_generation_policy_service
 from app.services.prompt_service import PromptService
+from app.services.relationship_merge_service import RelationshipMergeService
 from app.logger import get_logger
 
 logger = get_logger(__name__)
@@ -257,7 +258,7 @@ class AutoCharacterService:
         existing_characters: List[Character],
         project_id: str,
         db: AsyncSession
-    ) -> List[CharacterRelationship]:
+    ) -> List[EntityRelationship]:
         """创建角色关系"""
         
         if not relationship_specs:
@@ -282,30 +283,14 @@ class AutoCharacterService:
                     continue
                 
                 # 检查关系是否已存在
-                existing_rel = await db.execute(
-                    select(CharacterRelationship).where(
-                        CharacterRelationship.project_id == project_id,
-                        CharacterRelationship.character_from_id == new_character.id,
-                        CharacterRelationship.character_to_id == target_char.id
-                    )
-                )
-                if existing_rel.scalar_one_or_none():
+                merge_service = RelationshipMergeService(db)
+                existing_rel = await merge_service._find_existing_character_relationship(project_id, new_character.id, target_char.id)
+                if existing_rel is not None:
                     logger.debug(f"    ℹ️ 关系已存在: {new_character.name} -> {target_name}")
                     continue
-                
-                # 创建关系
-                relationship = CharacterRelationship(
-                    project_id=project_id,
-                    character_from_id=new_character.id,
-                    character_to_id=target_char.id,
-                    relationship_name=rel_spec.get("relationship_type", "未知关系"),
-                    intimacy_level=rel_spec.get("intimacy_level", 50),
-                    description=rel_spec.get("description", ""),
-                    status=rel_spec.get("status", "active"),
-                    source="auto"  # 标记为自动生成
-                )
-                
+
                 # 尝试匹配预定义关系类型
+                relationship_type_id = None
                 rel_type_name = rel_spec.get("relationship_type")
                 if rel_type_name:
                     rel_type_result = await db.execute(
@@ -315,10 +300,24 @@ class AutoCharacterService:
                     )
                     rel_type = rel_type_result.scalar_one_or_none()
                     if rel_type:
-                        relationship.relationship_type_id = rel_type.id
-                
-                db.add(relationship)
-                relationships.append(relationship)
+                        relationship_type_id = rel_type.id
+
+                merge_result = await merge_service.merge_character_relationship(
+                    project_id=project_id,
+                    character_from_id=new_character.id,
+                    character_to_id=target_char.id,
+                    relationship_type_id=relationship_type_id,
+                    relationship_name=rel_spec.get("relationship_type", "未知关系"),
+                    intimacy_level=rel_spec.get("intimacy_level", 50),
+                    description=rel_spec.get("description", ""),
+                    status=rel_spec.get("status", "active"),
+                    source="auto",
+                    confidence=1.0,
+                    allow_conflict_apply=True,
+                )
+                if merge_result.relationship is None:
+                    continue
+                relationships.append(merge_result.relationship)
                 
                 logger.info(
                     f"    ✅ 创建关系: {new_character.name} -> {target_name} "

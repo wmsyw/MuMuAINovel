@@ -12,7 +12,7 @@ from app.models.character import Character
 from app.models.outline import Outline
 from app.models.chapter import Chapter
 from app.models.generation_history import GenerationHistory
-from app.models.relationship import CharacterRelationship, Organization, OrganizationMember
+from app.models.relationship import EntityRelationship, Organization, OrganizationMember
 from app.models.memory import StoryMemory, PlotAnalysis
 from app.models.foreshadow import Foreshadow
 from app.models.career import Career, CharacterCareer
@@ -242,7 +242,7 @@ async def delete_project(
         
         # 1. 删除角色关系
         relationships_result = await db.execute(
-            delete(CharacterRelationship).where(CharacterRelationship.project_id == project_id)
+            delete(EntityRelationship).where(EntityRelationship.project_id == project_id)
         )
         logger.debug(f"删除角色关系数: {relationships_result.rowcount}")
         

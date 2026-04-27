@@ -12,7 +12,7 @@ from app.models.character import Character
 from app.models.outline import Outline
 from app.models.chapter import Chapter
 from app.models.career import Career, CharacterCareer
-from app.models.relationship import CharacterRelationship, Organization, OrganizationEntity, OrganizationMember, RelationshipType
+from app.models.relationship import Organization, OrganizationEntity, OrganizationMember, RelationshipType
 from app.models.writing_style import WritingStyle
 from app.models.project_default_style import ProjectDefaultStyle
 from app.services.ai_service import AIService
@@ -20,6 +20,7 @@ from app.services.entity_generation_policy_service import entity_generation_poli
 from app.services.prompt_service import prompt_service, PromptService
 from app.services.plot_expansion_service import PlotExpansionService
 from app.services.organization_compat import add_organization_member, create_organization_entity_from_payload
+from app.services.relationship_merge_service import RelationshipMergeService
 from app.logger import get_logger
 from app.utils.sse_response import SSEResponse, create_sse_response, WizardProgressTracker
 from app.api.settings import get_user_ai_service
@@ -1095,29 +1096,14 @@ async def characters_generator(
                         
                         if target_char:
                             # 避免创建重复关系
-                            existing_rel = await db.execute(
-                                select(CharacterRelationship).where(
-                                    CharacterRelationship.project_id == project_id,
-                                    CharacterRelationship.character_from_id == character.id,
-                                    CharacterRelationship.character_to_id == target_char.id
-                                )
-                            )
-                            if existing_rel.scalar_one_or_none():
+                            merge_service = RelationshipMergeService(db)
+                            existing_rel = await merge_service._find_existing_character_relationship(project_id, character.id, target_char.id)
+                            if existing_rel is not None:
                                 logger.debug(f"  ℹ️  关系已存在：{character.name} -> {target_name}")
                                 continue
-                            
-                            relationship = CharacterRelationship(
-                                project_id=project_id,
-                                character_from_id=character.id,
-                                character_to_id=target_char.id,
-                                relationship_name=rel.get("relationship_type", "未知关系"),
-                                intimacy_level=rel.get("intimacy_level", 50),
-                                description=rel.get("description", ""),
-                                started_at=rel.get("started_at"),
-                                source="ai"
-                            )
-                            
+
                             # 匹配预定义关系类型
+                            relationship_type_id = None
                             rel_type_result = await db.execute(
                                 select(RelationshipType).where(
                                     RelationshipType.name == rel.get("relationship_type")
@@ -1125,11 +1111,24 @@ async def characters_generator(
                             )
                             rel_type = rel_type_result.scalar_one_or_none()
                             if rel_type:
-                                relationship.relationship_type_id = rel_type.id
-                            
-                            db.add(relationship)
-                            relationships_created += 1
-                            logger.info(f"  ✅ 向导创建关系：{character.name} -> {target_name} ({rel.get('relationship_type')})")
+                                relationship_type_id = rel_type.id
+
+                            merge_result = await merge_service.merge_character_relationship(
+                                project_id=project_id,
+                                character_from_id=character.id,
+                                character_to_id=target_char.id,
+                                relationship_type_id=relationship_type_id,
+                                relationship_name=rel.get("relationship_type", "未知关系"),
+                                intimacy_level=rel.get("intimacy_level", 50),
+                                description=rel.get("description", ""),
+                                started_at=rel.get("started_at"),
+                                source="ai",
+                                confidence=1.0,
+                                allow_conflict_apply=True,
+                            )
+                            if merge_result.relationship is not None:
+                                relationships_created += 1
+                                logger.info(f"  ✅ 向导创建关系：{character.name} -> {target_name} ({rel.get('relationship_type')})")
                         else:
                             logger.warning(f"  ⚠️  目标角色不存在：{character.name} -> {target_name}（可能是AI幻觉）")
                     except Exception as e:

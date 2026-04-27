@@ -1,6 +1,6 @@
 """关系管理相关的Pydantic模型"""
-from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, List
+from pydantic import BaseModel, Field, ConfigDict, model_validator
+from typing import Any, Optional, List
 from datetime import datetime
 
 
@@ -51,6 +51,51 @@ class CharacterRelationshipUpdate(BaseModel):
     ended_at: Optional[str] = None
 
 
+class RelationshipProvenanceResponse(BaseModel):
+    """关系来源证据响应。"""
+    id: str
+    source_type: str
+    source_id: Optional[str] = None
+    run_id: Optional[str] = None
+    candidate_id: Optional[str] = None
+    chapter_id: Optional[str] = None
+    claim_type: Optional[str] = None
+    claim_payload: Optional[dict[str, Any]] = None
+    evidence_text: Optional[str] = None
+    source_start: Optional[int] = None
+    source_end: Optional[int] = None
+    confidence: Optional[float] = None
+    status: Optional[str] = None
+    created_by: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RelationshipHistoryEventResponse(BaseModel):
+    """关系章节时间线/历史事件响应。"""
+    id: str
+    event_type: str
+    event_status: str
+    relationship_name: Optional[str] = None
+    source_chapter_id: Optional[str] = None
+    source_chapter_order: Optional[int] = None
+    valid_from_chapter_id: Optional[str] = None
+    valid_from_chapter_order: Optional[int] = None
+    valid_to_chapter_id: Optional[str] = None
+    valid_to_chapter_order: Optional[int] = None
+    story_time_label: Optional[str] = None
+    source_start_offset: Optional[int] = None
+    source_end_offset: Optional[int] = None
+    evidence_text: Optional[str] = None
+    confidence: Optional[float] = None
+    provenance_id: Optional[str] = None
+    supersedes_event_id: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class CharacterRelationshipResponse(CharacterRelationshipBase):
     """角色关系响应模型"""
     id: str
@@ -58,8 +103,44 @@ class CharacterRelationshipResponse(CharacterRelationshipBase):
     character_from_id: str
     character_to_id: str
     source: str
+    source_chapter_id: Optional[str] = None
+    source_chapter_order: Optional[int] = None
+    evidence_text: Optional[str] = None
+    confidence: Optional[float] = None
+    provenance: List[RelationshipProvenanceResponse] = Field(default_factory=list)
+    history: List[RelationshipHistoryEventResponse] = Field(default_factory=list)
+    pending_candidate_count: int = 0
     created_at: datetime
     updated_at: datetime
+
+    @model_validator(mode="before")
+    @classmethod
+    def adapt_entity_relationship(cls, value: Any) -> Any:
+        """Allow EntityRelationship rows to satisfy legacy API response shape."""
+        if isinstance(value, dict):
+            if "character_from_id" not in value and value.get("from_entity_type") == "character":
+                value = dict(value)
+                value["character_from_id"] = value.get("from_entity_id")
+                value["character_to_id"] = value.get("to_entity_id")
+            return value
+        if hasattr(value, "from_entity_type") and getattr(value, "from_entity_type", None) == "character":
+            return {
+                "id": getattr(value, "id"),
+                "project_id": getattr(value, "project_id"),
+                "character_from_id": getattr(value, "from_entity_id"),
+                "character_to_id": getattr(value, "to_entity_id"),
+                "relationship_type_id": getattr(value, "relationship_type_id", None),
+                "relationship_name": getattr(value, "relationship_name", None),
+                "intimacy_level": getattr(value, "intimacy_level", 50),
+                "status": getattr(value, "status", "active"),
+                "description": getattr(value, "description", None),
+                "started_at": getattr(value, "started_at", None),
+                "ended_at": getattr(value, "ended_at", None),
+                "source": getattr(value, "source", None) or "legacy",
+                "created_at": getattr(value, "created_at"),
+                "updated_at": getattr(value, "updated_at"),
+            }
+        return value
     
     model_config = ConfigDict(from_attributes=True)
 
@@ -75,11 +156,17 @@ class RelationshipGraphNode(BaseModel):
 
 class RelationshipGraphLink(BaseModel):
     """关系图谱连线"""
+    id: Optional[str] = None
     source: str
     target: str
     relationship: str
     intimacy: int
     status: str
+    source_chapter_id: Optional[str] = None
+    source_chapter_order: Optional[int] = None
+    evidence_text: Optional[str] = None
+    confidence: Optional[float] = None
+    pending_candidate_count: int = 0
 
 
 class RelationshipGraphData(BaseModel):

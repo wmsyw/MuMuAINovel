@@ -10,6 +10,27 @@ import asyncio
 
 logger = get_logger(__name__)
 
+GOLDFINGER_CHANGE_FIELDS = (
+    "name",
+    "normalized_name",
+    "owner_character_name",
+    "owner_character_id",
+    "type",
+    "status",
+    "summary",
+    "rules",
+    "tasks",
+    "rewards",
+    "limits",
+    "trigger_conditions",
+    "cooldown",
+    "aliases",
+    "operation",
+    "evidence_excerpt",
+    "confidence",
+    "conflict_hint",
+)
+
 # 重试回调类型定义
 OnRetryCallback = Callable[[int, int, int, str], Awaitable[None]]
 # 参数: (当前重试次数, 最大重试次数, 等待时间秒数, 错误原因)
@@ -285,6 +306,7 @@ class PlotAnalyzer:
                 if field not in result:
                     logger.warning(f"⚠️ 分析结果缺少字段: {field}")
                     result[field] = [] if field != 'scores' else {}
+            result["goldfinger_changes"] = self._normalize_goldfinger_changes(result.get("goldfinger_changes"))
             
             logger.info("✅ 成功解析分析结果")
             return result
@@ -296,6 +318,32 @@ class PlotAnalyzer:
         except Exception as e:
             logger.error(f"❌ 解析异常: {str(e)}")
             return None
+
+    def _normalize_goldfinger_changes(self, raw_changes: Any) -> List[Dict[str, Any]]:
+        """Preserve Task 4 goldfinger extraction schema with deterministic defaults."""
+
+        if not isinstance(raw_changes, list):
+            return []
+        normalized: List[Dict[str, Any]] = []
+        for raw in raw_changes:
+            if not isinstance(raw, dict):
+                continue
+            item: Dict[str, Any] = {field: raw.get(field) for field in GOLDFINGER_CHANGE_FIELDS}
+            name = str(item.get("name") or "").strip()
+            item["name"] = name or None
+            item["normalized_name"] = str(item.get("normalized_name") or name).strip().lower() or None
+            item["status"] = item.get("status") or "unknown"
+            item["operation"] = item.get("operation") or "upsert"
+            item["evidence_excerpt"] = str(item.get("evidence_excerpt") or "")
+            for list_field in ("tasks", "rewards", "aliases"):
+                value = item.get(list_field)
+                item[list_field] = value if isinstance(value, list) else ([] if value in (None, "") else [value])
+            try:
+                item["confidence"] = max(0.0, min(1.0, float(item.get("confidence") or 0.0)))
+            except (TypeError, ValueError):
+                item["confidence"] = 0.0
+            normalized.append(item)
+        return normalized
     
     def extract_memories_from_analysis(
         self,

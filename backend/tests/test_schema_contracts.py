@@ -13,6 +13,19 @@ REQUIRED_EXTRACTION_TABLES = {
     "entity_provenance",
     "relationship_timeline_events",
     "world_setting_results",
+    "goldfingers",
+    "goldfinger_history_events",
+}
+
+GOLDFINGER_STATUSES = {
+    "latent",
+    "active",
+    "sealed",
+    "cooldown",
+    "upgrading",
+    "lost",
+    "completed",
+    "unknown",
 }
 
 
@@ -22,6 +35,13 @@ def column_names(table_name: str) -> set[str]:
 
 def index_names(table_name: str) -> set[str]:
     return {index.name or "" for index in Base.metadata.tables[table_name].indexes}
+
+
+def check_constraint_sql(table_name: str, constraint_name: str) -> str:
+    table = Base.metadata.tables[table_name]
+    constraints = {constraint.name: constraint for constraint in table.constraints}
+    constraint = constraints[constraint_name]
+    return str(constraint.sqltext)
 
 
 def test_extraction_tables_are_registered_in_base_metadata() -> None:
@@ -113,6 +133,7 @@ def test_extraction_candidate_contract_uses_required_target_and_timeline_fields(
         "story_time_label",
         "reviewed_at",
         "accepted_at",
+        "review_required_reason",
         "supersedes_candidate_id",
         "rollback_of_candidate_id",
         "payload",
@@ -123,6 +144,61 @@ def test_extraction_candidate_contract_uses_required_target_and_timeline_fields(
     assert "idx_extraction_candidates_canonical" in index_names("extraction_candidates")
     assert "idx_extraction_candidates_source_hash" in index_names("extraction_candidates")
     assert "idx_extraction_candidates_timeline" in index_names("extraction_candidates")
+
+
+def test_goldfinger_contract_uses_canonical_identity_status_flexible_and_audit_fields() -> None:
+    assert {
+        "id",
+        "project_id",
+        "name",
+        "normalized_name",
+        "owner_character_id",
+        "owner_character_name",
+        "type",
+        "status",
+        "summary",
+        "rules",
+        "tasks",
+        "rewards",
+        "limits",
+        "trigger_conditions",
+        "cooldown",
+        "aliases",
+        "metadata",
+        "created_at",
+        "updated_at",
+        "created_by",
+        "updated_by",
+        "source",
+        "confidence",
+        "last_source_chapter_id",
+    }.issubset(column_names("goldfingers"))
+    assert "idx_goldfingers_project_name" in index_names("goldfingers")
+    assert "idx_goldfingers_project_status" in index_names("goldfingers")
+    assert "idx_goldfingers_owner_status" in index_names("goldfingers")
+
+    constraint_sql = check_constraint_sql("goldfingers", "ck_goldfingers_status")
+    for status in GOLDFINGER_STATUSES:
+        assert f"'{status}'" in constraint_sql
+    assert "super_active" not in constraint_sql
+
+
+def test_goldfinger_history_event_contract_tracks_required_event_provenance_fields() -> None:
+    assert {
+        "id",
+        "goldfinger_id",
+        "project_id",
+        "chapter_id",
+        "event_type",
+        "old_value",
+        "new_value",
+        "evidence_excerpt",
+        "confidence",
+        "source_type",
+        "created_at",
+    }.issubset(column_names("goldfinger_history_events"))
+    assert "idx_goldfinger_history_goldfinger_created" in index_names("goldfinger_history_events")
+    assert "idx_goldfinger_history_project_type" in index_names("goldfinger_history_events")
 
 
 def test_provenance_timeline_and_world_result_contracts() -> None:

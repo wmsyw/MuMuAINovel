@@ -14,10 +14,62 @@ from app.services.ai_service import create_user_ai_service
 from app.models.settings import Settings
 from app.logger import get_logger
 from app.api.common import verify_project_access
+from app.services.chapter_fact_sync_service import ChapterFactSyncService
+import asyncio
 import uuid
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api/memories", tags=["memories"])
+
+
+def _schedule_memory_fact_sync(
+    *,
+    user_id: str,
+    project_id: str,
+    chapter_id: str,
+    content: str,
+    chapter_number: int,
+) -> None:
+    if not content or not content.strip():
+        return
+    asyncio.create_task(
+        _schedule_memory_fact_sync_job(
+            user_id=user_id,
+            project_id=project_id,
+            chapter_id=chapter_id,
+            content=content,
+            chapter_number=chapter_number,
+        )
+    )
+
+
+async def _schedule_memory_fact_sync_job(
+    *,
+    user_id: str,
+    project_id: str,
+    chapter_id: str,
+    content: str,
+    chapter_number: int,
+) -> None:
+    try:
+        from app.database import get_engine
+        from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+
+        engine = await get_engine(user_id)
+        AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+        async with AsyncSessionLocal() as session:
+            await session.run_sync(
+                lambda sync_session: ChapterFactSyncService(sync_session).schedule_for_chapter(
+                    project_id=project_id,
+                    chapter_id=chapter_id,
+                    content=content,
+                    source="memories_analysis",
+                    source_metadata={"operation": "memories.analyze_chapter", "chapter_number": chapter_number},
+                )
+            )
+            await session.commit()
+    except Exception as exc:
+        logger.warning("⚠️ 记忆分析事实同步调度失败（已忽略）: %s", exc)
 
 
 @router.post("/projects/{project_id}/analyze-chapter/{chapter_id}")
@@ -224,18 +276,20 @@ async def analyze_chapter(
             except Exception as career_error:
                 logger.error(f"⚠️ 更新角色职业失败（不影响分析结果）: {str(career_error)}", exc_info=True)
 
-            try:
-                from app.services.character_state_update_service import CharacterStateUpdateService
-                state_update_result = await CharacterStateUpdateService.update_from_analysis(
-                    db=db,
-                    project_id=project_id,
-                    character_states=analysis_result.get('character_states', []),
-                    chapter_id=chapter_id,
-                    chapter_number=chapter.chapter_number
-                )
-                entity_changes["character_states"] = state_update_result
-            except Exception as state_error:
-                logger.error(f"⚠️ 更新角色状态、关系和组织成员失败（不影响分析结果）: {str(state_error)}", exc_info=True)
+            _schedule_memory_fact_sync(
+                user_id=str(user_id),
+                project_id=project_id,
+                chapter_id=chapter_id,
+                content=chapter.content or "",
+                chapter_number=chapter.chapter_number,
+            )
+            entity_changes["character_states"] = {
+                "state_updated_count": 0,
+                "relationship_created_count": 0,
+                "relationship_updated_count": 0,
+                "org_updated_count": 0,
+                "changes": ["已调度 ChapterFactSyncService；不直接写入角色关系表"]
+            }
 
         if analysis_result.get('organization_states'):
             try:
