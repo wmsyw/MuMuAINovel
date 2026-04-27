@@ -5,7 +5,7 @@ from sqlalchemy import select
 import json
 
 from app.models.character import Character
-from app.models.relationship import CharacterRelationship, Organization, OrganizationMember, RelationshipType
+from app.models.relationship import CharacterRelationship, RelationshipType
 from app.models.project import Project
 from app.services.ai_service import AIService
 from app.services.entity_generation_policy_service import entity_generation_policy_service
@@ -144,8 +144,6 @@ class AutoCharacterService:
     ) -> Character:
         """创建角色数据库记录"""
         
-        is_organization = character_data.get("is_organization", False)
-        
         # 提取职业信息（支持通过名称匹配）
         career_info = character_data.get("career_info", {})
         raw_main_career_name = career_info.get("main_career_name") if career_info else None
@@ -158,7 +156,7 @@ class AutoCharacterService:
         sub_careers_data = []
         
         # 匹配主职业名称
-        if raw_main_career_name and not is_organization:
+        if raw_main_career_name:
             career_check = await db.execute(
                 select(Career).where(
                     Career.name == raw_main_career_name,
@@ -178,7 +176,7 @@ class AutoCharacterService:
                 logger.warning(f"    ⚠️ AI返回的主职业名称未找到: {raw_main_career_name}")
         
         # 匹配副职业名称
-        if raw_sub_careers_data and not is_organization and isinstance(raw_sub_careers_data, list):
+        if raw_sub_careers_data and isinstance(raw_sub_careers_data, list):
             for sub_data in raw_sub_careers_data[:2]:
                 if isinstance(sub_data, dict):
                     career_name = sub_data.get('career_name')
@@ -212,13 +210,10 @@ class AutoCharacterService:
             name=character_data.get("name", "未命名角色"),
             age=str(character_data.get("age", "")),
             gender=character_data.get("gender"),
-            is_organization=is_organization,
             role_type=character_data.get("role_type", "supporting"),
             personality=character_data.get("personality", ""),
             background=character_data.get("background", ""),
             appearance=character_data.get("appearance", ""),
-            organization_type=character_data.get("organization_type") if is_organization else None,
-            organization_purpose=character_data.get("organization_purpose") if is_organization else None,
             traits=json.dumps(character_data.get("traits", []), ensure_ascii=False) if character_data.get("traits") else None,
             main_career_id=main_career_id,
             main_career_stage=main_career_stage if main_career_id else None,
@@ -229,7 +224,7 @@ class AutoCharacterService:
         await db.flush()
         
         # 处理主职业关联
-        if main_career_id and not is_organization:
+        if main_career_id:
             char_career = CharacterCareer(
                 character_id=character.id,
                 career_id=main_career_id,
@@ -241,7 +236,7 @@ class AutoCharacterService:
             logger.info(f"    ✅ 创建主职业关联: {character.name} -> {raw_main_career_name}")
         
         # 处理副职业关联
-        if sub_careers_data and not is_organization:
+        if sub_careers_data:
             for sub_data in sub_careers_data:
                 char_career = CharacterCareer(
                     character_id=character.id,
@@ -252,21 +247,6 @@ class AutoCharacterService:
                 )
                 db.add(char_career)
             logger.info(f"    ✅ 创建副职业关联: {character.name}, 数量: {len(sub_careers_data)}")
-        
-        # 如果是组织，创建Organization记录
-        if is_organization:
-            org = Organization(
-                character_id=character.id,
-                project_id=project_id,
-                member_count=0,
-                power_level=character_data.get("power_level", 50),
-                location=character_data.get("location"),
-                motto=character_data.get("motto"),
-                color=character_data.get("color")
-            )
-            db.add(org)
-            await db.flush()
-            logger.info(f"    ✅ 创建组织详情: {character.name}")
         
         return character
     
