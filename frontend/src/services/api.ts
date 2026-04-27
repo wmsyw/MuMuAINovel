@@ -81,8 +81,9 @@ import type {
   OrganizationMember,
   OrganizationMemberPayload,
   OrganizationUpdateRequest,
-  TimelineEventType,
+  TimelineHistoryQuery,
   TimelineHistoryResponse,
+  TimelineStateQuery,
   TimelineStateResponse,
   WorldBuildingDraftResponse,
   WorldSettingRejectRequest,
@@ -585,13 +586,10 @@ export const extractionApi = {
 };
 
 export const timelineApi = {
-  getProjectState: (projectId: string, params?: {
-    chapter_id?: string;
-    chapter_number?: number;
-    chapter_order?: number;
-  }) => api.get<unknown, TimelineStateResponse>(`/timeline/projects/${projectId}/state`, { params }),
+  getProjectState: (projectId: string, params?: TimelineStateQuery) =>
+    api.get<unknown, TimelineStateResponse>(`/timeline/projects/${projectId}/state`, { params }),
 
-  getProjectHistory: (projectId: string, params?: { event_type?: TimelineEventType }) =>
+  getProjectHistory: (projectId: string, params?: TimelineHistoryQuery) =>
     api.get<unknown, TimelineHistoryResponse>(`/timeline/projects/${projectId}/history`, { params }),
 };
 

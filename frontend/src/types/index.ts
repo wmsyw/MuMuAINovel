@@ -744,6 +744,16 @@ export interface TimelineQueryPoint {
   chapter_order: number;
 }
 
+export interface TimelineStateQuery {
+  chapter_id?: string;
+  chapter_number?: number;
+  chapter_order?: number;
+}
+
+export interface TimelineHistoryQuery {
+  event_type?: TimelineEventType;
+}
+
 export interface TimelineEvent {
   id: string;
   project_id: string;
