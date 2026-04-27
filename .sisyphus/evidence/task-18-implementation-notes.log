@@ -1,0 +1,21 @@
+# Task 18 final implementation notes
+
+## Evidence bundle
+- `.sisyphus/evidence/task-18-full-suite.log` — backend full pytest attempt plus fallback pass, then frontend `npm run test -- --run && npm run build && npm run lint` pass.
+- `.sisyphus/evidence/task-18-docker-build.log` — attempted `docker-compose build`; blocked by missing `docker-compose` binary, exit 127.
+- `.sisyphus/evidence/task-18-migration-parity.log` — focused migration parity/schema contracts pass.
+- `.sisyphus/evidence/task-18-provider-capabilities.log` — provider capability, OpenAI Responses, and OpenAI chat compatibility tests pass.
+- `.sisyphus/evidence/task-18-extraction-merge-timeline.log` — extraction core/triggers, candidate merge, relationship/profession/timeline tests pass.
+- `.sisyphus/evidence/task-18-world-entity-policy.log` — world-setting results/API, entity API compatibility, policy gate, extraction API, and generation bypass audit tests pass.
+- `.sisyphus/evidence/task-18-frontend-ui-components.log` — focused frontend UI/component Vitest pass for event bus, settings reasoning UI, extraction review, world review, inspiration, and timeline surfaces.
+
+## Verification summary
+- Backend: bare `python -m pytest` unavailable in this shell (`zsh: command not found: python`, exit 127); fallback `uv run --python python3.11 --with pytest --with sqlalchemy --with alembic --with pydantic --with pydantic-settings --with fastapi python -m pytest` passed with `91 passed, 4 warnings`.
+- Frontend: `npm run test -- --run && npm run build && npm run lint` passed with 6 Vitest files / 22 tests, Vite build success, and ESLint success.
+- Docker: `docker-compose build` was attempted but did not run because `docker-compose` is missing from PATH; this remains an environment blocker, not a claimed pass.
+
+## Known limitations / deferred items
+- Docker build verification is deferred to an environment with `docker-compose` or compatible Docker Compose tooling installed; no Docker pass is claimed here.
+- User Waiver (2026-04-27): Explicitly instructed to "跳过docker验证". Docker verification is skipped per user request; backend/frontend/focused suites remain the passing verification basis.
+- Existing nonfatal warnings remain: backend Pydantic v2 class-based config deprecation warnings, frontend jsdom `window.getComputedStyle` notices from AntD/rc-table tests, AntD Spin `tip` warning, and Vite chunk-size warnings.
+- No additional product scope was added and no final verification wave items F1-F4 were modified.
