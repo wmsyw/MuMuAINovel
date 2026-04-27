@@ -35,12 +35,13 @@ def test_registry_loads_required_data_contract() -> None:
             "model_pattern",
             "supported_intensities",
             "default_intensity",
-            "provider_native",
-            "provider_payload_mappings",
+            "provider_metadata",
             "last_verified_date",
             "notes",
         }.issubset(data)
-        assert data["provider_payload_mappings"]
+        assert data["provider_metadata"]["read_only"] is True
+        assert data["provider_metadata"]["native_field"]
+        assert data["provider_metadata"]["payload_mappings"]
         assert data["last_verified_date"]
 
 
@@ -99,10 +100,13 @@ def test_settings_schema_exposes_normalized_reasoning_fields() -> None:
 
     response_fields = set(SettingsResponse.model_fields)
     assert {"default_reasoning_intensity", "reasoning_overrides", "allow_ai_entity_generation"}.issubset(response_fields)
+    assert "provider_native" not in response_fields
 
     metadata = get_reasoning_registry_metadata()
     assert metadata["intensities"] == list(NORMALIZED_REASONING_INTENSITIES)
     assert metadata["capabilities"]
+    assert "provider_native" not in metadata["capabilities"][0]
+    assert metadata["capabilities"][0]["provider_metadata"]["read_only"] is True
 
 
 def _method_parameter_names(file_path: Path, class_name: str, method_name: str) -> list[str]:

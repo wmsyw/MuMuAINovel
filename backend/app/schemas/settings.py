@@ -56,8 +56,10 @@ class ReasoningCapabilityResponse(BaseModel):
     model_pattern: str
     supported_intensities: List[ReasoningIntensity]
     default_intensity: ReasoningIntensity
-    provider_native: str
-    provider_payload_mappings: Dict[str, Dict[str, Any]]
+    provider_metadata: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="只读 provider 专属能力元数据；不得保存到用户设置或通用领域状态",
+    )
     last_verified_date: str
     notes: str
 

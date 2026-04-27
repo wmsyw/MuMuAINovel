@@ -50,8 +50,11 @@ class ReasoningCapability:
             "model_pattern": self.model_pattern,
             "supported_intensities": [item.value for item in self.supported_intensities],
             "default_intensity": self.default_intensity.value,
-            "provider_native": self.provider_native,
-            "provider_payload_mappings": deepcopy(self.provider_payload_mappings),
+            "provider_metadata": {
+                "native_field": self.provider_native,
+                "payload_mappings": deepcopy(self.provider_payload_mappings),
+                "read_only": True,
+            },
             "last_verified_date": self.last_verified_date,
             "notes": self.notes,
         }
@@ -167,7 +170,7 @@ def load_reasoning_capabilities(*, force_reload: bool = False) -> List[Reasoning
 
 
 def get_reasoning_registry_metadata() -> Dict[str, Any]:
-    """Return API-safe registry metadata for settings/frontends."""
+    """Return API-safe read-only registry metadata for settings/frontends."""
 
     return {
         "intensities": list(NORMALIZED_REASONING_INTENSITIES),
