@@ -269,6 +269,73 @@ export interface WorldBuildingResponse {
   rules: string;
 }
 
+export interface WorldBuildingDraftResponse {
+  project_id?: string;
+  result_id?: string;
+  time_period?: string;
+  location?: string;
+  atmosphere?: string;
+  rules?: string;
+  provider?: string | null;
+  model?: string | null;
+  reasoning_intensity?: string | null;
+  source_type?: string | null;
+  created_at?: string | null;
+}
+
+export type WorldSettingResultStatus = 'pending' | 'accepted' | 'rejected' | 'superseded';
+
+export interface ProjectWorldSnapshot {
+  project_id: string;
+  world_time_period?: string | null;
+  world_location?: string | null;
+  world_atmosphere?: string | null;
+  world_rules?: string | null;
+}
+
+export interface WorldSettingResult {
+  id: string;
+  project_id: string;
+  run_id?: string | null;
+  status: WorldSettingResultStatus;
+  world_time_period?: string | null;
+  world_location?: string | null;
+  world_atmosphere?: string | null;
+  world_rules?: string | null;
+  prompt?: string | null;
+  provider?: string | null;
+  model?: string | null;
+  reasoning_intensity?: string | null;
+  raw_result?: Record<string, unknown> | unknown[] | string | null;
+  source_type: string;
+  accepted_at?: string | null;
+  accepted_by?: string | null;
+  supersedes_result_id?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface WorldSettingResultListResponse {
+  total: number;
+  items: WorldSettingResult[];
+}
+
+export interface WorldSettingResultOperationResponse {
+  changed: boolean;
+  reason?: string | null;
+  result: WorldSettingResult;
+  previous_result?: WorldSettingResult | null;
+  active_world: ProjectWorldSnapshot;
+}
+
+export interface WorldSettingRejectRequest {
+  reason?: string | null;
+}
+
+export interface WorldSettingRollbackRequest {
+  reason?: string | null;
+}
+
 // 大纲类型定义
 export interface Outline {
   id: string;

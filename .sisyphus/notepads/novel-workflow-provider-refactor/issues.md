@@ -105,3 +105,12 @@
 ## 2026-04-27 — Task 14 QA accept-path test fix
 - Atlas QA required the candidate accept scenario to exercise the actual `ExtractionCandidateReviewPanel` component path. The extraction review test now renders the panel with jsdom/ReactDOM, clicks the visible `接受入库` button, verifies the injected API client's `acceptCandidate` and `listCandidates` mocks are called, verifies the canonical refresh callback runs, and asserts the tab counts update to `正文发现 (0)` / `已拒绝/历史 (1)` after the mocked accepted candidate refresh.
 - The first QA-fix test run exposed that confidence was not visibly labeled as `置信度 87%`; the panel now renders an explicit small confidence label next to the AntD progress bar. Final required frontend verification passed, forbidden-marker grep on the touched component/test files found no matches, and the Goldfinger artifact glob remained empty.
+
+## 2026-04-27 — Task 15 verification notes
+- `npm run test -- --run world`, `npm run test -- --run Inspiration`, `npm run build`, and `npm run lint` were run from `frontend/`; stdout was appended to `.sisyphus/evidence/task-15-world-inspiration-ui.log` and stderr/warnings to `.sisyphus/evidence/task-15-world-inspiration-ui-error.log`.
+- The first verification wrapper failed before running npm because `status` is a read-only zsh variable; the retry used `overall_status` and all required frontend verification commands passed. The error log also contains the known AntD Spin test warning and Vite chunk-size warnings.
+- LSP diagnostics were clean for the touched frontend pages, shared API/types, and focused tests. Follow-up glob for `.sisyphus/**/goldfinger-relationship-sync.md` returned no files.
+
+## 2026-04-27 — Task 15 QA Storage mock fix
+- Atlas found `frontend/src/pages/__tests__/Inspiration.test.ts` cast a partial object directly to `Storage`. Replaced it with a complete in-memory `Storage` helper (`length`, `clear`, `getItem`, `key`, `removeItem`, `setItem`) so the test remains type-safe without suppressions or `as any`.
+- Re-ran LSP diagnostics for the Inspiration test plus `npm run test -- --run Inspiration`, `npm run test -- --run world`, `npm run build`, and `npm run lint`; all passed. Forbidden-marker grep on the Inspiration test returned no matches, and the Goldfinger artifact glob remained empty.

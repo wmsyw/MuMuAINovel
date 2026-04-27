@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, Input, Button, Space, Typography, message, Spin, Modal, theme } from 'antd';
 import { SendOutlined, ArrowLeftOutlined, ReloadOutlined } from '@ant-design/icons';
-import { inspirationApi } from '../services/api';
+import { inspirationApi, projectApi } from '../services/api';
 import { AIProjectGenerator, type GenerationConfig } from '../components/AIProjectGenerator';
+import type { Project, ProjectCreate } from '../types';
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
@@ -29,6 +30,26 @@ interface WizardData {
   outline_mode: 'one-to-one' | 'one-to-many';
 }
 
+type InspirationDraftAction = 'save_inspiration' | 'create_project_draft';
+
+interface InspirationDraftRecord {
+  id: string;
+  title: string;
+  description: string;
+  theme: string;
+  genre: string[];
+  narrative_perspective: string;
+  outline_mode: 'one-to-one' | 'one-to-many';
+  initial_idea: string;
+  created_at: string;
+  status: 'draft';
+}
+
+interface InspirationDraftActionClients {
+  saveInspiration: (draft: InspirationDraftRecord) => void;
+  createProjectDraft: (payload: ProjectCreate) => Promise<Project>;
+}
+
 // 缓存数据接口
 interface CacheData {
   messages: Message[];
@@ -45,10 +66,70 @@ interface CacheData {
 
 // 缓存键
 const CACHE_KEY = 'inspiration_conversation_cache';
+const INSPIRATION_DRAFTS_KEY = 'inspiration_saved_drafts';
 // 缓存有效期：24小时
 const CACHE_EXPIRY = 24 * 60 * 60 * 1000;
 
-const Inspiration: React.FC = () => {
+function normalizeWizardData(data: WizardData, initialIdea: string): InspirationDraftRecord {
+  return {
+    id: `inspiration-${Date.now()}`,
+    title: data.title,
+    description: data.description,
+    theme: data.theme,
+    genre: data.genre,
+    narrative_perspective: data.narrative_perspective,
+    outline_mode: data.outline_mode,
+    initial_idea: initialIdea,
+    created_at: new Date().toISOString(),
+    status: 'draft',
+  };
+}
+
+function buildProjectDraftPayload(data: WizardData): ProjectCreate {
+  return {
+    title: data.title,
+    description: data.description,
+    theme: data.theme,
+    genre: data.genre.join('、'),
+    target_words: 100000,
+    outline_mode: data.outline_mode,
+  };
+}
+
+function saveInspirationDraftToStorage(draft: InspirationDraftRecord, storage: Storage = localStorage): void {
+  const raw = storage.getItem(INSPIRATION_DRAFTS_KEY);
+  const existing = raw ? JSON.parse(raw) as InspirationDraftRecord[] : [];
+  storage.setItem(INSPIRATION_DRAFTS_KEY, JSON.stringify([draft, ...existing].slice(0, 20)));
+}
+
+async function runInspirationDraftAction(
+  action: InspirationDraftAction,
+  data: WizardData,
+  initialIdea: string,
+  clients: InspirationDraftActionClients,
+): Promise<InspirationDraftRecord | Project> {
+  if (action === 'save_inspiration') {
+    const draft = normalizeWizardData(data, initialIdea);
+    clients.saveInspiration(draft);
+    return draft;
+  }
+
+  return clients.createProjectDraft(buildProjectDraftPayload(data));
+}
+
+interface InspirationTestUtils {
+  INSPIRATION_DRAFTS_KEY: string;
+  buildProjectDraftPayload: typeof buildProjectDraftPayload;
+  normalizeWizardData: typeof normalizeWizardData;
+  runInspirationDraftAction: typeof runInspirationDraftAction;
+  saveInspirationDraftToStorage: typeof saveInspirationDraftToStorage;
+}
+
+type InspirationComponent = React.FC & {
+  __testUtils: InspirationTestUtils;
+};
+
+const InspirationImpl: React.FC = () => {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState<Step>('idea');
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
@@ -70,6 +151,8 @@ const Inspiration: React.FC = () => {
   ]);
   const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);
+  const [draftActionLoading, setDraftActionLoading] = useState<InspirationDraftAction | null>(null);
+  const [createdDraftProjectId, setCreatedDraftProjectId] = useState<string | null>(null);
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
 
   // 收集的数据
@@ -515,7 +598,7 @@ const Inspiration: React.FC = () => {
       const aiMessage: Message = {
         type: 'ai',
         content: summary,
-        options: ['✅ 确认创建', '🔄 重新开始']
+        options: ['保存灵感草稿', '创建项目草稿', '开始完整项目生成', '重新开始']
       };
       setMessages(prev => [...prev, aiMessage]);
       setCurrentStep('confirm');
@@ -523,16 +606,86 @@ const Inspiration: React.FC = () => {
     }
 
     if (currentStep === 'confirm') {
-      if (option === '✅ 确认创建') {
+      if (option === '保存灵感草稿') {
         const userMessage: Message = {
           type: 'user',
-          content: '确认创建',
+          content: '保存灵感草稿',
+        };
+        setMessages(prev => [...prev, userMessage]);
+
+        setDraftActionLoading('save_inspiration');
+        try {
+          const data = wizardData as WizardData;
+          const draft = await runInspirationDraftAction('save_inspiration', data, initialIdea, {
+            saveInspiration: saveInspirationDraftToStorage,
+            createProjectDraft: projectApi.createProject,
+          }) as InspirationDraftRecord;
+          const aiMessage: Message = {
+            type: 'ai',
+            content: `已保存为灵感草稿「${draft.title}」。这不会创建角色、组织、职业或改写世界观；你仍可以选择创建项目草稿或进入完整生成流程。`,
+            options: ['创建项目草稿', '开始完整项目生成', '重新开始'],
+          };
+          setMessages(prev => [...prev, aiMessage]);
+          message.success('灵感草稿已保存');
+        } catch (error) {
+          console.error('保存灵感草稿失败:', error);
+          message.error('保存灵感草稿失败');
+        } finally {
+          setDraftActionLoading(null);
+        }
+        return;
+      }
+
+      if (option === '创建项目草稿') {
+        const userMessage: Message = {
+          type: 'user',
+          content: '创建项目草稿',
+        };
+        setMessages(prev => [...prev, userMessage]);
+
+        setDraftActionLoading('create_project_draft');
+        try {
+          const data = wizardData as WizardData;
+          const project = await runInspirationDraftAction('create_project_draft', data, initialIdea, {
+            saveInspiration: saveInspirationDraftToStorage,
+            createProjectDraft: projectApi.createProject,
+          }) as Project;
+          clearCache();
+          const aiMessage: Message = {
+            type: 'ai',
+            content: `项目草稿《${project.title}》已创建。当前只保存基础创意信息，没有自动创建角色、组织、职业或覆盖世界观；你可以进入项目后通过评审结果逐步接受 AI 草稿。`,
+            options: ['进入项目', '重新开始'],
+          };
+          setMessages(prev => [...prev, aiMessage]);
+          setCreatedDraftProjectId(project.id);
+          message.success('项目草稿已创建');
+          setTimeout(() => navigate(`/project/${project.id}`), 800);
+        } catch (error) {
+          console.error('创建项目草稿失败:', error);
+          message.error('创建项目草稿失败，请重试');
+        } finally {
+          setDraftActionLoading(null);
+        }
+        return;
+      }
+
+      if (option === '进入项目') {
+        if (createdDraftProjectId) {
+          navigate(`/project/${createdDraftProjectId}`);
+        }
+        return;
+      }
+
+      if (option === '开始完整项目生成') {
+        const userMessage: Message = {
+          type: 'user',
+          content: '开始完整项目生成',
         };
         setMessages(prev => [...prev, userMessage]);
 
         const aiMessage: Message = {
           type: 'ai',
-          content: '好的！正在为你创建项目，这可能需要几分钟时间...'
+          content: '好的！将进入完整生成流程。后续角色、组织、职业会遵循候选/策略评审规则，不再作为默认静默入库路径。'
         };
         setMessages(prev => [...prev, aiMessage]);
 
@@ -555,7 +708,7 @@ const Inspiration: React.FC = () => {
         setGenerationConfig(config);
         setCurrentStep('generating');
         return;
-      } else if (option === '🔄 重新开始') {
+      } else if (option === '重新开始') {
         handleRestart();
         return;
       }
@@ -821,6 +974,7 @@ const Inspiration: React.FC = () => {
     setWizardData({});
     setInitialIdea('');
     setSelectedOptions([]);
+    setCreatedDraftProjectId(null);
     setLoading(false);
   };
 
@@ -899,11 +1053,11 @@ const Inspiration: React.FC = () => {
                     {msg.options.map((option, optIndex) => (
                       <Card
                         key={optIndex}
-                        hoverable={!msg.optionsDisabled}
+                        hoverable={!msg.optionsDisabled && !draftActionLoading}
                         size="small"
-                        onClick={() => !msg.optionsDisabled && handleSelectOption(option)}
+                        onClick={() => !msg.optionsDisabled && !draftActionLoading && handleSelectOption(option)}
                         style={{
-                          cursor: msg.optionsDisabled ? 'not-allowed' : 'pointer',
+                          cursor: msg.optionsDisabled || draftActionLoading ? 'not-allowed' : 'pointer',
                           border: msg.isMultiSelect && selectedOptions.includes(option)
                             ? `2px solid ${token.colorPrimary}`
                             : `1px solid ${token.colorBorder}`,
@@ -912,20 +1066,20 @@ const Inspiration: React.FC = () => {
                             : msg.isMultiSelect && selectedOptions.includes(option)
                               ? token.colorPrimaryBg
                               : token.colorBgContainer,
-                          opacity: msg.optionsDisabled ? 0.6 : 1,
+                          opacity: msg.optionsDisabled || draftActionLoading ? 0.6 : 1,
                           animation: 'floatIn 0.6s ease-out',
                           animationDelay: `${optIndex * 0.1}s`,
                           animationFillMode: 'both',
                           transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                         }}
                         onMouseEnter={(e) => {
-                          if (!msg.optionsDisabled) {
+                          if (!msg.optionsDisabled && !draftActionLoading) {
                             e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
                             e.currentTarget.style.boxShadow = `0 8px 22px color-mix(in srgb, ${token.colorTextBase} 14%, transparent)`;
                           }
                         }}
                         onMouseLeave={(e) => {
-                          if (!msg.optionsDisabled) {
+                          if (!msg.optionsDisabled && !draftActionLoading) {
                             e.currentTarget.style.transform = 'translateY(0) scale(1)';
                             e.currentTarget.style.boxShadow = 'none';
                           }
@@ -1004,13 +1158,13 @@ const Inspiration: React.FC = () => {
             </div>
           ))}
 
-          {(loading || refining) && (
+          {(loading || refining || draftActionLoading) && (
             <div style={{
               textAlign: 'center',
               padding: 20,
               animation: 'fadeIn 0.3s ease-in'
             }}>
-              <Spin tip={refining ? "正在根据您的反馈重新生成..." : "AI思考中..."} />
+              <Spin tip={draftActionLoading ? "正在保存草稿..." : refining ? "正在根据您的反馈重新生成..." : "AI思考中..."} />
             </div>
           )}
 
@@ -1038,13 +1192,13 @@ const Inspiration: React.FC = () => {
                 handleSendMessage();
               }
             }}
-            disabled={loading}
+            disabled={loading || Boolean(draftActionLoading)}
           />
           <Button
             type="primary"
             icon={<SendOutlined />}
             onClick={handleSendMessage}
-            loading={loading}
+            loading={loading || Boolean(draftActionLoading)}
             style={{ height: 'auto' }}
           >
             发送
@@ -1196,6 +1350,16 @@ const Inspiration: React.FC = () => {
       </div>
     </div>
   );
+};
+
+const Inspiration = InspirationImpl as InspirationComponent;
+
+Inspiration.__testUtils = {
+  INSPIRATION_DRAFTS_KEY,
+  buildProjectDraftPayload,
+  normalizeWizardData,
+  runInspirationDraftAction,
+  saveInspirationDraftToStorage,
 };
 
 export default Inspiration;

@@ -849,7 +849,7 @@ Wave 4: Tasks 15, 16, 17, 18 — inspiration/world UI, timeline UI, cleanup/docs
 
   **Commit**: YES | Message: `frontend: add extraction candidate review UI` | Files: [`frontend/src/pages/Characters.tsx`, `frontend/src/pages/Organizations.tsx`, `frontend/src/pages/Careers.tsx`, `frontend/src/components/**`, `frontend/src/services/api.ts`, `frontend/src/types/index.ts`, `frontend/src/**/__tests__/**`]
 
-- [ ] 15. Refactor Inspiration and WorldSetting UI for draft/result review instead of silent mutation
+- [x] 15. Refactor Inspiration and WorldSetting UI for draft/result review instead of silent mutation
 
   **What to do**: Update inspiration mode so generated ideas remain drafts by default and can be saved as inspiration, converted to extraction candidates, or applied to world-setting result drafts without silently mutating canonical entities/world state. Update `WorldSetting.tsx` to show versioned generation results with statuses, diff against active snapshot, accept/reject/rollback actions, provider/model/reasoning metadata, and provenance/source links where available. Preserve existing world setting edit ability as manual active snapshot edit with provenance/audit entry.
   **Must NOT do**: Do not let inspiration directly create canonical character/org/profession by default. Do not overwrite `Project.world_*` until accept. Do not remove existing route paths.

@@ -86,3 +86,9 @@
 - `ExtractionCandidateReviewPanel` centralizes the restrained AntD review surface: outer tabs are `已入库`, `正文发现`, `待合并`, and `已拒绝/历史`; candidates are split client-side by pending status plus `canonical_target_id` because the current list API does not expose an explicit "has target" filter.
 - AI canonical entity generation controls on Characters and Careers now default hidden behind the backend-backed `allow_ai_entity_generation` setting, while manual create/edit controls remain visible; the shared policy copy is kept in the review component test utils for regression coverage.
 - Careers adds a `职业时间线` tab backed by `/api/timeline/projects/{project_id}/history?event_type=profession`, mapped to current character/career names when available while preserving the existing taxonomy CRUD tabs.
+
+## 2026-04-27 — Task 15 world/inspiration draft review UI
+- Frontend world-setting result review now uses shared `worldSettingResultApi` wrappers in `frontend/src/services/api.ts`; accept/reject/rollback calls return `active_world`, and the page updates `useStore().currentProject` from that snapshot rather than inferring changes from raw result rows.
+- `WorldSetting.tsx` separates `当前生效世界观` manual snapshot editing from `AI结果评审`; the AI regenerate stream is treated as a result/page draft and no longer calls `projectApi.updateProject` from the AI preview path.
+- `WorldSetting` exposes focused test utilities for snapshot application and action orchestration; the jsdom test renders the page, clicks `接受结果`, and verifies the mocked result API updates the active project world fields.
+- `Inspiration.tsx` keeps generated ideas as drafts by default: users can save local inspiration drafts or create a project draft through `projectApi.createProject`; the full `AIProjectGenerator` handoff remains an explicit secondary option.

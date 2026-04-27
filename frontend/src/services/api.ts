@@ -84,6 +84,13 @@ import type {
   TimelineEventType,
   TimelineHistoryResponse,
   TimelineStateResponse,
+  WorldBuildingDraftResponse,
+  WorldSettingRejectRequest,
+  WorldSettingResult,
+  WorldSettingResultListResponse,
+  WorldSettingResultOperationResponse,
+  WorldSettingResultStatus,
+  WorldSettingRollbackRequest,
 } from '../types';
 
 interface MCPPluginSimpleCreate {
@@ -586,6 +593,25 @@ export const timelineApi = {
 
   getProjectHistory: (projectId: string, params?: { event_type?: TimelineEventType }) =>
     api.get<unknown, TimelineHistoryResponse>(`/timeline/projects/${projectId}/history`, { params }),
+};
+
+export const worldSettingResultApi = {
+  listResults: (projectId: string, params?: { status?: WorldSettingResultStatus; limit?: number; offset?: number }) =>
+    api.get<unknown, WorldSettingResultListResponse>('/world-setting-results', {
+      params: { project_id: projectId, ...params },
+    }),
+
+  getResult: (resultId: string) =>
+    api.get<unknown, WorldSettingResult>(`/world-setting-results/${resultId}`),
+
+  acceptResult: (resultId: string) =>
+    api.post<unknown, WorldSettingResultOperationResponse>(`/world-setting-results/${resultId}/accept`, {}),
+
+  rejectResult: (resultId: string, data: WorldSettingRejectRequest = {}) =>
+    api.post<unknown, WorldSettingResultOperationResponse>(`/world-setting-results/${resultId}/reject`, data),
+
+  rollbackResult: (resultId: string, data: WorldSettingRollbackRequest = {}) =>
+    api.post<unknown, WorldSettingResultOperationResponse>(`/world-setting-results/${resultId}/rollback`, data),
 };
 
 export const organizationApi = {
@@ -1195,7 +1221,7 @@ export const wizardStreamApi = {
       model?: string;
     },
     options?: SSEClientOptions
-  ) => ssePost<WorldBuildingResponse>(
+  ) => ssePost<WorldBuildingDraftResponse>(
     `/api/wizard-stream/world-building/${projectId}/regenerate`,
     data || {},
     options
