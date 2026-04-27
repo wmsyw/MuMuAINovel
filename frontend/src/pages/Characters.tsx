@@ -11,6 +11,7 @@ import TimelineReviewPanel from '../components/TimelineReviewPanel';
 import type { Character, ApiError, ExtractionCandidateType } from '../types';
 import { characterApi, careerApi, settingsApi } from '../services/api';
 import { SSEPostClient } from '../utils/sseClient';
+import { isOrganizationEntity } from '../utils/entityCompatibility';
 
 const { Title } = Typography;
 const { TextArea } = Input;
@@ -230,7 +231,7 @@ export default function Characters() {
         {
           project_id: currentProject.id,
           name: values.name,
-          organization_type: values.organization_type,
+          organization_type: values['organization_type'],
           background: values.background,
           requirements: values.requirements,
         },
@@ -297,8 +298,8 @@ export default function Characters() {
         }
       } else {
         // 组织字段
-        createData.organization_type = values.organization_type;
-        createData.organization_purpose = values.organization_purpose;
+        createData['organization_type'] = values['organization_type'];
+        createData['organization_purpose'] = values['organization_purpose'];
         createData.background = values.background;
         createData.power_level = values.power_level;
         createData.location = values.location;
@@ -622,8 +623,8 @@ export default function Characters() {
     });
   };
 
-  const characterList = characters.filter(c => !c.is_organization);
-  const organizationList = characters.filter(c => c.is_organization);
+  const characterList = characters.filter(c => !isOrganizationEntity(c));
+  const organizationList = characters.filter(c => isOrganizationEntity(c));
 
   const getDisplayList = () => {
     if (activeTab === 'character') return characterList;
@@ -990,7 +991,7 @@ export default function Characters() {
       />
 
       <Modal
-        title={editingCharacter?.is_organization ? '编辑组织' : '编辑角色'}
+        title={isOrganizationEntity(editingCharacter) ? '编辑组织' : '编辑角色'}
         open={isEditModalOpen}
         onCancel={() => {
           setIsEditModalOpen(false);
@@ -1023,7 +1024,7 @@ export default function Characters() {
         }}
       >
         <Form form={editForm} layout="vertical" onFinish={handleUpdateCharacter} style={{ marginTop: 8 }}>
-          {!editingCharacter?.is_organization ? (
+          {!isOrganizationEntity(editingCharacter) ? (
             <>
               {/* 编辑角色 - 第一行：名称、定位、年龄、性别 */}
               <Row gutter={12}>

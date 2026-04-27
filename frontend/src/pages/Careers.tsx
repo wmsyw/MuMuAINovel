@@ -7,6 +7,7 @@ import SSEProgressModal from '../components/SSEProgressModal';
 import ExtractionCandidateReviewPanel from '../components/ExtractionCandidateReviewPanel';
 import TimelineReviewPanel from '../components/TimelineReviewPanel';
 import type { Career, CareerCreateRequest, CareerStage, Character, ExtractionCandidateType } from '../types';
+import { isOrganizationEntity } from '../utils/entityCompatibility';
 
 const { TextArea } = Input;
 const { Title, Text, Paragraph } = Typography;
@@ -55,7 +56,7 @@ export default function Careers() {
         if (!projectId) return;
         try {
             const data = await characterApi.getCharacters(projectId);
-            setCharacters(data.filter(character => !character.is_organization));
+            setCharacters(data.filter(character => !isOrganizationEntity(character)));
         } catch (error) {
             console.error('获取角色列表失败:', error);
         }

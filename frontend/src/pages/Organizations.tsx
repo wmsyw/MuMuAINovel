@@ -8,6 +8,7 @@ import ExtractionCandidateReviewPanel from '../components/ExtractionCandidateRev
 import TimelineReviewPanel from '../components/TimelineReviewPanel';
 import { characterApi, organizationApi } from '../services/api';
 import type { Character, ExtractionCandidateType, Organization, OrganizationMember, OrganizationMemberPayload } from '../types';
+import { isOrganizationEntity } from '../utils/entityCompatibility';
 
 const ORGANIZATION_REVIEW_TYPES: ExtractionCandidateType[] = ['organization', 'organization_affiliation'];
 const ENTITY_GENERATION_POLICY_COPY = ExtractionCandidateReviewPanel.__testUtils.AI_ENTITY_GENERATION_POLICY_COPY;
@@ -278,7 +279,7 @@ export default function Organizations() {
 
   // 过滤掉已是成员的角色
   const availableCharacters = characters.filter(
-    c => !c.is_organization && !members.some(m => m.character_id === c.id)
+    c => !isOrganizationEntity(c) && !members.some(m => m.character_id === c.id)
   );
 
   return (

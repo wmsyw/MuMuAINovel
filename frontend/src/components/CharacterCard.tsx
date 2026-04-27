@@ -2,6 +2,7 @@ import { Card, Space, Tag, Typography, Popconfirm, theme } from 'antd';
 import { EditOutlined, DeleteOutlined, UserOutlined, BankOutlined, ExportOutlined } from '@ant-design/icons';
 import { characterCardStyles } from './CardStyles';
 import type { Character } from '../types';
+import { getOrganizationPurpose, getOrganizationType, isOrganizationEntity } from '../utils/entityCompatibility';
 
 const { Text, Paragraph } = Typography;
 
@@ -33,7 +34,9 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({ character, onEdit,
     return roleLabels[roleType || ''] || '其他';
   };
 
-  const isOrganization = character.is_organization;
+  const isOrganization = isOrganizationEntity(character);
+  const organizationType = getOrganizationType(character);
+  const organizationPurpose = getOrganizationPurpose(character);
   const charStatus = character.status || 'active';
   const isInactive = charStatus !== 'active';
 
@@ -149,10 +152,10 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({ character, onEdit,
             {/* 组织特有字段 */}
             {isOrganization && (
               <>
-                {character.organization_type && (
+                {organizationType && (
                   <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center' }}>
                     <Text type="secondary" style={{ flexShrink: 0 }}>类型：</Text>
-                    <Tag color="cyan">{character.organization_type}</Tag>
+                    <Tag color="cyan">{organizationType}</Tag>
                   </div>
                 )}
                 {character.power_level !== undefined && character.power_level !== null && (
@@ -191,14 +194,14 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({ character, onEdit,
                     </Text>
                   </div>
                 )}
-                {character.organization_purpose && (
+                {organizationPurpose && (
                   <div style={{ marginBottom: 8, display: 'flex', alignItems: 'flex-start' }}>
                     <Text type="secondary" style={{ flexShrink: 0 }}>目的：</Text>
                     <Text
                       style={{ flex: 1, minWidth: 0 }}
-                      ellipsis={{ tooltip: character.organization_purpose }}
+                      ellipsis={{ tooltip: organizationPurpose }}
                     >
-                      {character.organization_purpose}
+                      {organizationPurpose}
                     </Text>
                   </div>
                 )}

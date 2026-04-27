@@ -4,6 +4,7 @@ import { Card, Table, Tag, Button, Space, message, Modal, Form, Select, Slider, 
 import { PlusOutlined, ApartmentOutlined, UserOutlined, EditOutlined } from '@ant-design/icons';
 import { useStore } from '../store';
 import axios from 'axios';
+import { isOrganizationEntity } from '../utils/entityCompatibility';
 
 const { TextArea } = Input;
 
@@ -446,7 +447,7 @@ export default function Relationships() {
                 (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
               }
               options={characters
-                .filter(c => !c.is_organization)
+                .filter(c => !isOrganizationEntity(c))
                 .map(c => ({ label: c.name, value: c.id }))}
             />
           </Form.Item>
@@ -481,7 +482,7 @@ export default function Relationships() {
                 (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
               }
               options={characters
-                .filter(c => !c.is_organization)
+                .filter(c => !isOrganizationEntity(c))
                 .map(c => ({ label: c.name, value: c.id }))}
             />
           </Form.Item>

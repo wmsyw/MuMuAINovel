@@ -17,6 +17,7 @@ import type {
   Foreshadow, ForeshadowCreate, ForeshadowUpdate, ForeshadowStats,
   ForeshadowStatus, ForeshadowCategory, Chapter, Character
 } from '../types';
+import { isOrganizationEntity } from '../utils/entityCompatibility';
 
 const { TextArea } = Input;
 const { Option } = Select;
@@ -752,7 +753,7 @@ export default function Foreshadows() {
                   maxTagCount={3}
                 >
                   {characters
-                    .filter(char => !char.is_organization)
+                    .filter(char => !isOrganizationEntity(char))
                     .map(char => (
                       <Option key={char.name} value={char.name}>
                         {char.name} {char.role_type ? `(${char.role_type})` : ''}
