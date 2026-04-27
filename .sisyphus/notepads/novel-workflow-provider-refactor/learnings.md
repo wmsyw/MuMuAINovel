@@ -137,3 +137,7 @@
 ## 2026-04-27 — Final F3 rollback fix
 - `WorldSettingResultService.rollback_result` now resolves prior snapshots through `supersedes_result_id` before timestamp-based fallback, so legacy backfill rows with null `accepted_at` can still be restored when explicitly superseded.
 - Added service and API regression coverage for accepting a result over a null-accepted_at legacy snapshot and rolling back successfully through `/api/world-setting-results/{id}/rollback`. Focused evidence: `.sisyphus/evidence/final-f3-world-rollback-fix.log` (`12 passed`).
+
+## 2026-04-27 — Final F3 browser rerun approve
+- Browser QA run `final-ui-rerun-20260427-134642` verifies commit `36b3990`: with a null-`accepted_at` legacy predecessor, world-setting accept returns 200, active snapshot changes to `星潮复苏三十年`, visible rollback returns 200, and active snapshot restores to `旧纪元末期` without a reload loop.
+- Same rerun reconfirmed settings reasoning/override UI, extraction accept/merge/reject, and relationship/affiliation/profession timeline current/history surfaces. Evidence: `.sisyphus/evidence/final-ui-rerun-20260427-134642-*`.

@@ -1027,17 +1027,17 @@ Wave 4: Tasks 15, 16, 17, 18 — inspiration/world UI, timeline UI, cleanup/docs
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 > **Do NOT auto-proceed after verification. Wait for user's explicit approval before marking work complete.**
 > **Never mark F1-F4 as checked before getting user's okay.** Rejection or user feedback -> fix -> re-run -> present again -> wait for okay.
-- [ ] F1. Plan Compliance Audit — oracle
+- [x] F1. Plan Compliance Audit — oracle
   - Verify every TODO acceptance criterion was executed and every evidence file exists.
   - Verify no source path outside this plan's scope was modified without explicit rationale.
   - Verify all final behavior matches user decisions: 自动+手动 extraction, advanced override, preserve/migrate, minimal tests, full timeline.
-- [ ] F2. Code Quality Review — unspecified-high
+- [x] F2. Code Quality Review — unspecified-high
   - Review backend service boundaries, migration quality, API contracts, provider abstractions, and frontend state handling.
   - Fail if provider-native fields leak into generic domain types or routers contain business orchestration.
-- [ ] F3. Real Manual QA — unspecified-high (+ browser/Playwright if UI)
+- [x] F3. Real Manual QA — unspecified-high (+ browser/Playwright if UI)
   - Run app through agent-controlled browser: settings, extraction candidates, accept/merge/reject, world setting result history, timeline view.
   - Capture screenshots/logs under `.sisyphus/evidence/final-ui-*`.
-- [ ] F4. Scope Fidelity Check — deep
+- [x] F4. Scope Fidelity Check — deep
   - Confirm deferred items stayed out: graph visualization, custom ontology editor, shared lore DB, natural-language graph query, fine-tuning.
   - Confirm old projects still load and legacy data remains accessible.
 

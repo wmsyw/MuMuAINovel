@@ -1,0 +1,209 @@
+{
+  "active_plan": "/Users/shenxt/Dev/OpenCode/MuMuAINovel/.sisyphus/plans/novel-workflow-provider-refactor.md",
+  "started_at": "2026-04-26T13:57:49.295Z",
+  "session_ids": [
+    "ses_2361a85a8ffeDbAHSWGnuGRgnB",
+    "ses_235e859f0ffeoOhrBcjBfvOQJ8",
+    "ses_235e8599cffeoKb3GuojAPQing",
+    "ses_235e85998ffdbqTK22yjcIHJLe",
+    "ses_235d1403dffe7IPBgJTQdjIUPF",
+    "ses_235d13fe7ffes19bLjagogF3Cu",
+    "ses_235d13f8fffezPL3VmKz9FOxvl",
+    "ses_23599e452ffeWdbrDFloyQq680",
+    "ses_23599e3aeffesLirHq260odBiM",
+    "ses_235857fc6ffeGnCZdRZXVbrfiB",
+    "ses_235857f02ffeKINgwQQIRgiGez",
+    "ses_2357a928effeWxU8b30o1klAd5",
+    "ses_2357a9289ffesKWbLXsTIPPWWb",
+    "ses_2356e2e57ffehNnUWWw8dX3gzJ",
+    "ses_2356e2d7bffe2eYd4vMbdRDb6z",
+    "ses_2355f64c1ffeHD4v1i3y8OlIh0",
+    "ses_2355f6315ffezmRvhuHDPEGooP",
+    "ses_2355f6312ffdgFuPptUWXIOG0m",
+    "ses_2333d0b85ffe0QW4H1Ae17uV7n",
+    "ses_2333d07ffffeUBZFpSOwmYINRB",
+    "ses_2331d3208ffeSsRo1oKFNzjvQy",
+    "ses_2331d2db1ffeXikQak5GQK6xua"
+  ],
+  "session_origins": {
+    "ses_2361a85a8ffeDbAHSWGnuGRgnB": "direct",
+    "ses_235e859f0ffeoOhrBcjBfvOQJ8": "appended",
+    "ses_235e8599cffeoKb3GuojAPQing": "appended",
+    "ses_235e85998ffdbqTK22yjcIHJLe": "appended",
+    "ses_235d1403dffe7IPBgJTQdjIUPF": "appended",
+    "ses_235d13fe7ffes19bLjagogF3Cu": "appended",
+    "ses_235d13f8fffezPL3VmKz9FOxvl": "appended",
+    "ses_23599e452ffeWdbrDFloyQq680": "appended",
+    "ses_23599e3aeffesLirHq260odBiM": "appended",
+    "ses_235857fc6ffeGnCZdRZXVbrfiB": "appended",
+    "ses_235857f02ffeKINgwQQIRgiGez": "appended",
+    "ses_2357a928effeWxU8b30o1klAd5": "appended",
+    "ses_2357a9289ffesKWbLXsTIPPWWb": "appended",
+    "ses_2356e2e57ffehNnUWWw8dX3gzJ": "appended",
+    "ses_2356e2d7bffe2eYd4vMbdRDb6z": "appended",
+    "ses_2355f64c1ffeHD4v1i3y8OlIh0": "appended",
+    "ses_2355f6315ffezmRvhuHDPEGooP": "appended",
+    "ses_2355f6312ffdgFuPptUWXIOG0m": "appended",
+    "ses_2333d0b85ffe0QW4H1Ae17uV7n": "appended",
+    "ses_2333d07ffffeUBZFpSOwmYINRB": "appended",
+    "ses_2331d3208ffeSsRo1oKFNzjvQy": "appended",
+    "ses_2331d2db1ffeXikQak5GQK6xua": "appended"
+  },
+  "plan_name": "novel-workflow-provider-refactor",
+  "agent": "atlas",
+  "task_sessions": {
+    "todo:1": {
+      "task_key": "todo:1",
+      "task_label": "1",
+      "task_title": "Add minimal test harness and golden fixtures",
+      "session_id": "ses_235e5a8caffe600IytwaiqNIDH",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-04-26T14:10:59.975Z"
+    },
+    "todo:2": {
+      "task_key": "todo:2",
+      "task_label": "2",
+      "task_title": "Add extraction graph, provenance, timeline, world-result schema, and Character/Organization table split",
+      "session_id": "ses_235c9be1effeOlCp9nTgkQ5YUu",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-04-26T14:39:29.225Z"
+    },
+    "todo:3": {
+      "task_key": "todo:3",
+      "task_label": "3",
+      "task_title": "Backfill legacy records into provenance-compatible canon",
+      "session_id": "ses_2359759b0ffeUTEPqv3Gd7kQQc",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-04-26T15:34:53.917Z"
+    },
+    "todo:5": {
+      "task_key": "todo:5",
+      "task_label": "5",
+      "task_title": "Add OpenAI Responses API adapter while preserving Chat Completions compatibility",
+      "session_id": "ses_2358eb6bdffeDpP6tEOBLGD2AZ",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-04-26T15:42:59.559Z"
+    },
+    "todo:6": {
+      "task_key": "todo:6",
+      "task_label": "6",
+      "task_title": "Implement extraction core service and structured prompt schema",
+      "session_id": "ses_23583a87fffehSEBvDkm3h2wVr",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-04-26T15:56:44.589Z"
+    },
+    "todo:7": {
+      "task_key": "todo:7",
+      "task_label": "7",
+      "task_title": "Implement canonical merge, dedupe, rollback, and timeline projection service",
+      "session_id": "ses_23577cee5ffeI9FnzBngz0Gqvb",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-04-26T16:10:20.340Z"
+    },
+    "todo:8": {
+      "task_key": "todo:8",
+      "task_label": "8",
+      "task_title": "Version world-setting generation results and active snapshot acceptance",
+      "session_id": "ses_2356c2ddcffeQM8bvJlraqLNde",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-04-26T16:20:39.157Z"
+    },
+    "todo:9": {
+      "task_key": "todo:9",
+      "task_label": "9",
+      "task_title": "Add backend-enforced entity generation policy gate and advanced override audit",
+      "session_id": "ses_2355c5bd3ffesKx0ZxBLseMoDl",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-04-26T16:41:44.273Z"
+    },
+    "todo:11": {
+      "task_key": "todo:11",
+      "task_label": "11",
+      "task_title": "Integrate automatic and manual extraction triggers",
+      "session_id": "ses_235142f52ffe2ZorlqXGW7fXyj",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-04-26T17:58:58.717Z"
+    },
+    "todo:12": {
+      "task_key": "todo:12",
+      "task_label": "12",
+      "task_title": "Refactor character, organization, and profession APIs for extraction-first compatibility",
+      "session_id": "ses_235072e3effeDZ5wfQDPlEU7E6",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-04-26T18:15:16.836Z"
+    },
+    "todo:13": {
+      "task_key": "todo:13",
+      "task_label": "13",
+      "task_title": "Add frontend settings for reasoning capabilities and advanced entity-generation override",
+      "session_id": "ses_234f39aeaffeerUkXn3wEW33tS",
+      "agent": "Sisyphus-Junior",
+      "category": "visual-engineering",
+      "updated_at": "2026-04-26T18:40:40.868Z"
+    },
+    "todo:14": {
+      "task_key": "todo:14",
+      "task_label": "14",
+      "task_title": "Add extraction candidate review UI to Characters, Organizations, and Careers pages",
+      "session_id": "ses_234e2b2ccffeTDmY4pfTQcoXJZ",
+      "agent": "Sisyphus-Junior",
+      "category": "visual-engineering",
+      "updated_at": "2026-04-26T19:00:28.505Z"
+    },
+    "todo:15": {
+      "task_key": "todo:15",
+      "task_label": "15",
+      "task_title": "Refactor Inspiration and WorldSetting UI for draft/result review instead of silent mutation",
+      "session_id": "ses_234ca239effelPQnTT76Te0ZBw",
+      "agent": "Sisyphus-Junior",
+      "category": "visual-engineering",
+      "updated_at": "2026-04-26T19:23:02.948Z"
+    },
+    "todo:16": {
+      "task_key": "todo:16",
+      "task_label": "16",
+      "task_title": "Add relationship, affiliation, and profession timeline UI/query surfaces",
+      "session_id": "ses_233a04558ffedJMrsaKvRx0Cuf",
+      "agent": "Sisyphus-Junior",
+      "category": "visual-engineering",
+      "updated_at": "2026-04-27T00:46:13.283Z"
+    },
+    "todo:17": {
+      "task_key": "todo:17",
+      "task_label": "17",
+      "task_title": "Remove bypasses, document behavior, deprecate legacy services, and mark deprecated generation paths",
+      "session_id": "ses_233892b2fffeEJSjR6qwAcTkCA",
+      "agent": "Sisyphus-Junior",
+      "category": "writing",
+      "updated_at": "2026-04-27T01:33:53.504Z"
+    },
+    "todo:18": {
+      "task_key": "todo:18",
+      "task_label": "18",
+      "task_title": "Run integrated QA hardening and capture evidence bundle",
+      "session_id": "ses_233395deaffeQikQO2jcHCPLSd",
+      "agent": "Sisyphus-Junior",
+      "category": "writing",
+      "updated_at": "2026-04-27T02:32:52.516Z"
+    },
+    "final-wave:f1": {
+      "task_key": "final-wave:f1",
+      "task_label": "F1",
+      "task_title": "Plan Compliance Audit — oracle",
+      "session_id": "ses_232cc8dfaffeAtvGiDXzjMd5GR",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-04-27T04:35:19.748Z"
+    }
+  }
+}
