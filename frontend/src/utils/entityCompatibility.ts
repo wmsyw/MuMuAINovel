@@ -1,14 +1,49 @@
-type LegacyOrganizationShape = {
-  readonly ['is_organization']?: boolean | null;
-  readonly ['organization_type']?: string | null;
-  readonly ['organization_purpose']?: string | null;
+export const LEGACY_ORGANIZATION_FIELDS = {
+  flag: 'is_organization',
+  type: 'organization_type',
+  purpose: 'organization_purpose',
+} as const;
+
+type LegacyOrganizationTextFields = {
+  readonly [LEGACY_ORGANIZATION_FIELDS.type]?: string | null;
+  readonly [LEGACY_ORGANIZATION_FIELDS.purpose]?: string | null;
 };
 
-export const isOrganizationEntity = (entity?: LegacyOrganizationShape | null): boolean =>
-  Boolean(entity?.['is_organization']);
+export type LegacyOrganizationEntityFields = LegacyOrganizationTextFields & {
+  readonly [LEGACY_ORGANIZATION_FIELDS.flag]?: boolean | null;
+};
 
-export const getOrganizationType = (entity?: LegacyOrganizationShape | null): string | undefined =>
-  entity?.['organization_type'] ?? undefined;
+export type LegacyOrganizationCharacterFields = LegacyOrganizationTextFields & {
+  readonly [LEGACY_ORGANIZATION_FIELDS.flag]: boolean;
+};
 
-export const getOrganizationPurpose = (entity?: LegacyOrganizationShape | null): string | undefined =>
-  entity?.['organization_purpose'] ?? undefined;
+export type LegacyOrganizationPayloadFields = {
+  [LEGACY_ORGANIZATION_FIELDS.flag]?: boolean;
+  [LEGACY_ORGANIZATION_FIELDS.type]?: string;
+  [LEGACY_ORGANIZATION_FIELDS.purpose]?: string;
+};
+
+export type LegacyOrganizationFormValues = LegacyOrganizationPayloadFields & {
+  organization_members?: string;
+};
+
+export const isOrganizationEntity = (entity?: LegacyOrganizationEntityFields | null): boolean =>
+  Boolean(entity?.[LEGACY_ORGANIZATION_FIELDS.flag]);
+
+export const getOrganizationType = (entity?: LegacyOrganizationEntityFields | null): string | undefined =>
+  entity?.[LEGACY_ORGANIZATION_FIELDS.type] ?? undefined;
+
+export const getOrganizationPurpose = (entity?: LegacyOrganizationEntityFields | null): string | undefined =>
+  entity?.[LEGACY_ORGANIZATION_FIELDS.purpose] ?? undefined;
+
+export const buildLegacyOrganizationFlag = (isOrganization: boolean): LegacyOrganizationPayloadFields => ({
+  [LEGACY_ORGANIZATION_FIELDS.flag]: isOrganization,
+});
+
+export const buildLegacyOrganizationCreateFields = (
+  values: LegacyOrganizationFormValues,
+): LegacyOrganizationPayloadFields => ({
+  ...buildLegacyOrganizationFlag(true),
+  [LEGACY_ORGANIZATION_FIELDS.type]: getOrganizationType(values),
+  [LEGACY_ORGANIZATION_FIELDS.purpose]: getOrganizationPurpose(values),
+});

@@ -4,7 +4,7 @@ import { Card, Table, Tag, Button, Space, message, Modal, Form, Select, Slider, 
 import { PlusOutlined, ApartmentOutlined, UserOutlined, EditOutlined } from '@ant-design/icons';
 import { useStore } from '../store';
 import axios from 'axios';
-import { isOrganizationEntity } from '../utils/entityCompatibility';
+import { isOrganizationEntity, type LegacyOrganizationCharacterFields } from '../utils/entityCompatibility';
 
 const { TextArea } = Input;
 
@@ -27,10 +27,9 @@ interface RelationshipType {
   icon?: string;
 }
 
-interface Character {
+interface Character extends LegacyOrganizationCharacterFields {
   id: string;
   name: string;
-  is_organization: boolean;
 }
 
 export default function Relationships() {

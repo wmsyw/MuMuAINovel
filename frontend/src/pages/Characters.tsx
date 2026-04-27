@@ -8,10 +8,17 @@ import { CharacterCard } from '../components/CharacterCard';
 import { SSELoadingOverlay } from '../components/SSELoadingOverlay';
 import ExtractionCandidateReviewPanel from '../components/ExtractionCandidateReviewPanel';
 import TimelineReviewPanel from '../components/TimelineReviewPanel';
-import type { Character, ApiError, ExtractionCandidateType } from '../types';
+import type { Character, CharacterCreate, CharacterUpdate, ApiError, ExtractionCandidateType } from '../types';
 import { characterApi, careerApi, settingsApi } from '../services/api';
 import { SSEPostClient } from '../utils/sseClient';
-import { isOrganizationEntity } from '../utils/entityCompatibility';
+import {
+  LEGACY_ORGANIZATION_FIELDS,
+  buildLegacyOrganizationCreateFields,
+  buildLegacyOrganizationFlag,
+  getOrganizationType,
+  isOrganizationEntity,
+  type LegacyOrganizationFormValues,
+} from '../utils/entityCompatibility';
 
 const { Title } = Typography;
 const { TextArea } = Input;
@@ -33,7 +40,7 @@ interface SubCareerData {
 }
 
 // 角色创建表单值类型
-interface CharacterFormValues {
+interface CharacterFormValues extends LegacyOrganizationFormValues {
   name: string;
   age?: string;
   gender?: string;
@@ -44,9 +51,6 @@ interface CharacterFormValues {
   main_career_id?: string;
   main_career_stage?: number;
   sub_career_data?: SubCareerData[];
-  // 组织字段
-  organization_type?: string;
-  organization_purpose?: string;
   organization_members?: string;
   power_level?: number;
   location?: string;
@@ -54,49 +58,11 @@ interface CharacterFormValues {
   color?: string;
 }
 
-// 角色创建数据类型
-interface CharacterCreateData {
-  project_id: string;
-  name: string;
-  is_organization: boolean;
-  age?: string;
-  gender?: string;
-  role_type?: string;
-  personality?: string;
-  appearance?: string;
-  background?: string;
-  main_career_id?: string;
-  main_career_stage?: number;
-  sub_careers?: string;
-  organization_type?: string;
-  organization_purpose?: string;
-  organization_members?: string;
-  power_level?: number;
-  location?: string;
-  motto?: string;
-  color?: string;
-}
-
-// 角色更新数据类型
-interface CharacterUpdateData {
+type OrganizationGenerationValues = LegacyOrganizationFormValues & {
   name?: string;
-  age?: string;
-  gender?: string;
-  role_type?: string;
-  personality?: string;
-  appearance?: string;
   background?: string;
-  main_career_id?: string;
-  main_career_stage?: number;
-  sub_careers?: string;
-  organization_type?: string;
-  organization_purpose?: string;
-  organization_members?: string;
-  power_level?: number;
-  location?: string;
-  motto?: string;
-  color?: string;
-}
+  requirements?: string;
+};
 
 export default function Characters() {
   const { token } = theme.useToken();
@@ -215,12 +181,7 @@ export default function Characters() {
     }
   };
 
-  const handleGenerateOrganization = async (values: {
-    name?: string;
-    organization_type?: string;
-    background?: string;
-    requirements?: string;
-  }) => {
+  const handleGenerateOrganization = async (values: OrganizationGenerationValues) => {
     try {
       setIsGenerating(true);
       setProgress(0);
@@ -231,7 +192,7 @@ export default function Characters() {
         {
           project_id: currentProject.id,
           name: values.name,
-          organization_type: values['organization_type'],
+          [LEGACY_ORGANIZATION_FIELDS.type]: getOrganizationType(values),
           background: values.background,
           requirements: values.requirements,
         },
@@ -271,10 +232,10 @@ export default function Characters() {
 
   const handleCreateCharacter = async (values: CharacterFormValues) => {
     try {
-      const createData: CharacterCreateData = {
+      const createData: CharacterCreate = {
         project_id: currentProject.id,
         name: values.name,
-        is_organization: createType === 'organization',
+        ...buildLegacyOrganizationFlag(createType === 'organization'),
       };
 
       if (createType === 'character') {
@@ -298,8 +259,7 @@ export default function Characters() {
         }
       } else {
         // 组织字段
-        createData['organization_type'] = values['organization_type'];
-        createData['organization_purpose'] = values['organization_purpose'];
+        Object.assign(createData, buildLegacyOrganizationCreateFields(values));
         createData.background = values.background;
         createData.power_level = values.power_level;
         createData.location = values.location;
@@ -340,7 +300,7 @@ export default function Characters() {
     try {
       // 提取副职业数据，剩余的作为更新数据
       const { sub_career_data: subCareerData, ...restValues } = values;
-      const updateData: CharacterUpdateData = { ...restValues };
+      const updateData: CharacterUpdate = { ...restValues };
 
       // 转换为sub_careers格式
       if (subCareerData && Array.isArray(subCareerData) && subCareerData.length > 0) {
@@ -600,10 +560,10 @@ export default function Characters() {
           >
             <Input placeholder="如：天剑门、黑龙会（可选，AI会自动生成）" />
           </Form.Item>
-          <Form.Item
-            label="组织类型"
-            name="organization_type"
-          >
+            <Form.Item
+              label="组织类型"
+              name={LEGACY_ORGANIZATION_FIELDS.type}
+            >
             <Input placeholder="如：门派、帮派、公司、学院（可选，AI会根据世界观生成）" />
           </Form.Item>
           <Form.Item label="背景设定" name="background">
@@ -1217,9 +1177,9 @@ export default function Characters() {
                   </Form.Item>
                 </Col>
                 <Col span={8}>
-                  <Form.Item
-                    label="组织类型"
-                    name="organization_type"
+                    <Form.Item
+                      label="组织类型"
+                      name={LEGACY_ORGANIZATION_FIELDS.type}
                     rules={[{ required: true, message: '请输入组织类型' }]}
                     style={{ marginBottom: 12 }}
                   >
@@ -1241,7 +1201,7 @@ export default function Characters() {
               {/* 第二行：组织目的 */}
               <Form.Item
                 label="组织目的"
-                name="organization_purpose"
+                name={LEGACY_ORGANIZATION_FIELDS.purpose}
                 rules={[{ required: true, message: '请输入组织目的' }]}
                 style={{ marginBottom: 12 }}
               >
@@ -1496,9 +1456,9 @@ export default function Characters() {
                   </Form.Item>
                 </Col>
                 <Col span={8}>
-                  <Form.Item
-                    label="组织类型"
-                    name="organization_type"
+                    <Form.Item
+                      label="组织类型"
+                      name={LEGACY_ORGANIZATION_FIELDS.type}
                     rules={[{ required: true, message: '请输入组织类型' }]}
                     style={{ marginBottom: 12 }}
                   >
@@ -1521,7 +1481,7 @@ export default function Characters() {
               {/* 第二行：组织目的 */}
               <Form.Item
                 label="组织目的"
-                name="organization_purpose"
+                name={LEGACY_ORGANIZATION_FIELDS.purpose}
                 rules={[{ required: true, message: '请输入组织目的' }]}
                 style={{ marginBottom: 12 }}
               >

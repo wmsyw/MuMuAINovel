@@ -1,3 +1,8 @@
+import type {
+  LegacyOrganizationCharacterFields,
+  LegacyOrganizationPayloadFields,
+} from '../utils/entityCompatibility';
+
 // 用户类型定义
 export interface User {
   user_id: string;
@@ -368,20 +373,17 @@ export interface OutlineUpdate {
 }
 
 // 角色类型定义
-export interface Character extends EntityEnrichmentFields {
+export interface Character extends EntityEnrichmentFields, LegacyOrganizationCharacterFields {
   id: string;
   project_id: string;
   name: string;
   age?: string;
   gender?: string;
-  is_organization: boolean;
   role_type?: string;
   personality?: string;
   background?: string;
   appearance?: string;
   relationships?: string;
-  organization_type?: string;
-  organization_purpose?: string;
   organization_members?: string;
   traits?: string;
   avatar_url?: string;
@@ -406,17 +408,39 @@ export interface Character extends EntityEnrichmentFields {
   updated_at: string;
 }
 
-export interface CharacterUpdate {
-  name?: string;
+export interface CharacterCreate extends LegacyOrganizationPayloadFields {
+  project_id: string;
+  name: string;
   age?: string;
   gender?: string;
-  is_organization?: boolean;
   role_type?: string;
   personality?: string;
   background?: string;
   appearance?: string;
-  organization_type?: string;
-  organization_purpose?: string;
+  relationships?: string;
+  organization_members?: string;
+  traits?: string;
+  avatar_url?: string;
+  power_level?: number;
+  location?: string;
+  motto?: string;
+  color?: string;
+  main_career_id?: string;
+  main_career_stage?: number;
+  sub_careers?: string;
+}
+
+export interface CharacterUpdate extends LegacyOrganizationPayloadFields {
+  name?: string;
+  age?: string;
+  gender?: string;
+  role_type?: string;
+  personality?: string;
+  background?: string;
+  appearance?: string;
+  main_career_id?: string;
+  main_career_stage?: number;
+  sub_careers?: string;
   organization_members?: string;
   traits?: string;
   // 组织扩展字段

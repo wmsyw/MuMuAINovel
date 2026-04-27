@@ -21,7 +21,7 @@ import {
 } from '@xyflow/react';
 import type { Node, Edge } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { getOrganizationPurpose, getOrganizationType, isOrganizationEntity } from '../utils/entityCompatibility';
+import { getOrganizationPurpose, getOrganizationType, isOrganizationEntity, type LegacyOrganizationCharacterFields } from '../utils/entityCompatibility';
 
 const { Text } = Typography;
 
@@ -57,19 +57,16 @@ interface RelationshipType {
   created_at: string;
 }
 
-interface CharacterDetail {
+interface CharacterDetail extends LegacyOrganizationCharacterFields {
   id: string;
   project_id: string;
   name: string;
   age: string;
   gender: string;
-  is_organization: boolean;
   role_type: string;
   personality: string;
   background: string;
   appearance: string;
-  organization_type: string;
-  organization_purpose: string;
   organization_members: string;
   traits: string;
   avatar_url: string;
