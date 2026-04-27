@@ -318,6 +318,40 @@ def test_rollback_world_result_restores_previous_snapshot(api_client: tuple[Test
     assert _project_world(session_factory) == ("旧纪元三百年", "旧都群岛", "潮湿阴郁", "月潮决定灵能强弱")
 
 
+def test_rollback_world_result_restores_linked_legacy_snapshot_without_accepted_at(
+    api_client: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, session_factory = api_client
+    _seed_world_results(session_factory)
+    with session_factory() as session:
+        legacy = session.get(WorldSettingResult, "world-legacy-api")
+        assert legacy is not None
+        legacy.accepted_at = None
+        session.commit()
+
+    accepted = client.post("/api/world-setting-results/world-pending-api/accept")
+    assert accepted.status_code == 200
+    assert accepted.json()["result"]["supersedes_result_id"] == "world-legacy-api"
+
+    response = client.post("/api/world-setting-results/world-pending-api/rollback", json={"reason": "恢复旧设定"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["changed"] is True
+    assert payload["result"]["status"] == "superseded"
+    assert payload["previous_result"]["id"] == "world-legacy-api"
+    assert payload["previous_result"]["status"] == "accepted"
+    assert payload["previous_result"]["accepted_at"] is not None
+    assert payload["active_world"] == {
+        "project_id": PROJECT_ID,
+        "world_time_period": "旧纪元三百年",
+        "world_location": "旧都群岛",
+        "world_atmosphere": "潮湿阴郁",
+        "world_rules": "月潮决定灵能强弱",
+    }
+    assert _project_world(session_factory) == ("旧纪元三百年", "旧都群岛", "潮湿阴郁", "月潮决定灵能强弱")
+
+
 def test_async_world_result_actions_serialize_loaded_dtos(monkeypatch: pytest.MonkeyPatch) -> None:
     async def fake_get_user(user_id: str) -> SimpleNamespace:
         return SimpleNamespace(id=user_id, username="world-user", trust_level=1, is_admin=False)

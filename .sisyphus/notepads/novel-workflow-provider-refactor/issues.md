@@ -145,3 +145,7 @@
 - Bare `python` remains unavailable in this shell and `python3` lacks pytest, so backend verification used the established `uv run --python python3.11 --with ... python -m pytest ...` fallback.
 - LSP diagnostics were run across all modified source/test files but backend output is still dominated by known environment/pre-existing basedpyright noise (`fastapi`/`sqlalchemy`/`pydantic`/`pytest` unresolved, implicit `app.*` imports, SQLAlchemy unknown members). Frontend changed files were clean except pre-existing AntD deprecation hints in surrounding page code.
 - Frontend Vitest continues to emit known non-blocking jsdom `window.getComputedStyle` notices from AntD/rc-table timeline tests and Vite continues to warn about large chunks; tests/build/lint still passed.
+
+## 2026-04-27 — Final F3 rerun blocker
+- Browser QA run `final-ui-rerun-20260427-130542` superseded the older MissingGreenlet failure: world-setting accept now returns 200 and updates the active world snapshot without a reload loop.
+- New remaining blocker: clicking the visible world-setting rollback action after accept returns HTTP 400 (`world_result_rollback_failed`, `no previous accepted result`) while the superseded legacy result is visible; console also logs the API error and React error-boundary warning. Evidence: `.sisyphus/evidence/final-ui-rerun-20260427-130542-*`.

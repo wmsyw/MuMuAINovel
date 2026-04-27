@@ -251,6 +251,15 @@ class WorldSettingResultService:
         ).scalars().first()
 
     def _previous_accepted_result(self, current: WorldSettingResult) -> WorldSettingResult | None:
+        if current.supersedes_result_id is not None:
+            linked_previous = self.db.get(WorldSettingResult, current.supersedes_result_id)
+            if (
+                linked_previous is not None
+                and linked_previous.project_id == current.project_id
+                and linked_previous.status in {"accepted", "superseded"}
+            ):
+                return linked_previous
+
         query = select(WorldSettingResult).where(
             WorldSettingResult.project_id == current.project_id,
             WorldSettingResult.id != current.id,

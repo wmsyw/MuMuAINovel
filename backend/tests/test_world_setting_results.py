@@ -207,6 +207,46 @@ def test_rollback_restores_previous_accepted_snapshot() -> None:
             assert {row.status for row in history} == {"accepted", "superseded"}
 
 
+def test_rollback_prefers_supersedes_link_when_legacy_accepted_at_is_null() -> None:
+    engine = sa.create_engine("sqlite:///:memory:")
+    with engine.begin() as connection:
+        Base.metadata.create_all(connection)
+        with Session(bind=connection) as session:
+            project = _seed_project(session)
+            legacy = _seed_legacy_accepted_result(session, project)
+            legacy.accepted_at = None
+            service = WorldSettingResultService(session)
+            current = service.create_pending_result(
+                project_id=project.id,
+                world_time_period="星潮复苏三十年",
+                world_location="雾港、星塔、黑潮海",
+                world_atmosphere="宏大、神秘、压迫",
+                world_rules="潮汐魔力每七日涨落；星塔保存古代契约；守夜人拥有夜禁执法权。",
+                raw_payload={"candidate": "world-v4"},
+            )
+            accepted = service.accept_result(current.id, accepted_by="reviewer-world")
+            assert accepted.previous_result == legacy
+            assert current.supersedes_result_id == legacy.id
+            assert legacy.status == "superseded"
+            assert legacy.accepted_at is None
+            assert project.world_time_period == "星潮复苏三十年"
+
+            rollback = service.rollback_result(current.id, actor_user_id="reviewer-world")
+            repeat = service.rollback_result(current.id, actor_user_id="reviewer-world")
+
+            assert rollback.changed is True
+            assert rollback.previous_result == legacy
+            assert repeat.changed is False
+            assert repeat.reason == "already rolled back"
+            assert current.status == "superseded"
+            assert legacy.status == "accepted"
+            assert legacy.accepted_at is not None
+            assert project.world_time_period == "旧纪元三百年"
+            assert project.world_location == "旧都群岛"
+            assert project.world_atmosphere == "潮湿阴郁"
+            assert project.world_rules == "月潮决定灵能强弱"
+
+
 def test_world_setting_result_schema_basics_remain_registered() -> None:
     world_columns = {column.name for column in Base.metadata.tables["world_setting_results"].columns}
     project_columns = {column.name for column in Base.metadata.tables["projects"].columns}

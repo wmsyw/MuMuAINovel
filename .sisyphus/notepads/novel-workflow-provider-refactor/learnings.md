@@ -133,3 +133,7 @@
 ## 2026-04-27 — Final F2 frontend legacy field boundary fix
 - Legacy character-shaped organization field ownership is now centralized in `frontend/src/utils/entityCompatibility.ts`: page code, API typings, and shared frontend types use helper constants/types/builders instead of spelling the old DTO keys directly.
 - `Characters.tsx` preserves the backend legacy payload shape for manual organization creation and AI organization generation by using the compatibility adapter, while grep for the forbidden legacy keys now resolves only to the compatibility boundary.
+
+## 2026-04-27 — Final F3 rollback fix
+- `WorldSettingResultService.rollback_result` now resolves prior snapshots through `supersedes_result_id` before timestamp-based fallback, so legacy backfill rows with null `accepted_at` can still be restored when explicitly superseded.
+- Added service and API regression coverage for accepting a result over a null-accepted_at legacy snapshot and rolling back successfully through `/api/world-setting-results/{id}/rollback`. Focused evidence: `.sisyphus/evidence/final-f3-world-rollback-fix.log` (`12 passed`).
