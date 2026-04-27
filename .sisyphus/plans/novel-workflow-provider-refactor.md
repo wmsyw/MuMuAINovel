@@ -980,7 +980,7 @@ Wave 4: Tasks 15, 16, 17, 18 — inspiration/world UI, timeline UI, cleanup/docs
 
   **Commit**: YES | Message: `docs: document extraction-first refactor behavior` | Files: [`README.md`, `backend/tests/test_generation_bypass_audit.py`, `backend/app/api/**`, `backend/app/services/**`, `frontend/src/services/api.ts`]
 
-- [ ] 18. Run integrated QA hardening and capture evidence bundle
+- [x] 18. Run integrated QA hardening and capture evidence bundle
 
   **What to do**: Execute the complete automated verification suite, Docker build, and deterministic smoke flows. Create an evidence bundle under `.sisyphus/evidence/` with command logs for backend pytest, frontend test/build/lint, Docker build, migration parity, provider capability tests, extraction/merge/timeline tests, and UI component tests. Fix failures discovered by this task; do not add new product scope. Summarize known limitations/deferred items in a final implementation note.
   **Must NOT do**: Do not waive failing tests. Do not mark final verification tasks F1-F4 as complete. Do not ask user to manually inspect; use captured logs/screenshots where needed.
