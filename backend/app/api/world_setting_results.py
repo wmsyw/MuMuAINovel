@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Callable, NoReturn
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -27,6 +28,15 @@ from app.services.world_setting_result_service import WorldSettingOperationResul
 router = APIRouter(prefix="/world-setting-results", tags=["世界观结果"])
 
 
+@dataclass(slots=True)
+class _SerializedOperationResult:
+    changed: bool
+    reason: str | None
+    result: WorldSettingResultResponse | None
+    previous_result: WorldSettingResultResponse | None
+    active_world: ProjectWorldSnapshot | None
+
+
 def _current_user_id(request: Request) -> str:
     user_id = getattr(request.state, "user_id", None)
     if not user_id:
@@ -47,15 +57,47 @@ async def _get_result_for_user(result_id: str, user_id: str, db: AsyncSession) -
     return world_result
 
 
-async def _active_world_snapshot(project_id: str, db: AsyncSession) -> ProjectWorldSnapshot:
-    result = await db.execute(select(Project).where(Project.id == project_id))
-    project = result.scalar_one()
+def _active_world_snapshot(project_id: str, session: Session) -> ProjectWorldSnapshot:
+    project = session.execute(select(Project).where(Project.id == project_id)).scalar_one()
     return ProjectWorldSnapshot(
         project_id=project.id,
         world_time_period=project.world_time_period,
         world_location=project.world_location,
         world_atmosphere=project.world_atmosphere,
         world_rules=project.world_rules,
+    )
+
+
+def _result_response(result: WorldSettingResult | None) -> WorldSettingResultResponse | None:
+    if result is None:
+        return None
+    return WorldSettingResultResponse.from_orm_result(result)
+
+
+def _run_and_serialize_operation(
+    session: Session,
+    operation: Callable[[Session], WorldSettingOperationResult],
+) -> _SerializedOperationResult:
+    operation_result = operation(session)
+    if not operation_result.changed:
+        return _SerializedOperationResult(
+            changed=False,
+            reason=operation_result.reason,
+            result=None,
+            previous_result=None,
+            active_world=None,
+        )
+
+    session.flush()
+    operation_result.materialize_response_attributes()
+    result_response = _result_response(operation_result.result)
+    previous_response = _result_response(operation_result.previous_result)
+    return _SerializedOperationResult(
+        changed=True,
+        reason=operation_result.reason,
+        result=result_response,
+        previous_result=previous_response,
+        active_world=_active_world_snapshot(operation_result.result.project_id, session),
     )
 
 
@@ -68,8 +110,8 @@ async def _operation_response(
     failure_code: str,
     failure_message: str,
 ) -> WorldSettingResultOperationResponse:
-    world_result = await _get_result_for_user(result_id, user_id, db)
-    operation_result = await db.run_sync(operation)
+    _ = await _get_result_for_user(result_id, user_id, db)
+    operation_result = await db.run_sync(lambda session: _run_and_serialize_operation(session, operation))
     if not operation_result.changed:
         await db.rollback()
         _structured_error(
@@ -78,17 +120,14 @@ async def _operation_response(
             message=operation_result.reason or failure_message,
         )
     await db.commit()
-    refreshed = await _get_result_for_user(result_id, user_id, db)
+    if operation_result.result is None or operation_result.active_world is None:
+        _structured_error(500, code="world_result_operation_response_failed", message="世界观结果响应构建失败")
     return WorldSettingResultOperationResponse(
         changed=True,
         reason=operation_result.reason,
-        result=WorldSettingResultResponse.model_validate(refreshed),
-        previous_result=(
-            WorldSettingResultResponse.model_validate(operation_result.previous_result)
-            if operation_result.previous_result is not None
-            else None
-        ),
-        active_world=await _active_world_snapshot(world_result.project_id, db),
+        result=operation_result.result,
+        previous_result=operation_result.previous_result,
+        active_world=operation_result.active_world,
     )
 
 

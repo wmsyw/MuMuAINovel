@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -45,6 +45,12 @@ class WorldSettingResultResponse(BaseModel):
     updated_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @classmethod
+    def from_orm_result(cls, result: object) -> Self:
+        """Validate a loaded ORM world-setting result into the API DTO."""
+
+        return cls.model_validate(result)
 
 
 class WorldSettingResultListResponse(BaseModel):

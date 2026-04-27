@@ -20,6 +20,28 @@ from app.models.relationship import WorldSettingResult
 
 WORLD_RESULT_SOURCE_AI = "ai"
 
+_WORLD_RESULT_RESPONSE_ATTRIBUTES = (
+    "id",
+    "project_id",
+    "run_id",
+    "status",
+    "world_time_period",
+    "world_location",
+    "world_atmosphere",
+    "world_rules",
+    "prompt",
+    "provider",
+    "model",
+    "reasoning_intensity",
+    "raw_result",
+    "source_type",
+    "accepted_at",
+    "accepted_by",
+    "supersedes_result_id",
+    "created_at",
+    "updated_at",
+)
+
 
 @dataclass(slots=True)
 class WorldSettingOperationResult:
@@ -29,6 +51,19 @@ class WorldSettingOperationResult:
     changed: bool
     reason: str | None = None
     previous_result: WorldSettingResult | None = None
+
+    def materialize_response_attributes(self) -> None:
+        """Load response fields while a sync SQLAlchemy greenlet context is active."""
+
+        self._materialize_result(self.result)
+        self._materialize_result(self.previous_result)
+
+    @staticmethod
+    def _materialize_result(result: WorldSettingResult | None) -> None:
+        if result is None:
+            return
+        for attribute_name in _WORLD_RESULT_RESPONSE_ATTRIBUTES:
+            _ = getattr(result, attribute_name)
 
 
 class WorldSettingResultService:

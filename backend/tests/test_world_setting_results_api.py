@@ -1,13 +1,16 @@
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterator, Sequence
+import asyncio
 from datetime import datetime, timedelta
 import sys
 import types
 from types import SimpleNamespace
 from typing import Protocol, TypeVar, cast
 
+import httpx
 import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -132,71 +135,81 @@ def api_client(monkeypatch: pytest.MonkeyPatch) -> Iterator[tuple[TestClient, se
         engine.dispose()
 
 
-def _seed_world_results(session_factory: sessionmaker[Session]) -> None:
+def _add_world_results(session: Session) -> None:
     accepted_at = datetime(2026, 4, 27, 8, 0, 0)
-    with session_factory() as session:
-        session.add(
-            Project(
-                id=PROJECT_ID,
-                user_id=USER_ID,
-                title="世界观结果 API",
+    session.add(
+        Project(
+            id=PROJECT_ID,
+            user_id=USER_ID,
+            title="世界观结果 API",
+            world_time_period="旧纪元三百年",
+            world_location="旧都群岛",
+            world_atmosphere="潮湿阴郁",
+            world_rules="月潮决定灵能强弱",
+        )
+    )
+    session.add(Project(id="project-world-other", user_id="user-other", title="其他世界"))
+    session.add_all(
+        [
+            WorldSettingResult(
+                id="world-legacy-api",
+                project_id=PROJECT_ID,
+                status="accepted",
                 world_time_period="旧纪元三百年",
                 world_location="旧都群岛",
                 world_atmosphere="潮湿阴郁",
                 world_rules="月潮决定灵能强弱",
-            )
-        )
-        session.add(Project(id="project-world-other", user_id="user-other", title="其他世界"))
-        session.add_all(
-            [
-                WorldSettingResult(
-                    id="world-legacy-api",
-                    project_id=PROJECT_ID,
-                    status="accepted",
-                    world_time_period="旧纪元三百年",
-                    world_location="旧都群岛",
-                    world_atmosphere="潮湿阴郁",
-                    world_rules="月潮决定灵能强弱",
-                    raw_result={"source": "legacy"},
-                    source_type="legacy_existing_record",
-                    accepted_at=accepted_at,
-                    accepted_by=USER_ID,
-                ),
-                WorldSettingResult(
-                    id="world-pending-api",
-                    project_id=PROJECT_ID,
-                    status="pending",
-                    world_time_period="新纪元元年",
-                    world_location="群星裂谷",
-                    world_atmosphere="壮阔紧张",
-                    world_rules="星核契约会反噬说谎者",
-                    provider="openai",
-                    model="gpt-5-mini",
-                    reasoning_intensity="high",
-                    raw_result={"candidate": "world-v2"},
-                    source_type="ai",
-                ),
-                WorldSettingResult(
-                    id="world-reject-api",
-                    project_id=PROJECT_ID,
-                    status="pending",
-                    world_time_period="被拒绝纪元",
-                    world_location="雾城",
-                    world_atmosphere="压抑",
-                    world_rules="禁用星术",
-                    raw_result={"candidate": "reject"},
-                    source_type="ai",
-                ),
-                WorldSettingResult(
-                    id="world-other-api",
-                    project_id="project-world-other",
-                    status="pending",
-                    world_time_period="他人项目",
-                    source_type="ai",
-                ),
-            ]
-        )
+                raw_result={"source": "legacy"},
+                source_type="legacy_existing_record",
+                accepted_at=accepted_at,
+                accepted_by=USER_ID,
+            ),
+            WorldSettingResult(
+                id="world-pending-api",
+                project_id=PROJECT_ID,
+                status="pending",
+                world_time_period="新纪元元年",
+                world_location="群星裂谷",
+                world_atmosphere="壮阔紧张",
+                world_rules="星核契约会反噬说谎者",
+                provider="openai",
+                model="gpt-5-mini",
+                reasoning_intensity="high",
+                raw_result={"candidate": "world-v2"},
+                source_type="ai",
+            ),
+            WorldSettingResult(
+                id="world-reject-api",
+                project_id=PROJECT_ID,
+                status="pending",
+                world_time_period="被拒绝纪元",
+                world_location="雾城",
+                world_atmosphere="压抑",
+                world_rules="禁用星术",
+                raw_result={"candidate": "reject"},
+                source_type="ai",
+            ),
+            WorldSettingResult(
+                id="world-other-api",
+                project_id="project-world-other",
+                status="pending",
+                world_time_period="他人项目",
+                source_type="ai",
+            ),
+        ]
+    )
+
+
+def _seed_world_results(session_factory: sessionmaker[Session]) -> None:
+    with session_factory() as session:
+        _add_world_results(session)
         session.commit()
+
+
+async def _seed_world_results_async(session_factory: async_sessionmaker[AsyncSession]) -> None:
+    async with session_factory() as session:
+        await session.run_sync(_add_world_results)
+        await session.commit()
 
 
 def _project_world(session_factory: sessionmaker[Session]) -> tuple[str | None, str | None, str | None, str | None]:
@@ -303,6 +316,81 @@ def test_rollback_world_result_restores_previous_snapshot(api_client: tuple[Test
         "world_rules": "月潮决定灵能强弱",
     }
     assert _project_world(session_factory) == ("旧纪元三百年", "旧都群岛", "潮湿阴郁", "月潮决定灵能强弱")
+
+
+def test_async_world_result_actions_serialize_loaded_dtos(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def fake_get_user(user_id: str) -> SimpleNamespace:
+        return SimpleNamespace(id=user_id, username="world-user", trust_level=1, is_admin=False)
+
+    async def run_scenario() -> None:
+        engine = create_async_engine(
+            "sqlite+aiosqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+            future=True,
+        )
+        session_factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+
+        async def override_get_db() -> AsyncIterator[AsyncSession]:
+            async with session_factory() as session:
+                yield session
+
+        monkeypatch.setattr(auth_middleware.user_manager, "get_user", fake_get_user)
+        app.dependency_overrides[get_db] = override_get_db
+        try:
+            async with engine.begin() as connection:
+                await connection.run_sync(Base.metadata.create_all)
+            await _seed_world_results_async(session_factory)
+
+            transport = httpx.ASGITransport(app=app)
+            async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+                client.cookies.set("session_token", create_session_token(USER_ID, 3600))
+
+                accepted = await client.post("/api/world-setting-results/world-pending-api/accept")
+                assert accepted.status_code == 200
+                accepted_payload = accepted.json()
+                assert accepted_payload["result"]["updated_at"] is not None
+                assert accepted_payload["previous_result"]["id"] == "world-legacy-api"
+                assert accepted_payload["previous_result"]["updated_at"] is not None
+                assert accepted_payload["active_world"]["world_location"] == "群星裂谷"
+
+                rejected = await client.post("/api/world-setting-results/world-reject-api/reject", json={"reason": "不符合设定"})
+                assert rejected.status_code == 200
+                rejected_payload = rejected.json()
+                assert rejected_payload["result"]["status"] == "rejected"
+                assert rejected_payload["result"]["updated_at"] is not None
+                assert rejected_payload["previous_result"] is None
+                assert rejected_payload["active_world"]["world_location"] == "群星裂谷"
+
+                async with session_factory() as session:
+                    current = await session.get(WorldSettingResult, "world-pending-api")
+                    legacy = await session.get(WorldSettingResult, "world-legacy-api")
+                    assert current is not None
+                    assert legacy is not None
+                    assert legacy.accepted_at is not None
+                    current.accepted_at = legacy.accepted_at + timedelta(hours=1)
+                    await session.commit()
+
+                rolled_back = await client.post("/api/world-setting-results/world-pending-api/rollback", json={"reason": "恢复旧设定"})
+                assert rolled_back.status_code == 200
+                rollback_payload = rolled_back.json()
+                assert rollback_payload["result"]["status"] == "superseded"
+                assert rollback_payload["result"]["updated_at"] is not None
+                assert rollback_payload["previous_result"]["id"] == "world-legacy-api"
+                assert rollback_payload["previous_result"]["status"] == "accepted"
+                assert rollback_payload["previous_result"]["updated_at"] is not None
+                assert rollback_payload["active_world"] == {
+                    "project_id": PROJECT_ID,
+                    "world_time_period": "旧纪元三百年",
+                    "world_location": "旧都群岛",
+                    "world_atmosphere": "潮湿阴郁",
+                    "world_rules": "月潮决定灵能强弱",
+                }
+        finally:
+            app.dependency_overrides.pop(get_db, None)
+            await engine.dispose()
+
+    asyncio.run(run_scenario())
 
 
 def test_openapi_schema_generation_includes_world_result_paths(api_client: tuple[TestClient, sessionmaker[Session]]) -> None:
