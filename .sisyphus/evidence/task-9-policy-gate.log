@@ -1,0 +1,262 @@
+.....                                                                    [100%]
+=============================== warnings summary ===============================
+app/config.py:24
+  /Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/app/config.py:24: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class Settings(BaseSettings):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+5 passed, 1 warning in 0.50s
+........................................                                 [100%]
+=============================== warnings summary ===============================
+app/config.py:24
+  /Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/app/config.py:24: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class Settings(BaseSettings):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+40 passed, 1 warning in 1.04s
+.....                                                                    [100%]
+=============================== warnings summary ===============================
+app/config.py:24
+  /Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/app/config.py:24: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class Settings(BaseSettings):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+5 passed, 1 warning in 0.48s
+....FF.                                                                  [100%]
+=================================== FAILURES ===================================
+___ test_book_import_blocked_policy_prevents_ai_calls_and_canonical_mutation ___
+
+    def test_book_import_blocked_policy_prevents_ai_calls_and_canonical_mutation() -> None:
+        async def run_case() -> None:
+            engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+            async with engine.begin() as connection:
+                await connection.run_sync(Base.metadata.create_all)
+    
+            session_factory = async_sessionmaker(engine, expire_on_commit=False)
+            async with session_factory() as session:
+                project = Project(id="project-policy", user_id="user-policy", title="拆书策略测试")
+                settings = Settings(
+                    id="settings-policy",
+                    user_id="user-policy",
+                    api_provider="openai",
+                    llm_model="gpt-5-mini",
+                    allow_ai_entity_generation=False,
+                )
+                session.add_all([project, settings])
+                await session.flush()
+    
+                service = BookImportService()
+    
+                async def fail_if_ai_service_is_built(**_: object) -> object:
+                    raise AssertionError("blocked book-import policy path must not build or call AI service")
+    
+                setattr(service, "_build_user_ai_service", fail_if_ai_service_is_built)
+    
+                career_count = await service._generate_career_system_from_project(
+                    db=session,
+                    user_id="user-policy",
+                    project=project,
+                )
+                entity_count = await service._generate_characters_and_organizations_from_project(
+                    db=session,
+                    user_id="user-policy",
+                    project=project,
+                    count=5,
+                )
+    
+                assert career_count == 0
+                assert entity_count == 0
+                assert await _async_count(session, Career) == 0
+                assert await _async_count(session, Character) == 0
+                assert await _async_count(session, Organization) == 0
+                assert await _async_count(session, OrganizationEntity) == 0
+                assert await _async_count(session, EntityProvenance) == 0
+    
+            await engine.dispose()
+    
+>       asyncio.run(run_case())
+
+tests/test_entity_generation_policy.py:248: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/asyncio/runners.py:190: in run
+    return runner.run(main)
+/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/asyncio/base_events.py:654: in run_until_complete
+    return future.result()
+tests/test_entity_generation_policy.py:203: in run_case
+    async with engine.begin() as connection:
+/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+../../../../.cache/uv/archive-v0/jp7nvGqD_R2mQJBbT5E_k/lib/python3.11/site-packages/sqlalchemy/ext/asyncio/engine.py:1066: in begin
+    async with conn:
+../../../../.cache/uv/archive-v0/jp7nvGqD_R2mQJBbT5E_k/lib/python3.11/site-packages/sqlalchemy/ext/asyncio/base.py:125: in __aenter__
+    return await self.start(is_ctxmanager=True)
+../../../../.cache/uv/archive-v0/jp7nvGqD_R2mQJBbT5E_k/lib/python3.11/site-packages/sqlalchemy/ext/asyncio/engine.py:270: in start
+    await greenlet_spawn(self.sync_engine.connect)
+../../../../.cache/uv/archive-v0/jp7nvGqD_R2mQJBbT5E_k/lib/python3.11/site-packages/sqlalchemy/util/concurrency.py:64: in greenlet_spawn
+    _not_implemented()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _not_implemented():
+        # this conditional is to prevent pylance from considering
+        # greenlet_spawn() etc as "no return" and dimming out code below it
+        if have_greenlet:
+            return None
+    
+>       raise ValueError(
+            "the greenlet library is required to use this function."
+            " %s" % greenlet_error
+            if greenlet_error
+            else ""
+        )
+E       ValueError: the greenlet library is required to use this function. No module named 'greenlet'
+
+../../../../.cache/uv/archive-v0/jp7nvGqD_R2mQJBbT5E_k/lib/python3.11/site-packages/sqlalchemy/util/concurrency.py:44: ValueError
+____ test_book_import_advanced_override_generates_career_and_records_audit _____
+
+    def test_book_import_advanced_override_generates_career_and_records_audit() -> None:
+        class FakeAIService:
+            api_provider = "openai"
+            default_model = "gpt-5-mini"
+    
+            async def call_with_json_retry(self, **_: object) -> dict[str, object]:
+                return {
+                    "main_careers": [
+                        {
+                            "name": "星轨师",
+                            "description": "读取星轨的职业",
+                            "category": "法术系",
+                            "stages": [{"level": 1, "name": "初窥", "description": "初识星轨"}],
+                            "max_stage": 1,
+                        }
+                    ],
+                    "sub_careers": [],
+                }
+    
+        async def run_case() -> None:
+            engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+            async with engine.begin() as connection:
+                await connection.run_sync(Base.metadata.create_all)
+    
+            session_factory = async_sessionmaker(engine, expire_on_commit=False)
+            async with session_factory() as session:
+                project = Project(id="project-policy", user_id="user-policy", title="拆书策略测试")
+                settings = Settings(
+                    id="settings-policy",
+                    user_id="user-policy",
+                    api_provider="openai",
+                    llm_model="gpt-5-mini",
+                    allow_ai_entity_generation=True,
+                )
+                session.add_all([project, settings])
+                await session.flush()
+    
+                service = BookImportService()
+    
+                async def fake_ai_service(**_: object) -> FakeAIService:
+                    return FakeAIService()
+    
+                setattr(service, "_build_user_ai_service", fake_ai_service)
+    
+                created = await service._generate_career_system_from_project(
+                    db=session,
+                    user_id="user-policy",
+                    project=project,
+                )
+                await session.flush()
+                audits = (
+                    await session.execute(
+                        sa.select(EntityProvenance).where(EntityProvenance.source_type == POLICY_OVERRIDE_SOURCE_TYPE)
+                    )
+                ).scalars().all()
+                careers = (await session.execute(sa.select(Career))).scalars().all()
+    
+                assert created == 1
+                assert [career.name for career in careers] == ["星轨师"]
+                assert len(audits) == 1
+                audit = audits[0]
+                assert audit.entity_type == "career"
+                assert audit.entity_id == careers[0].id
+                assert audit.claim_payload["source_endpoint"] == "services.book_import_service._generate_career_system_from_project"
+                assert audit.claim_payload["override_source"] == "advanced_setting"
+                assert audit.claim_payload["actor_user_id"] == "user-policy"
+                assert audit.claim_payload["provider"] == "openai"
+                assert audit.claim_payload["model"] == "gpt-5-mini"
+                assert audit.claim_payload["resulting_canonical_ids"] == [careers[0].id]
+    
+            await engine.dispose()
+    
+>       asyncio.run(run_case())
+
+tests/test_entity_generation_policy.py:323: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/asyncio/runners.py:190: in run
+    return runner.run(main)
+/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/asyncio/base_events.py:654: in run_until_complete
+    return future.result()
+tests/test_entity_generation_policy.py:272: in run_case
+    async with engine.begin() as connection:
+/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+../../../../.cache/uv/archive-v0/jp7nvGqD_R2mQJBbT5E_k/lib/python3.11/site-packages/sqlalchemy/ext/asyncio/engine.py:1066: in begin
+    async with conn:
+../../../../.cache/uv/archive-v0/jp7nvGqD_R2mQJBbT5E_k/lib/python3.11/site-packages/sqlalchemy/ext/asyncio/base.py:125: in __aenter__
+    return await self.start(is_ctxmanager=True)
+../../../../.cache/uv/archive-v0/jp7nvGqD_R2mQJBbT5E_k/lib/python3.11/site-packages/sqlalchemy/ext/asyncio/engine.py:270: in start
+    await greenlet_spawn(self.sync_engine.connect)
+../../../../.cache/uv/archive-v0/jp7nvGqD_R2mQJBbT5E_k/lib/python3.11/site-packages/sqlalchemy/util/concurrency.py:64: in greenlet_spawn
+    _not_implemented()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _not_implemented():
+        # this conditional is to prevent pylance from considering
+        # greenlet_spawn() etc as "no return" and dimming out code below it
+        if have_greenlet:
+            return None
+    
+>       raise ValueError(
+            "the greenlet library is required to use this function."
+            " %s" % greenlet_error
+            if greenlet_error
+            else ""
+        )
+E       ValueError: the greenlet library is required to use this function. No module named 'greenlet'
+
+../../../../.cache/uv/archive-v0/jp7nvGqD_R2mQJBbT5E_k/lib/python3.11/site-packages/sqlalchemy/util/concurrency.py:44: ValueError
+=============================== warnings summary ===============================
+app/config.py:24
+  /Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/app/config.py:24: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class Settings(BaseSettings):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_entity_generation_policy.py::test_book_import_blocked_policy_prevents_ai_calls_and_canonical_mutation
+FAILED tests/test_entity_generation_policy.py::test_book_import_advanced_override_generates_career_and_records_audit
+2 failed, 5 passed, 1 warning in 0.83s
+.......                                                                  [100%]
+=============================== warnings summary ===============================
+app/config.py:24
+  /Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/app/config.py:24: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class Settings(BaseSettings):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+7 passed, 1 warning in 0.54s
+........................................                                 [100%]
+=============================== warnings summary ===============================
+app/config.py:24
+  /Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/app/config.py:24: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class Settings(BaseSettings):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+40 passed, 1 warning in 1.00s
+.......                                                                  [100%]
+=============================== warnings summary ===============================
+app/config.py:24
+  /Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/app/config.py:24: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class Settings(BaseSettings):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+7 passed, 1 warning in 0.66s

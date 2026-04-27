@@ -1,0 +1,129 @@
+
+=== Task 16 timeline test 2026-04-27T00:45:06Z ===
+
+> frontend@1.4.6 test
+> vitest --run timeline
+
+
+ RUN  v2.1.9 /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend
+
+ ✓ src/pages/__tests__/timelineReview.test.tsx (3 tests) 526ms
+   ✓ timeline review panel > shows chapter 3 current relationship projection with evidence and confidence 346ms
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+   Start at  08:45:07
+   Duration  3.12s (transform 74ms, setup 0ms, collect 1.87s, tests 526ms, environment 355ms, prepare 62ms)
+
+
+=== Task 16 frontend build 2026-04-27T00:45:10Z ===
+
+> frontend@1.4.6 build
+> tsc -b && vite build
+
+vite v7.3.1 building client environment for production...
+transforming...
+✓ 3674 modules transformed.
+rendering chunks...
+computing gzip size...
+../backend/static/index.html                           0.80 kB │ gzip:   0.40 kB
+../backend/static/assets/index-DXNTk99V.css           28.75 kB │ gzip:   6.15 kB
+../backend/static/assets/vendor-dnd-ChRVcxfc.js        0.04 kB │ gzip:   0.06 kB
+../backend/static/assets/vendor-utils-CKIDsLVI.js     37.76 kB │ gzip:  15.12 kB
+../backend/static/assets/vendor-diff-C8qWBtsR.js      56.07 kB │ gzip:  19.24 kB
+../backend/static/assets/vendor-react-BEIWTLWi.js    163.47 kB │ gzip:  53.62 kB
+../backend/static/assets/index-DZpHaos-.js           934.70 kB │ gzip: 261.38 kB
+../backend/static/assets/vendor-antd-Cm1AAez1.js   1,205.63 kB │ gzip: 373.50 kB
+✓ built in 4.15s
+
+=== Task 16 frontend lint 2026-04-27T00:45:20Z ===
+
+> frontend@1.4.6 lint
+> eslint .
+
+
+=== Task 16 QA timeline test 2026-04-27T00:52:18Z ===
+
+> frontend@1.4.6 test
+> vitest --run timeline
+
+
+ RUN  v2.1.9 /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend
+
+ ✓ src/pages/__tests__/timelineReview.test.tsx (7 tests) 842ms
+   ✓ timeline review panel > shows chapter 3 current relationship projection with evidence and confidence 350ms
+
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Start at  08:52:19
+   Duration  3.28s (transform 71ms, setup 0ms, collect 1.80s, tests 842ms, environment 315ms, prepare 53ms)
+
+
+=== Task 16 QA frontend build 2026-04-27T00:52:22Z ===
+
+> frontend@1.4.6 build
+> tsc -b && vite build
+
+vite v7.3.1 building client environment for production...
+transforming...
+✓ 3674 modules transformed.
+rendering chunks...
+computing gzip size...
+../backend/static/index.html                           0.80 kB │ gzip:   0.40 kB
+../backend/static/assets/index-DXNTk99V.css           28.75 kB │ gzip:   6.15 kB
+../backend/static/assets/vendor-dnd-ChRVcxfc.js        0.04 kB │ gzip:   0.06 kB
+../backend/static/assets/vendor-utils-CKIDsLVI.js     37.76 kB │ gzip:  15.12 kB
+../backend/static/assets/vendor-diff-C8qWBtsR.js      56.07 kB │ gzip:  19.24 kB
+../backend/static/assets/vendor-react-BEIWTLWi.js    163.47 kB │ gzip:  53.62 kB
+../backend/static/assets/index-DZpHaos-.js           934.70 kB │ gzip: 261.38 kB
+../backend/static/assets/vendor-antd-Cm1AAez1.js   1,205.63 kB │ gzip: 373.50 kB
+✓ built in 4.08s
+
+=== Task 16 QA frontend lint 2026-04-27T00:52:31Z ===
+
+> frontend@1.4.6 lint
+> eslint .
+
+
+=== Task 16 QA final timeline test 2026-04-27T00:53:25Z ===
+
+> frontend@1.4.6 test
+> vitest --run timeline
+
+
+ RUN  v2.1.9 /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend
+
+ ✓ src/pages/__tests__/timelineReview.test.tsx (7 tests) 836ms
+   ✓ timeline review panel > shows chapter 3 current relationship projection with evidence and confidence 346ms
+
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Start at  08:53:25
+   Duration  3.17s (transform 65ms, setup 0ms, collect 1.73s, tests 836ms, environment 304ms, prepare 52ms)
+
+
+=== Task 16 QA final frontend build 2026-04-27T00:53:28Z ===
+
+> frontend@1.4.6 build
+> tsc -b && vite build
+
+vite v7.3.1 building client environment for production...
+transforming...
+✓ 3674 modules transformed.
+rendering chunks...
+computing gzip size...
+../backend/static/index.html                           0.80 kB │ gzip:   0.40 kB
+../backend/static/assets/index-DXNTk99V.css           28.75 kB │ gzip:   6.15 kB
+../backend/static/assets/vendor-dnd-ChRVcxfc.js        0.04 kB │ gzip:   0.06 kB
+../backend/static/assets/vendor-utils-CKIDsLVI.js     37.76 kB │ gzip:  15.12 kB
+../backend/static/assets/vendor-diff-C8qWBtsR.js      56.07 kB │ gzip:  19.24 kB
+../backend/static/assets/vendor-react-BEIWTLWi.js    163.47 kB │ gzip:  53.62 kB
+../backend/static/assets/index-DZpHaos-.js           934.70 kB │ gzip: 261.38 kB
+../backend/static/assets/vendor-antd-Cm1AAez1.js   1,205.63 kB │ gzip: 373.50 kB
+✓ built in 4.02s
+
+=== Task 16 QA final frontend lint 2026-04-27T00:53:38Z ===
+
+> frontend@1.4.6 lint
+> eslint .
+
