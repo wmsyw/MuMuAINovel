@@ -16,7 +16,11 @@ logger = get_logger(__name__)
 
 
 class AutoOrganizationService:
-    """自动组织引入服务"""
+    """[DEPRECATED] 自动组织引入服务
+    
+    Migration Note: This service is deprecated in favor of the extraction candidate pipeline.
+    New organization creation should be routed through ExtractionService.
+    """
     
     def __init__(self, ai_service: AIService):
         self.ai_service = ai_service

@@ -30,7 +30,11 @@ INTIMACY_ADJUSTMENTS = {
 
 
 class CharacterStateUpdateService:
-    """角色状态更新服务 - 根据章节分析结果自动更新角色心理状态和关系"""
+    """[DEPRECATED] 角色状态更新服务 - 根据章节分析结果自动更新角色心理状态和关系
+    
+    Migration Note: This service is deprecated in favor of the extraction candidate pipeline.
+    When EXTRACTION_PIPELINE_ENABLED=True, it routes to _stage_candidates_from_analysis.
+    """
 
     @staticmethod
     async def update_from_analysis(
