@@ -124,6 +124,7 @@
 - [x] **伏笔管理** - 智能追踪剧情伏笔，提醒未回收线索，可视化伏笔时间线
 - [x] **提示词工坊** - 社区驱动的 Prompt 模板分享平台，一键导入优质提示词
 - [x] **拆书功能** - 目前呼声比较高的功能，一键拆书，给当年的ta一个圆满的结局
+- [x] **正文抽取工作流** - 从正文自动提取角色、组织、职业和关系，支持候选评审、合并与回滚
 
 ### 📝 规划中功能
 
@@ -563,6 +564,68 @@ MuMuAINovel/
 
 - Swagger UI: `http://localhost:8000/docs`
 - ReDoc: `http://localhost:8000/redoc`
+
+## 🛠️ 核心工作流：正文抽取 (Extraction-First Workflow)
+
+MuMuAINovel 采用“正文即真理”的设计理念。角色、组织、职业及其关系应当主要从正文中自动提取，而不是手动创建或由 AI 直接生成规范记录。
+
+### 1. 自动与手动触发
+- **自动触发**：在保存正文、生成章节或导入 TXT 完成后，系统会自动运行抽取任务。
+- **手动触发**：用户可以在项目或章节管理界面手动触发重新抽取。
+
+### 2. 候选评审机制
+抽取结果首先进入“候选 (Candidate)”状态。用户可以在“实体评审”界面查看：
+- **来源证据**：AI 提取该实体的正文片段。
+- **置信度**：AI 对提取结果的确定程度。
+- **操作**：接受 (Accept)、拒绝 (Reject) 或合并 (Merge) 到现有实体。
+
+### 3. 策略网关 (Policy Gate)
+默认情况下，普通用户无法直接通过 AI 生成规范的角色/组织/职业记录。
+- **候选优先**：AI 生成的结果默认作为候选进入评审流。
+- **高级覆盖**：管理员或开启“允许 AI 生成实体”高级设置的用户可以绕过此限制，直接创建规范记录（操作将被审计）。
+
+### 4. 世界设定版本化
+世界观生成结果不再直接覆盖当前设定，而是作为历史版本保存。用户评审并“接受”后，才会更新到当前活跃快照，并支持一键回滚。
+
+### 5. 数据迁移与回填 (Migration & Backfill)
+系统保留所有现有数据。在迁移过程中，旧有的角色、组织、职业和关系记录将通过回填服务自动标记为“已接受的规范记录”，并生成初始溯源 (Provenance) 信息，确保与新系统的兼容性。
+
+### 6. 模型思考强度 (Provider Reasoning)
+支持 OpenAI, Claude, Gemini 的思考强度配置。
+- **模型限制**：思考强度受具体模型能力限制，并非所有模型都支持所有等级。
+- **语义保证**：如果所选模型不支持指定的强度等级，系统将回退到该模型的默认行为，不保证强制生效。
+
+### 7. 特性开关 (Feature Flags)
+- `EXTRACTION_PIPELINE_ENABLED=True`：启用抽取管线，分析结果进入候选评审流。
+- `EXTRACTION_PIPELINE_ENABLED=False`：保持兼容模式，分析结果直接修改规范数据（仅用于平滑过渡）。
+
+### 8. 验证与开发命令
+
+#### 后端验证
+```bash
+# 运行静态审计测试 (核心验证)
+cd backend
+python -m pytest tests/test_generation_bypass_audit.py -q
+
+# 运行所有后端测试
+cd backend
+python -m pytest
+```
+*注意：如果本地环境缺少依赖，请使用 uv 运行：*
+`uv run --python python3.11 --with pytest --with sqlalchemy --with alembic --with pydantic --with pydantic-settings --with fastapi python -m pytest tests/test_generation_bypass_audit.py -q`
+
+#### 前端验证
+```bash
+# 完整构建、校验与测试链
+cd frontend
+npm run build && npm run lint && npm run test -- --run
+```
+
+#### 部署验证
+```bash
+# Docker 构建烟雾测试
+docker-compose build
+```
 
 ## 🤝 贡献
 
