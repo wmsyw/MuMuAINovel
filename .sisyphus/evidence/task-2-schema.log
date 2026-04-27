@@ -1,0 +1,40 @@
+Command: cd backend && source ".venv311/bin/activate" && python -m pytest tests/test_migrations.py tests/test_schema_contracts.py
+Equivalent acceptance command inside Python 3.11 test virtualenv because bare backend .venv points to Python 3.14 and cannot install the pinned torch dependency.
+
+Latest Phase 1 QA rerun after enforcing `organization_members.organization_entity_id` NOT NULL and removing out-of-scope draft:
+
+Command: cd backend && source ".venv311/bin/activate" && python -m pytest tests/test_migrations.py tests/test_schema_contracts.py
+
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-9.0.3, pluggy-1.6.0
+rootdir: /Users/shenxt/Dev/OpenCode/MuMuAINovel/backend
+plugins: anyio-4.13.0
+collected 11 items
+
+tests/test_migrations.py ....                                            [ 36%]
+tests/test_schema_contracts.py .......                                   [100%]
+
+=============================== warnings summary ===============================
+app/config.py:24
+  /Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/app/config.py:24: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0.
+    class Settings(BaseSettings):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 11 passed, 1 warning in 3.43s =========================
+
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-9.0.3, pluggy-1.6.0
+rootdir: /Users/shenxt/Dev/OpenCode/MuMuAINovel/backend
+plugins: anyio-4.13.0
+collected 11 items
+
+tests/test_migrations.py ....                                            [ 36%]
+tests/test_schema_contracts.py .......                                   [100%]
+
+=============================== warnings summary ===============================
+app/config.py:24
+  /Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/app/config.py:24: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0.
+    class Settings(BaseSettings):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 11 passed, 1 warning in 3.11s =========================

@@ -1,0 +1,823 @@
+INFO:     app.services.memory_service - 🔧 使用降级模型目录: /Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/embedding
+INFO:     chromadb.telemetry.product.posthog - Anonymized telemetry enabled. See                     https://docs.trychroma.com/telemetry for more information.
+INFO:     app.services.memory_service - 🔄 正在加载Embedding模型...
+INFO:     app.services.memory_service - 📂 使用模型缓存目录: /Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/embedding
+INFO:     app.services.memory_service - 📂 当前工作目录: /Users/shenxt/Dev/OpenCode/MuMuAINovel/backend
+INFO:     app.services.memory_service - 📂 模型缓存目录: /Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/embedding
+INFO:     app.services.memory_service - 🔧 SENTENCE_TRANSFORMERS_HOME: /Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/embedding
+INFO:     app.services.memory_service - 🔧 TRANSFORMERS_OFFLINE: 未设置
+INFO:     app.services.memory_service - 🔧 HF_HUB_OFFLINE: 未设置
+INFO:     app.services.memory_service - 📂 检查模型缓存目录: /Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/embedding
+INFO:     app.services.memory_service - 📁 模型目录存在，检查内容...
+INFO:     app.services.memory_service - 📁 模型目录内容 (2 项): ['.locks', 'models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2']
+INFO:     app.services.memory_service - 🔍 检查预期路径: /Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/embedding/models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2
+INFO:     app.services.memory_service - ✅ 找到本地模型目录!
+INFO:     app.services.memory_service - 📁 模型快照 (1 个): ['e8f8c211226b894fcb81acc59f3b34ba3efd5f42']
+INFO:     app.services.memory_service - ✅ 发现有效快照，可以使用离线模式
+INFO:     app.services.memory_service - 🔄 尝试加载主模型: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+INFO:     app.services.memory_service - 🔍 检查本地模型路径: /Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/embedding/models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2
+INFO:     app.services.memory_service - 🔍 路径存在检查: True
+INFO:     app.services.memory_service - ✅ 发现本地模型快照: ['e8f8c211226b894fcb81acc59f3b34ba3efd5f42']
+INFO:     app.services.memory_service - ✅ 检测到完整本地模型，使用离线模式加载
+INFO:     sentence_transformers.SentenceTransformer - Load pretrained SentenceTransformer: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+INFO:     app.services.memory_service - ✅ Embedding模型加载成功 (离线模式)
+INFO:     app.services.memory_service - ✅ MemoryService初始化成功
+INFO:     app.services.memory_service -   - ChromaDB目录: data/chroma_db
+INFO:     app.services.memory_service -   - Embedding模型: paraphrase-multilingual-MiniLM-L12-v2
+INFO:     backoff - Backing off send_request(...) for 0.4s (requests.exceptions.ConnectionError: ('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer')))
+WARNING:     app.services.oauth_service - ⚠️  LINUXDO_REDIRECT_URI 未配置，使用默认值: http://localhost:8000/api/auth/callback
+如需使用 OAuth 登录，请在 .env 文件中配置：
+本地开发: LINUXDO_REDIRECT_URI=http://localhost:8000/api/auth/callback
+Docker部署: LINUXDO_REDIRECT_URI=https://your-domain.com/api/auth/callback
+INFO:     Started server process [8670]
+INFO:     Waiting for application startup.
+INFO:     app.mcp.facade - ✅ 已注册状态变更回调: sync_status_to_db
+INFO:     app.mcp.status_sync - ✅ MCP状态同步服务已注册
+INFO:     app.main - 应用启动完成
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://localhost:8000 (Press CTRL+C to quit)
+INFO:     backoff - Backing off send_request(...) for 0.8s (requests.exceptions.ConnectionError: ('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer')))
+INFO:     backoff - Backing off send_request(...) for 1.5s (requests.exceptions.ConnectionError: ('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer')))
+ERROR:     backoff - Giving up send_request(...) after 4 tries (requests.exceptions.ConnectionError: ('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer')))
+INFO:     ::1:57658 - "GET /health HTTP/1.1" 200 OK
+INFO:     ::1:57754 - "GET /api/auth/user HTTP/1.1" 401 Unauthorized
+INFO:     ::1:57755 - "GET /api/auth/user HTTP/1.1" 401 Unauthorized
+INFO:     app.database - 📊 使用 SQLite 数据库（NullPool，超时30秒，WAL模式）
+INFO:     app.database - ✅ SQLite WAL 模式已启用（支持读写并发）
+ERROR:     app.main - 未处理的异常: ValueError: the greenlet library is required to use this function. No module named 'greenlet'
+INFO:     ::1:57756 - "GET /api/auth/config HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "/Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/app/api/auth.py", line 145, in _get_auth_runtime_settings
+    result = await session.execute(
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/sqlalchemy/ext/asyncio/session.py", line 455, in execute
+    result = await greenlet_spawn(
+                   ^^^^^^^^^^^^^^^
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/sqlalchemy/util/concurrency.py", line 64, in greenlet_spawn
+    _not_implemented()
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/sqlalchemy/util/concurrency.py", line 44, in _not_implemented
+    raise ValueError(
+ValueError: the greenlet library is required to use this function. No module named 'greenlet'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/applications.py", line 1134, in __call__
+    await super().__call__(scope, receive, send)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/applications.py", line 113, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/middleware/errors.py", line 186, in __call__
+    raise exc
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/middleware/cors.py", line 85, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/middleware/base.py", line 191, in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+  File "/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py", line 158, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/_utils.py", line 85, in collapse_excgroups
+    raise exc
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/middleware/base.py", line 193, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/app/middleware/auth_middleware.py", line 80, in dispatch
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/middleware/base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/middleware/base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/middleware/base.py", line 191, in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+  File "/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py", line 158, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/_utils.py", line 85, in collapse_excgroups
+    raise exc
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/middleware/base.py", line 193, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/app/middleware/request_id.py", line 43, in dispatch
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/middleware/base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/middleware/base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/routing.py", line 716, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/routing.py", line 736, in app
+    await route.handle(scope, receive, send)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/routing.py", line 290, in handle
+    await self.app(scope, receive, send)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/routing.py", line 125, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/routing.py", line 111, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/routing.py", line 391, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/routing.py", line 290, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/app/api/auth.py", line 330, in get_auth_config
+    runtime = await _get_auth_runtime_settings()
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/app/api/auth.py", line 144, in _get_auth_runtime_settings
+    async with await _get_global_session() as session:
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/sqlalchemy/ext/asyncio/session.py", line 1027, in close
+    await greenlet_spawn(self.sync_session.close)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/sqlalchemy/util/concurrency.py", line 64, in greenlet_spawn
+    _not_implemented()
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/sqlalchemy/util/concurrency.py", line 44, in _not_implemented
+    raise ValueError(
+ValueError: the greenlet library is required to use this function. No module named 'greenlet'
+ERROR:     app.main - 未处理的异常: ValueError: the greenlet library is required to use this function. No module named 'greenlet'
+INFO:     ::1:57757 - "GET /api/auth/config HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "/Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/app/api/auth.py", line 145, in _get_auth_runtime_settings
+    result = await session.execute(
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/sqlalchemy/ext/asyncio/session.py", line 455, in execute
+    result = await greenlet_spawn(
+                   ^^^^^^^^^^^^^^^
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/sqlalchemy/util/concurrency.py", line 64, in greenlet_spawn
+    _not_implemented()
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/sqlalchemy/util/concurrency.py", line 44, in _not_implemented
+    raise ValueError(
+ValueError: the greenlet library is required to use this function. No module named 'greenlet'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/applications.py", line 1134, in __call__
+    await super().__call__(scope, receive, send)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/applications.py", line 113, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/middleware/errors.py", line 186, in __call__
+    raise exc
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/middleware/cors.py", line 85, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/middleware/base.py", line 191, in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+  File "/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py", line 158, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/_utils.py", line 85, in collapse_excgroups
+    raise exc
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/middleware/base.py", line 193, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/app/middleware/auth_middleware.py", line 80, in dispatch
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/middleware/base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/middleware/base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/middleware/base.py", line 191, in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+  File "/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py", line 158, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/_utils.py", line 85, in collapse_excgroups
+    raise exc
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/middleware/base.py", line 193, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/app/middleware/request_id.py", line 43, in dispatch
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/middleware/base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/middleware/base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/routing.py", line 716, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/routing.py", line 736, in app
+    await route.handle(scope, receive, send)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/routing.py", line 290, in handle
+    await self.app(scope, receive, send)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/routing.py", line 125, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/routing.py", line 111, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/routing.py", line 391, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/routing.py", line 290, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/app/api/auth.py", line 330, in get_auth_config
+    runtime = await _get_auth_runtime_settings()
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/app/api/auth.py", line 144, in _get_auth_runtime_settings
+    async with await _get_global_session() as session:
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/sqlalchemy/ext/asyncio/session.py", line 1027, in close
+    await greenlet_spawn(self.sync_session.close)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/sqlalchemy/util/concurrency.py", line 64, in greenlet_spawn
+    _not_implemented()
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/sqlalchemy/util/concurrency.py", line 44, in _not_implemented
+    raise ValueError(
+ValueError: the greenlet library is required to use this function. No module named 'greenlet'
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     app.mcp.facade - ✅ MCPClientFacade 资源已清理
+INFO:     app.services.ai_clients.base_client - ✅ HTTP 客户端池已清理
+INFO:     app.database - 正在关闭所有数据库连接...
+ERROR:     app.database - 关闭数据库连接失败: the greenlet library is required to use this function. No module named 'greenlet'
+ERROR:    Traceback (most recent call last):
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/starlette/routing.py", line 694, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+  File "/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py", line 217, in __aexit__
+    await anext(self.gen)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/routing.py", line 211, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+  File "/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py", line 217, in __aexit__
+    await anext(self.gen)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/routing.py", line 211, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+  File "/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py", line 217, in __aexit__
+    await anext(self.gen)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/routing.py", line 211, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+  File "/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py", line 217, in __aexit__
+    await anext(self.gen)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/routing.py", line 211, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+  File "/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py", line 217, in __aexit__
+    await anext(self.gen)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/routing.py", line 211, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+  File "/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py", line 217, in __aexit__
+    await anext(self.gen)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/routing.py", line 211, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+  File "/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py", line 217, in __aexit__
+    await anext(self.gen)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/routing.py", line 211, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+  File "/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py", line 217, in __aexit__
+    await anext(self.gen)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/routing.py", line 211, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+  File "/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py", line 217, in __aexit__
+    await anext(self.gen)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/routing.py", line 211, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+  File "/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py", line 217, in __aexit__
+    await anext(self.gen)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/routing.py", line 211, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+  File "/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py", line 217, in __aexit__
+    await anext(self.gen)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/routing.py", line 211, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+  File "/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py", line 217, in __aexit__
+    await anext(self.gen)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/routing.py", line 211, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+  File "/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py", line 217, in __aexit__
+    await anext(self.gen)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/routing.py", line 211, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+  File "/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py", line 217, in __aexit__
+    await anext(self.gen)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/routing.py", line 211, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+  File "/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py", line 217, in __aexit__
+    await anext(self.gen)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/routing.py", line 211, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+  File "/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py", line 217, in __aexit__
+    await anext(self.gen)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/routing.py", line 211, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+  File "/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py", line 217, in __aexit__
+    await anext(self.gen)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/routing.py", line 211, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+  File "/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py", line 217, in __aexit__
+    await anext(self.gen)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/routing.py", line 211, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+  File "/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py", line 217, in __aexit__
+    await anext(self.gen)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/routing.py", line 211, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+  File "/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py", line 217, in __aexit__
+    await anext(self.gen)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/routing.py", line 211, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+  File "/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py", line 217, in __aexit__
+    await anext(self.gen)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/routing.py", line 211, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+  File "/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py", line 217, in __aexit__
+    await anext(self.gen)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/routing.py", line 211, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+  File "/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py", line 217, in __aexit__
+    await anext(self.gen)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/routing.py", line 211, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+  File "/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py", line 217, in __aexit__
+    await anext(self.gen)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/routing.py", line 211, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+  File "/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py", line 217, in __aexit__
+    await anext(self.gen)
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/fastapi/routing.py", line 211, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+  File "/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py", line 217, in __aexit__
+    await anext(self.gen)
+  File "/Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/app/main.py", line 45, in lifespan
+    await close_db()
+  File "/Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/app/database.py", line 254, in close_db
+    await engine.dispose()
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/sqlalchemy/ext/asyncio/engine.py", line 1150, in dispose
+    await greenlet_spawn(self.sync_engine.dispose, close=close)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/sqlalchemy/util/concurrency.py", line 64, in greenlet_spawn
+    _not_implemented()
+  File "/Users/shenxt/.cache/uv/archive-v0/EcPW5aADcYFElgoG5reG6/lib/python3.11/site-packages/sqlalchemy/util/concurrency.py", line 44, in _not_implemented
+    raise ValueError(
+ValueError: the greenlet library is required to use this function. No module named 'greenlet'
+
+ERROR:    Application shutdown failed. Exiting.
+INFO:     Finished server process [8670]
+Installed 120 packages in 667ms
+INFO:     app.services.memory_service - 🔧 使用降级模型目录: /Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/embedding
+INFO:     chromadb.telemetry.product.posthog - Anonymized telemetry enabled. See                     https://docs.trychroma.com/telemetry for more information.
+INFO:     app.services.memory_service - 🔄 正在加载Embedding模型...
+INFO:     app.services.memory_service - 📂 使用模型缓存目录: /Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/embedding
+INFO:     app.services.memory_service - 📂 当前工作目录: /Users/shenxt/Dev/OpenCode/MuMuAINovel/backend
+INFO:     app.services.memory_service - 📂 模型缓存目录: /Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/embedding
+INFO:     app.services.memory_service - 🔧 SENTENCE_TRANSFORMERS_HOME: /Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/embedding
+INFO:     app.services.memory_service - 🔧 TRANSFORMERS_OFFLINE: 未设置
+INFO:     app.services.memory_service - 🔧 HF_HUB_OFFLINE: 未设置
+INFO:     app.services.memory_service - 📂 检查模型缓存目录: /Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/embedding
+INFO:     app.services.memory_service - 📁 模型目录存在，检查内容...
+INFO:     app.services.memory_service - 📁 模型目录内容 (2 项): ['.locks', 'models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2']
+INFO:     app.services.memory_service - 🔍 检查预期路径: /Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/embedding/models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2
+INFO:     app.services.memory_service - ✅ 找到本地模型目录!
+INFO:     app.services.memory_service - 📁 模型快照 (1 个): ['e8f8c211226b894fcb81acc59f3b34ba3efd5f42']
+INFO:     app.services.memory_service - ✅ 发现有效快照，可以使用离线模式
+INFO:     app.services.memory_service - 🔄 尝试加载主模型: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+INFO:     app.services.memory_service - 🔍 检查本地模型路径: /Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/embedding/models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2
+INFO:     app.services.memory_service - 🔍 路径存在检查: True
+INFO:     app.services.memory_service - ✅ 发现本地模型快照: ['e8f8c211226b894fcb81acc59f3b34ba3efd5f42']
+INFO:     app.services.memory_service - ✅ 检测到完整本地模型，使用离线模式加载
+INFO:     sentence_transformers.SentenceTransformer - Load pretrained SentenceTransformer: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+INFO:     app.services.memory_service - ✅ Embedding模型加载成功 (离线模式)
+INFO:     app.services.memory_service - ✅ MemoryService初始化成功
+INFO:     app.services.memory_service -   - ChromaDB目录: data/chroma_db
+INFO:     app.services.memory_service -   - Embedding模型: paraphrase-multilingual-MiniLM-L12-v2
+INFO:     backoff - Backing off send_request(...) for 0.9s (requests.exceptions.ConnectionError: ('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer')))
+WARNING:     app.services.oauth_service - ⚠️  LINUXDO_REDIRECT_URI 未配置，使用默认值: http://localhost:8000/api/auth/callback
+如需使用 OAuth 登录，请在 .env 文件中配置：
+本地开发: LINUXDO_REDIRECT_URI=http://localhost:8000/api/auth/callback
+Docker部署: LINUXDO_REDIRECT_URI=https://your-domain.com/api/auth/callback
+INFO:     Started server process [9115]
+INFO:     Waiting for application startup.
+INFO:     app.mcp.facade - ✅ 已注册状态变更回调: sync_status_to_db
+INFO:     app.mcp.status_sync - ✅ MCP状态同步服务已注册
+INFO:     app.main - 应用启动完成
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://localhost:8000 (Press CTRL+C to quit)
+INFO:     backoff - Backing off send_request(...) for 0.3s (requests.exceptions.ConnectionError: ('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer')))
+INFO:     backoff - Backing off send_request(...) for 0.2s (requests.exceptions.ConnectionError: ('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer')))
+ERROR:     backoff - Giving up send_request(...) after 4 tries (requests.exceptions.ConnectionError: ('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer')))
+INFO:     ::1:57875 - "GET /api/auth/user HTTP/1.1" 401 Unauthorized
+INFO:     ::1:57876 - "GET /api/auth/user HTTP/1.1" 401 Unauthorized
+INFO:     app.database - 📊 使用 SQLite 数据库（NullPool，超时30秒，WAL模式）
+INFO:     app.database - ✅ SQLite WAL 模式已启用（支持读写并发）
+INFO:     ::1:57877 - "GET /api/auth/config HTTP/1.1" 200 OK
+INFO:     ::1:57878 - "GET /api/auth/config HTTP/1.1" 200 OK
+INFO:     app.api.auth - [本地登录] 尝试登录用户名: admin
+INFO:     app.api.auth - [本地登录] 未找到 Linux DO 用户，检查 .env 管理员账号
+INFO:     app.api.auth - [本地登录] 管理员用户 local_21232f297a57a5a7 初始密码已设置到数据库
+INFO:     app.api.auth - ✅ [登录] 用户 local_21232f297a57a5a7 登录成功，会话有效期 120 分钟
+INFO:     ::1:57888 - "POST /api/auth/local/login HTTP/1.1" 200 OK
+INFO:     ::1:57901 - "GET /api/auth/user HTTP/1.1" 200 OK
+INFO:     ::1:57903 - "GET /api/auth/user HTTP/1.1" 200 OK
+INFO:     ::1:57908 - "GET /api/auth/user HTTP/1.1" 200 OK
+INFO:     app.api.projects - 获取项目列表成功: user_id=local_21232f297a57a5a7, 共0个项目
+INFO:     ::1:57909 - "GET /api/projects HTTP/1.1" 200 OK
+INFO:     ::1:57911 - "GET /api/auth/user HTTP/1.1" 200 OK
+INFO:     app.api.projects - 获取项目列表成功: user_id=local_21232f297a57a5a7, 共0个项目
+INFO:     ::1:57915 - "GET /api/auth/user HTTP/1.1" 200 OK
+INFO:     ::1:57913 - "GET /api/projects HTTP/1.1" 200 OK
+INFO:     ::1:57917 - "GET /api/auth/user HTTP/1.1" 200 OK
+INFO:     ::1:58087 - "GET /api/auth/user HTTP/1.1" 200 OK
+INFO:     ::1:58088 - "GET /api/auth/user HTTP/1.1" 200 OK
+INFO:     ::1:58089 - "GET /api/auth/user HTTP/1.1" 200 OK
+INFO:     app.api.projects - 获取项目列表成功: user_id=local_21232f297a57a5a7, 共1个项目
+INFO:     ::1:58090 - "GET /api/projects HTTP/1.1" 200 OK
+INFO:     ::1:58091 - "GET /api/auth/user HTTP/1.1" 200 OK
+INFO:     app.api.projects - 获取项目列表成功: user_id=local_21232f297a57a5a7, 共1个项目
+INFO:     ::1:58094 - "GET /api/auth/user HTTP/1.1" 200 OK
+INFO:     ::1:58092 - "GET /api/projects HTTP/1.1" 200 OK
+INFO:     ::1:58096 - "GET /api/auth/user HTTP/1.1" 200 OK
+INFO:     ::1:58120 - "GET /api/auth/user HTTP/1.1" 200 OK
+INFO:     ::1:58121 - "GET /api/auth/user HTTP/1.1" 200 OK
+INFO:     ::1:58122 - "GET /api/settings/reasoning-capabilities HTTP/1.1" 200 OK
+INFO:     app.api.settings - 用户 local_21232f297a57a5a7 获取已保存的设置
+INFO:     ::1:58123 - "GET /api/settings HTTP/1.1" 200 OK
+INFO:     ::1:58124 - "GET /api/settings/reasoning-capabilities HTTP/1.1" 200 OK
+INFO:     app.api.settings - 用户 local_21232f297a57a5a7 获取已保存的设置
+INFO:     ::1:58125 - "GET /api/settings HTTP/1.1" 200 OK
+INFO:     app.api.settings - 用户 local_21232f297a57a5a7 获取已保存的设置
+INFO:     ::1:58127 - "GET /api/settings HTTP/1.1" 200 OK
+INFO:     app.api.settings - 用户 local_21232f297a57a5a7 获取已保存的设置
+INFO:     ::1:58129 - "GET /api/settings HTTP/1.1" 200 OK
+INFO:     ::1:58142 - "GET /api/auth/user HTTP/1.1" 200 OK
+INFO:     ::1:58143 - "GET /api/auth/user HTTP/1.1" 200 OK
+INFO:     app.api.projects - 获取项目详情成功: Final UI QA 项目
+INFO:     ::1:58144 - "GET /api/projects/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     app.api.projects - 获取项目详情成功: Final UI QA 项目
+INFO:     ::1:58145 - "GET /api/projects/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58149 - "GET /api/chapters/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58148 - "GET /api/outlines/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     app.api.projects - 获取项目详情成功: Final UI QA 项目
+INFO:     ::1:58151 - "GET /api/projects/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58147 - "GET /api/characters/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58153 - "GET /api/chapters/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58155 - "GET /api/outlines/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58157 - "GET /api/characters/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58159 - "GET /api/chapters/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58161 - "GET /api/outlines/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58163 - "GET /api/characters/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     app.api.settings - 用户 local_21232f297a57a5a7 获取已保存的设置
+INFO:     ::1:58172 - "GET /api/settings HTTP/1.1" 200 OK
+INFO:     ::1:58171 - "GET /api/extraction/candidates?project_id=qa-project-final-ui&type=character&limit=200 HTTP/1.1" 200 OK
+INFO:     ::1:58173 - "GET /api/careers?project_id=qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58169 - "GET /api/extraction/candidates?project_id=qa-project-final-ui&type=character_state&limit=200 HTTP/1.1" 200 OK
+INFO:     ::1:58170 - "GET /api/characters/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     app.api.settings - 用户 local_21232f297a57a5a7 获取已保存的设置
+INFO:     ::1:58175 - "GET /api/settings HTTP/1.1" 200 OK
+INFO:     ::1:58177 - "GET /api/extraction/candidates?project_id=qa-project-final-ui&type=character&limit=200 HTTP/1.1" 200 OK
+INFO:     ::1:58179 - "GET /api/careers?project_id=qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58181 - "GET /api/extraction/candidates?project_id=qa-project-final-ui&type=character_state&limit=200 HTTP/1.1" 200 OK
+INFO:     ::1:58183 - "GET /api/characters/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58200 - "POST /api/extraction/candidates/cand-accept-char/accept HTTP/1.1" 200 OK
+INFO:     ::1:58203 - "GET /api/extraction/candidates?project_id=qa-project-final-ui&type=character_state&limit=200 HTTP/1.1" 200 OK
+INFO:     ::1:58204 - "GET /api/extraction/candidates?project_id=qa-project-final-ui&type=character&limit=200 HTTP/1.1" 200 OK
+INFO:     ::1:58206 - "GET /api/characters/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58211 - "POST /api/extraction/candidates/cand-merge-char/merge HTTP/1.1" 200 OK
+INFO:     ::1:58214 - "GET /api/extraction/candidates?project_id=qa-project-final-ui&type=character&limit=200 HTTP/1.1" 200 OK
+INFO:     ::1:58215 - "GET /api/extraction/candidates?project_id=qa-project-final-ui&type=character_state&limit=200 HTTP/1.1" 200 OK
+INFO:     ::1:58217 - "GET /api/characters/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58232 - "GET /api/auth/user HTTP/1.1" 200 OK
+INFO:     ::1:58233 - "GET /api/auth/user HTTP/1.1" 200 OK
+INFO:     app.api.projects - 获取项目详情成功: Final UI QA 项目
+INFO:     ::1:58234 - "GET /api/projects/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     app.api.projects - 获取项目详情成功: Final UI QA 项目
+INFO:     ::1:58235 - "GET /api/projects/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58238 - "GET /api/outlines/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58239 - "GET /api/chapters/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58237 - "GET /api/characters/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     app.api.projects - 获取项目详情成功: Final UI QA 项目
+INFO:     ::1:58241 - "GET /api/projects/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58243 - "GET /api/outlines/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58245 - "GET /api/chapters/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58247 - "GET /api/characters/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58252 - "GET /api/extraction/candidates?project_id=qa-project-final-ui&type=organization&limit=200 HTTP/1.1" 200 OK
+INFO:     ::1:58253 - "GET /api/extraction/candidates?project_id=qa-project-final-ui&type=organization_affiliation&limit=200 HTTP/1.1" 200 OK
+INFO:     app.api.organizations - 获取项目 qa-project-final-ui 的组织列表，共 1 个
+INFO:     ::1:58254 - "GET /api/organizations/project/qa-project-final-ui?include_candidate_counts=true&include_policy_status=true&include_timeline=true HTTP/1.1" 200 OK
+INFO:     ::1:58255 - "GET /api/characters/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58258 - "GET /api/outlines/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58261 - "GET /api/extraction/candidates?project_id=qa-project-final-ui&type=organization&limit=200 HTTP/1.1" 200 OK
+INFO:     ::1:58259 - "GET /api/chapters/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     app.api.organizations - 获取项目 qa-project-final-ui 的组织列表，共 1 个
+INFO:     ::1:58265 - "GET /api/organizations/project/qa-project-final-ui?include_candidate_counts=true&include_policy_status=true&include_timeline=true HTTP/1.1" 200 OK
+INFO:     ::1:58263 - "GET /api/extraction/candidates?project_id=qa-project-final-ui&type=organization_affiliation&limit=200 HTTP/1.1" 200 OK
+INFO:     ::1:58267 - "GET /api/characters/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     app.api.organizations - 获取组织 org-bridge-night 的成员列表，共 1 人
+INFO:     ::1:58269 - "GET /api/organizations/org-bridge-night/members HTTP/1.1" 200 OK
+INFO:     ::1:58271 - "GET /api/characters/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     app.api.organizations - 获取组织 org-bridge-night 的成员列表，共 1 人
+INFO:     ::1:58273 - "GET /api/organizations/org-bridge-night/members HTTP/1.1" 200 OK
+INFO:     ::1:58294 - "POST /api/extraction/candidates/cand-reject-org/reject HTTP/1.1" 200 OK
+INFO:     ::1:58297 - "GET /api/extraction/candidates?project_id=qa-project-final-ui&type=organization&limit=200 HTTP/1.1" 200 OK
+INFO:     ::1:58298 - "GET /api/extraction/candidates?project_id=qa-project-final-ui&type=organization_affiliation&limit=200 HTTP/1.1" 200 OK
+INFO:     app.api.organizations - 获取项目 qa-project-final-ui 的组织列表，共 1 个
+INFO:     ::1:58300 - "GET /api/organizations/project/qa-project-final-ui?include_candidate_counts=true&include_policy_status=true&include_timeline=true HTTP/1.1" 200 OK
+INFO:     app.api.organizations - 获取组织 org-bridge-night 的成员列表，共 1 人
+INFO:     ::1:58304 - "GET /api/characters/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58303 - "GET /api/organizations/org-bridge-night/members HTTP/1.1" 200 OK
+INFO:     app.api.organizations - 获取组织 org-bridge-night 的成员列表，共 1 人
+INFO:     ::1:58306 - "GET /api/organizations/org-bridge-night/members HTTP/1.1" 200 OK
+INFO:     ::1:58316 - "GET /api/auth/user HTTP/1.1" 200 OK
+INFO:     ::1:58317 - "GET /api/auth/user HTTP/1.1" 200 OK
+INFO:     app.api.projects - 获取项目详情成功: Final UI QA 项目
+INFO:     ::1:58318 - "GET /api/projects/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     app.api.projects - 获取项目详情成功: Final UI QA 项目
+INFO:     ::1:58319 - "GET /api/projects/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58321 - "GET /api/outlines/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58322 - "GET /api/chapters/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58323 - "GET /api/characters/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     app.api.projects - 获取项目详情成功: Final UI QA 项目
+INFO:     ::1:58325 - "GET /api/projects/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58327 - "GET /api/outlines/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58329 - "GET /api/chapters/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58331 - "GET /api/characters/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58337 - "GET /api/extraction/candidates?project_id=qa-project-final-ui&type=character_state&limit=200 HTTP/1.1" 200 OK
+INFO:     app.api.settings - 用户 local_21232f297a57a5a7 获取已保存的设置
+INFO:     ::1:58341 - "GET /api/settings HTTP/1.1" 200 OK
+INFO:     ::1:58340 - "GET /api/careers?project_id=qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58338 - "GET /api/extraction/candidates?project_id=qa-project-final-ui&type=character&limit=200 HTTP/1.1" 200 OK
+INFO:     ::1:58339 - "GET /api/characters/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58343 - "GET /api/extraction/candidates?project_id=qa-project-final-ui&type=character_state&limit=200 HTTP/1.1" 200 OK
+INFO:     app.api.settings - 用户 local_21232f297a57a5a7 获取已保存的设置
+INFO:     ::1:58345 - "GET /api/settings HTTP/1.1" 200 OK
+INFO:     ::1:58348 - "GET /api/extraction/candidates?project_id=qa-project-final-ui&type=character&limit=200 HTTP/1.1" 200 OK
+INFO:     ::1:58349 - "GET /api/careers?project_id=qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58353 - "GET /api/chapters/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58351 - "GET /api/outlines/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58355 - "GET /api/characters/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58357 - "GET /api/characters/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58361 - "GET /api/timeline/projects/qa-project-final-ui/state HTTP/1.1" 200 OK
+INFO:     ::1:58362 - "GET /api/timeline/projects/qa-project-final-ui/history?event_type=relationship HTTP/1.1" 200 OK
+INFO:     ::1:58365 - "GET /api/timeline/projects/qa-project-final-ui/history?event_type=relationship HTTP/1.1" 200 OK
+INFO:     ::1:58366 - "GET /api/timeline/projects/qa-project-final-ui/state HTTP/1.1" 200 OK
+INFO:     ::1:58391 - "GET /api/auth/user HTTP/1.1" 200 OK
+INFO:     ::1:58392 - "GET /api/auth/user HTTP/1.1" 200 OK
+INFO:     app.api.projects - 获取项目详情成功: Final UI QA 项目
+INFO:     ::1:58393 - "GET /api/projects/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     app.api.projects - 获取项目详情成功: Final UI QA 项目
+INFO:     ::1:58394 - "GET /api/projects/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58398 - "GET /api/chapters/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58397 - "GET /api/outlines/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58396 - "GET /api/characters/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     app.api.projects - 获取项目详情成功: Final UI QA 项目
+INFO:     ::1:58400 - "GET /api/projects/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58404 - "GET /api/outlines/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58403 - "GET /api/chapters/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58406 - "GET /api/characters/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58408 - "GET /api/world-setting-results?project_id=qa-project-final-ui&limit=100 HTTP/1.1" 200 OK
+INFO:     ::1:58410 - "GET /api/world-setting-results?project_id=qa-project-final-ui&limit=100 HTTP/1.1" 200 OK
+INFO:     ::1:58415 - "GET /api/outlines/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58416 - "GET /api/chapters/project/qa-project-final-ui HTTP/1.1" 200 OK
+INFO:     ::1:58414 - "GET /api/characters/project/qa-project-final-ui HTTP/1.1" 200 OK
+ERROR:     app.database - ❌ 会话异常 [User:local_21232f297a57a5a7][ID:4799069712]: 1 validation error for WorldSettingResultResponse
+updated_at
+  Error extracting attribute: MissingGreenlet: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s) [type=get_attribute_error, input_value=<app.models.relationship....t object at 0x11e15b850>, input_type=WorldSettingResult]
+    For further information visit https://errors.pydantic.dev/2.12/v/get_attribute_error
+INFO:     app.database - ✅ 事务已回滚 [User:local_21232f297a57a5a7][ID:4799069712]（异常）
+ERROR:     app.main - 未处理的异常: ValidationError: 1 validation error for WorldSettingResultResponse
+updated_at
+  Error extracting attribute: MissingGreenlet: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s) [type=get_attribute_error, input_value=<app.models.relationship....t object at 0x11e15b850>, input_type=WorldSettingResult]
+    For further information visit https://errors.pydantic.dev/2.12/v/get_attribute_error
+INFO:     ::1:58495 - "POST /api/world-setting-results/world-pending-1/accept HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+  + Exception Group Traceback (most recent call last):
+  |   File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/_utils.py", line 79, in collapse_excgroups
+  |     yield
+  |   File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/middleware/base.py", line 192, in __call__
+  |     async with anyio.create_task_group() as task_group:
+  |   File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/anyio/_backends/_asyncio.py", line 799, in __aexit__
+  |     raise BaseExceptionGroup(
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
+    |     result = await app(  # type: ignore[func-returns-value]
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+    |     return await self.app(scope, receive, send)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/fastapi/applications.py", line 1134, in __call__
+    |     await super().__call__(scope, receive, send)
+    |   File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/applications.py", line 113, in __call__
+    |     await self.middleware_stack(scope, receive, send)
+    |   File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/middleware/errors.py", line 186, in __call__
+    |     raise exc
+    |   File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    |     await self.app(scope, receive, _send)
+    |   File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/middleware/cors.py", line 93, in __call__
+    |     await self.simple_response(scope, receive, send, request_headers=headers)
+    |   File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/middleware/cors.py", line 144, in simple_response
+    |     await self.app(scope, receive, send)
+    |   File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/middleware/base.py", line 191, in __call__
+    |     with recv_stream, send_stream, collapse_excgroups():
+    |   File "/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py", line 158, in __exit__
+    |     self.gen.throw(typ, value, traceback)
+    |   File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/_utils.py", line 85, in collapse_excgroups
+    |     raise exc
+    |   File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/middleware/base.py", line 193, in __call__
+    |     response = await self.dispatch_func(request, call_next)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/app/middleware/auth_middleware.py", line 80, in dispatch
+    |     response = await call_next(request)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/middleware/base.py", line 168, in call_next
+    |     raise app_exc from app_exc.__cause__ or app_exc.__context__
+    |   File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/middleware/base.py", line 144, in coro
+    |     await self.app(scope, receive_or_disconnect, send_no_error)
+    |   File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/middleware/base.py", line 191, in __call__
+    |     with recv_stream, send_stream, collapse_excgroups():
+    |   File "/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py", line 158, in __exit__
+    |     self.gen.throw(typ, value, traceback)
+    |   File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/_utils.py", line 85, in collapse_excgroups
+    |     raise exc
+    |   File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/middleware/base.py", line 193, in __call__
+    |     response = await self.dispatch_func(request, call_next)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/app/middleware/request_id.py", line 43, in dispatch
+    |     response = await call_next(request)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/middleware/base.py", line 168, in call_next
+    |     raise app_exc from app_exc.__cause__ or app_exc.__context__
+    |   File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/middleware/base.py", line 144, in coro
+    |     await self.app(scope, receive_or_disconnect, send_no_error)
+    |   File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    |     await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+    |   File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    |     raise exc
+    |   File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    |     await app(scope, receive, sender)
+    |   File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    |     await self.app(scope, receive, send)
+    |   File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/routing.py", line 716, in __call__
+    |     await self.middleware_stack(scope, receive, send)
+    |   File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/routing.py", line 736, in app
+    |     await route.handle(scope, receive, send)
+    |   File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/routing.py", line 290, in handle
+    |     await self.app(scope, receive, send)
+    |   File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/fastapi/routing.py", line 125, in app
+    |     await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+    |   File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    |     raise exc
+    |   File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    |     await app(scope, receive, sender)
+    |   File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/fastapi/routing.py", line 111, in app
+    |     response = await f(request)
+    |                ^^^^^^^^^^^^^^^^
+    |   File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/fastapi/routing.py", line 391, in app
+    |     raw_response = await run_endpoint_function(
+    |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/fastapi/routing.py", line 290, in run_endpoint_function
+    |     return await dependant.call(**values)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/app/api/world_setting_results.py", line 141, in accept_world_setting_result
+    |     return await _operation_response(
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/app/api/world_setting_results.py", line 87, in _operation_response
+    |     WorldSettingResultResponse.model_validate(operation_result.previous_result)
+    |   File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/pydantic/main.py", line 716, in model_validate
+    |     return cls.__pydantic_validator__.validate_python(
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    | pydantic_core._pydantic_core.ValidationError: 1 validation error for WorldSettingResultResponse
+    | updated_at
+    |   Error extracting attribute: MissingGreenlet: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s) [type=get_attribute_error, input_value=<app.models.relationship....t object at 0x11e15b850>, input_type=WorldSettingResult]
+    |     For further information visit https://errors.pydantic.dev/2.12/v/get_attribute_error
+    +------------------------------------
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/fastapi/applications.py", line 1134, in __call__
+    await super().__call__(scope, receive, send)
+  File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/applications.py", line 113, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/middleware/errors.py", line 186, in __call__
+    raise exc
+  File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/middleware/cors.py", line 93, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/middleware/cors.py", line 144, in simple_response
+    await self.app(scope, receive, send)
+  File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/middleware/base.py", line 191, in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+  File "/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py", line 158, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/_utils.py", line 85, in collapse_excgroups
+    raise exc
+  File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/middleware/base.py", line 193, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/app/middleware/auth_middleware.py", line 80, in dispatch
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/middleware/base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/middleware/base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/middleware/base.py", line 191, in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+  File "/opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/lib/python3.11/contextlib.py", line 158, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/_utils.py", line 85, in collapse_excgroups
+    raise exc
+  File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/middleware/base.py", line 193, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/app/middleware/request_id.py", line 43, in dispatch
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/middleware/base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/middleware/base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/routing.py", line 716, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/routing.py", line 736, in app
+    await route.handle(scope, receive, send)
+  File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/routing.py", line 290, in handle
+    await self.app(scope, receive, send)
+  File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/fastapi/routing.py", line 125, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/fastapi/routing.py", line 111, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/fastapi/routing.py", line 391, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/fastapi/routing.py", line 290, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/app/api/world_setting_results.py", line 141, in accept_world_setting_result
+    return await _operation_response(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shenxt/Dev/OpenCode/MuMuAINovel/backend/app/api/world_setting_results.py", line 87, in _operation_response
+    WorldSettingResultResponse.model_validate(operation_result.previous_result)
+  File "/Users/shenxt/.cache/uv/archive-v0/eePBg_nZ5_-zYfX-w2ggM/lib/python3.11/site-packages/pydantic/main.py", line 716, in model_validate
+    return cls.__pydantic_validator__.validate_python(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pydantic_core._pydantic_core.ValidationError: 1 validation error for WorldSettingResultResponse
+updated_at
+  Error extracting attribute: MissingGreenlet: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s) [type=get_attribute_error, input_value=<app.models.relationship....t object at 0x11e15b850>, input_type=WorldSettingResult]
+    For further information visit https://errors.pydantic.dev/2.12/v/get_attribute_error
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     app.mcp.facade - ✅ MCPClientFacade 资源已清理
+INFO:     app.services.ai_clients.base_client - ✅ HTTP 客户端池已清理
+INFO:     app.database - 正在关闭所有数据库连接...
+INFO:     app.database - 用户 shared_postgres 的数据库连接已关闭
+INFO:     app.database - 所有数据库连接已关闭
+INFO:     app.main - 应用已关闭
+INFO:     Application shutdown complete.
+INFO:     Finished server process [9115]

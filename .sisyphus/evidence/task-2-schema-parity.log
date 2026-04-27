@@ -1,0 +1,11 @@
+Command: cd backend && source ".venv311/bin/activate" && python -m pytest tests/test_migration_parity.py -q
+
+....                                                                     [100%]
+4 passed in 0.01s
+
+Latest Phase 1 QA rerun after adding mirrored NOT NULL enforcement for organization member org entity links:
+
+Command: cd backend && source ".venv311/bin/activate" && python -m pytest tests/test_migration_parity.py -q
+
+....                                                                     [100%]
+4 passed in 0.01s

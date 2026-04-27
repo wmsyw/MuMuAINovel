@@ -1,0 +1,138 @@
+zsh:1: command not found: python
+/opt/homebrew/opt/python@3.14/bin/python3.14: No module named pytest
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-8.3.4, pluggy-1.6.0
+rootdir: /Users/shenxt/Dev/OpenCode/MuMuAINovel/backend
+collected 10 items
+
+tests/test_harness_smoke.py .                                            [ 10%]
+tests/test_golden_fixtures.py .........                                  [100%]
+
+============================== 10 passed in 0.02s ==============================
+
+> frontend@1.4.6 test
+> vitest --run
+
+
+ RUN  v2.1.9 /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend
+
+ ❯ src/__tests__/eventBus.contract.test.ts (2 tests | 1 failed) 5ms
+   × eventBus contract > supports one-time listeners and listener removal 3ms
+     → expected "spy" to be called 2 times, but got 1 times
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__tests__/eventBus.contract.test.ts > eventBus contract > supports one-time listeners and listener removal
+AssertionError: expected "spy" to be called 2 times, but got 1 times
+ ❯ src/__tests__/eventBus.contract.test.ts:34:32
+     32| 
+     33|     expect(onceListener).toHaveBeenCalledTimes(1)
+     34|     expect(persistentListener).toHaveBeenCalledTimes(2)
+       |                                ^
+     35|     expect(eventBus.listenerCount(EventNames.CHAPTER_NEEDS_REFRESH)).t…
+     36|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed (2)
+   Start at  22:07:40
+   Duration  625ms (transform 26ms, setup 0ms, collect 24ms, tests 5ms, environment 304ms, prepare 48ms)
+
+
+> frontend@1.4.6 test
+> vitest --run
+
+
+ RUN  v2.1.9 /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend
+
+ ✓ src/__tests__/eventBus.contract.test.ts (2 tests) 3ms
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  22:07:57
+   Duration  576ms (transform 25ms, setup 0ms, collect 23ms, tests 3ms, environment 284ms, prepare 46ms)
+
+
+> frontend@1.4.6 lint
+> eslint .
+
+................                                                         [100%]
+16 passed in 0.02s
+
+> frontend@1.4.6 build
+> tsc -b && vite build
+
+vite v7.3.1 building client environment for production...
+transforming...
+✓ 3672 modules transformed.
+rendering chunks...
+computing gzip size...
+../backend/static/index.html                           0.80 kB │ gzip:   0.40 kB
+../backend/static/assets/index-DXNTk99V.css           28.75 kB │ gzip:   6.15 kB
+../backend/static/assets/vendor-dnd-ChRVcxfc.js        0.04 kB │ gzip:   0.06 kB
+../backend/static/assets/vendor-utils-CKIDsLVI.js     37.76 kB │ gzip:  15.12 kB
+../backend/static/assets/vendor-diff-D2FadCkF.js      56.07 kB │ gzip:  19.24 kB
+../backend/static/assets/vendor-react-BEIWTLWi.js    163.47 kB │ gzip:  53.62 kB
+../backend/static/assets/index-BcWqPPkr.js           900.06 kB │ gzip: 249.47 kB
+../backend/static/assets/vendor-antd-DxXT7w8X.js   1,205.19 kB │ gzip: 373.39 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 3.75s
+
+> frontend@1.4.6 lint
+> eslint .
+
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-8.3.4, pluggy-1.6.0
+rootdir: /Users/shenxt/Dev/OpenCode/MuMuAINovel/backend
+collected 10 items
+
+tests/test_harness_smoke.py .                                            [ 10%]
+tests/test_golden_fixtures.py .........                                  [100%]
+
+============================== 10 passed in 0.01s ==============================
+
+> frontend@1.4.6 test
+> vitest --run
+
+
+ RUN  v2.1.9 /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend
+
+ ✓ src/__tests__/eventBus.contract.test.ts (2 tests) 3ms
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  22:14:32
+   Duration  546ms (transform 23ms, setup 0ms, collect 22ms, tests 3ms, environment 261ms, prepare 44ms)
+
+
+> frontend@1.4.6 build
+> tsc -b && vite build
+
+vite v7.3.1 building client environment for production...
+transforming...
+✓ 3672 modules transformed.
+rendering chunks...
+computing gzip size...
+../backend/static/index.html                           0.80 kB │ gzip:   0.40 kB
+../backend/static/assets/index-DXNTk99V.css           28.75 kB │ gzip:   6.15 kB
+../backend/static/assets/vendor-dnd-ChRVcxfc.js        0.04 kB │ gzip:   0.06 kB
+../backend/static/assets/vendor-utils-CKIDsLVI.js     37.76 kB │ gzip:  15.12 kB
+../backend/static/assets/vendor-diff-D2FadCkF.js      56.07 kB │ gzip:  19.24 kB
+../backend/static/assets/vendor-react-BEIWTLWi.js    163.47 kB │ gzip:  53.62 kB
+../backend/static/assets/index-BcWqPPkr.js           900.06 kB │ gzip: 249.47 kB
+../backend/static/assets/vendor-antd-DxXT7w8X.js   1,205.19 kB │ gzip: 373.39 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 3.73s
+
+> frontend@1.4.6 lint
+> eslint .
+

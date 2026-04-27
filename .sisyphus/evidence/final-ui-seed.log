@@ -1,0 +1,80 @@
+seeding QA data at 2026-04-27 10:50:59; user=local_21232f297a57a5a7; db=/tmp/mumu_final_ui_qa.sqlite
+existing user: ('local_21232f297a57a5a7', 'admin', 1)
+Traceback (most recent call last):
+  File "<stdin>", line 63, in <module>
+sqlite3.IntegrityError: NOT NULL constraint failed: organizations.character_id
+schema organizations
+(0, 'id', 'VARCHAR(36)', 1, None, 1)
+(1, 'character_id', 'VARCHAR(36)', 1, None, 0)
+(2, 'project_id', 'VARCHAR(36)', 1, None, 0)
+(3, 'created_at', 'DATETIME', 0, 'CURRENT_TIMESTAMP', 0)
+(4, 'updated_at', 'DATETIME', 0, 'CURRENT_TIMESTAMP', 0)
+(5, 'organization_entity_id', 'VARCHAR(36)', 0, None, 0)
+schema world_setting_results
+(0, 'id', 'VARCHAR(36)', 1, None, 1)
+(1, 'project_id', 'VARCHAR(36)', 1, None, 0)
+(2, 'run_id', 'VARCHAR(36)', 0, None, 0)
+(3, 'status', 'VARCHAR(20)', 1, "'pending'", 0)
+(4, 'world_time_period', 'TEXT', 0, None, 0)
+(5, 'world_location', 'TEXT', 0, None, 0)
+(6, 'world_atmosphere', 'TEXT', 0, None, 0)
+(7, 'world_rules', 'TEXT', 0, None, 0)
+(8, 'prompt', 'TEXT', 0, None, 0)
+(9, 'provider', 'VARCHAR(50)', 0, None, 0)
+(10, 'model', 'VARCHAR(100)', 0, None, 0)
+(11, 'reasoning_intensity', 'VARCHAR(20)', 0, None, 0)
+(12, 'raw_result', 'JSON', 0, None, 0)
+(13, 'source_type', 'VARCHAR(50)', 1, "'ai'", 0)
+(14, 'accepted_at', 'DATETIME', 0, None, 0)
+(15, 'accepted_by', 'VARCHAR(100)', 0, None, 0)
+(16, 'supersedes_result_id', 'VARCHAR(36)', 0, None, 0)
+(17, 'created_at', 'DATETIME', 0, 'CURRENT_TIMESTAMP', 0)
+(18, 'updated_at', 'DATETIME', 0, 'CURRENT_TIMESTAMP', 0)
+schema settings
+(0, 'id', 'VARCHAR(36)', 1, None, 1)
+(1, 'user_id', 'VARCHAR(50)', 1, None, 0)
+(2, 'api_provider', 'VARCHAR(50)', 0, None, 0)
+(3, 'api_key', 'VARCHAR(500)', 0, None, 0)
+(4, 'api_base_url', 'VARCHAR(500)', 0, None, 0)
+(5, 'llm_model', 'VARCHAR(100)', 0, None, 0)
+(6, 'temperature', 'FLOAT', 0, None, 0)
+(7, 'max_tokens', 'INTEGER', 0, None, 0)
+(8, 'preferences', 'TEXT', 0, None, 0)
+(9, 'created_at', 'DATETIME', 0, 'CURRENT_TIMESTAMP', 0)
+(10, 'updated_at', 'DATETIME', 0, 'CURRENT_TIMESTAMP', 0)
+(11, 'system_prompt', 'TEXT', 0, None, 0)
+(12, 'cover_api_provider', 'VARCHAR(50)', 0, None, 0)
+(13, 'cover_api_key', 'VARCHAR(500)', 0, None, 0)
+(14, 'cover_api_base_url', 'VARCHAR(500)', 0, None, 0)
+(15, 'cover_image_model', 'VARCHAR(100)', 0, None, 0)
+(16, 'cover_enabled', 'BOOLEAN', 1, '0', 0)
+(17, 'smtp_provider', 'VARCHAR(50)', 1, "'qq'", 0)
+(18, 'smtp_host', 'VARCHAR(255)', 0, None, 0)
+(19, 'smtp_port', 'INTEGER', 1, "'465'", 0)
+(20, 'smtp_username', 'VARCHAR(255)', 0, None, 0)
+(21, 'smtp_password', 'VARCHAR(500)', 0, None, 0)
+(22, 'smtp_use_tls', 'BOOLEAN', 1, "'0'", 0)
+(23, 'smtp_use_ssl', 'BOOLEAN', 1, "'1'", 0)
+(24, 'smtp_from_email', 'VARCHAR(255)', 0, None, 0)
+(25, 'smtp_from_name', 'VARCHAR(255)', 1, "'MuMuAINovel'", 0)
+(26, 'email_auth_enabled', 'BOOLEAN', 1, "'1'", 0)
+(27, 'email_register_enabled', 'BOOLEAN', 1, "'1'", 0)
+(28, 'verification_code_ttl_minutes', 'INTEGER', 1, "'10'", 0)
+(29, 'verification_resend_interval_seconds', 'INTEGER', 1, "'60'", 0)
+(30, 'default_reasoning_intensity', 'VARCHAR(20)', 1, "'auto'", 0)
+(31, 'reasoning_overrides', 'TEXT', 0, None, 0)
+(32, 'allow_ai_entity_generation', 'BOOLEAN', 1, "'0'", 0)
+--- retry compact seed 2026-04-27 10:52:23; user=local_21232f297a57a5a7 ---
+existing user: ('local_21232f297a57a5a7', 'admin', 1)
+Traceback (most recent call last):
+  File "<stdin>", line 86, in <module>
+sqlite3.OperationalError: no such column: project_id
+--- post-seed counts ---
+projects 1
+chapters 2
+characters 3
+organization_entities 1
+careers 1
+extraction_candidates 4
+world_setting_results 2
+relationship_timeline_events 4

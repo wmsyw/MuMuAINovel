@@ -1,0 +1,23 @@
+Command: cd backend && source ".venv311/bin/activate" && python -m pytest tests/test_migrations.py::test_org_split_migration_preserves_data -q
+Covered by the full schema command captured in task-2-schema.log.
+
+Scenario assertions now cover:
+- legacy `characters.is_organization=True` row copied into `organization_entities`
+- organization-specific character fields copied: personality, background, status, current_state, avatar_url, traits, organization_type, organization_purpose
+- legacy `organizations` detail fields copied: level, power_level, member_count, location, motto, color
+- old organization-character row removed from `characters`
+- old organization columns removed from `characters`
+- absorbed detail columns removed from `organizations`
+- `organizations.organization_entity_id` and `organization_members.organization_entity_id` point at the new org entity
+
+Relevant passing output from task-2-schema.log:
+tests/test_migrations.py ....                                            [ 36%]
+tests/test_schema_contracts.py .......                                   [100%]
+11 passed, 1 warning in 3.11s
+
+Latest Phase 1 QA rerun assertions additionally verify `organization_members.organization_entity_id` is nullable False after migration and in ORM metadata.
+
+Relevant passing output from latest task-2-schema.log:
+tests/test_migrations.py ....                                            [ 36%]
+tests/test_schema_contracts.py .......                                   [100%]
+11 passed, 1 warning in 3.43s
