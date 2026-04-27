@@ -37,6 +37,8 @@ env/
 *~
 .DS_Store
 .kilocode/
+.claude/
+.sisyphus/
 
 # Environment variables
 .env
@@ -98,6 +100,7 @@ htmlcov/
 
 # Type checking
 .mypy_cache/
+.ruff_cache/
 .dmypy.json
 dmypy.json
 
@@ -126,6 +129,7 @@ test_api.py
 backend/embedding/
 
 AGENTS.md
+**/AGENTS.md
 # 提示词工坊实例标识（每个部署实例必须唯一）
 backend/.instance_id
 .omc/

@@ -1,9 +1,0 @@
-============================= test session starts ==============================
-platform darwin -- Python 3.11.15, pytest-9.0.3, pluggy-1.6.0
-rootdir: /Users/shenxt/Dev/OpenCode/MuMuAINovel
-plugins: anyio-4.2.0
-collected 1 item
-
-backend/tests/test_ai_provider_capabilities.py .                         [100%]
-
-============================== 1 passed in 0.07s ===============================
