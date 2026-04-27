@@ -1,0 +1,96 @@
+
+> frontend@1.4.6 test
+> vitest --run Settings
+
+
+ RUN  v2.1.9 /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend
+
+ ✓ src/pages/__tests__/Settings.test.ts (6 tests) 2ms
+
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+   Start at  02:37:18
+   Duration  2.38s (transform 136ms, setup 0ms, collect 1.77s, tests 2ms, environment 323ms, prepare 58ms)
+
+
+> frontend@1.4.6 build
+> tsc -b && vite build
+
+vite v7.3.1 building client environment for production...
+transforming...
+✓ 3672 modules transformed.
+rendering chunks...
+computing gzip size...
+../backend/static/index.html                           0.80 kB │ gzip:   0.40 kB
+../backend/static/assets/index-DXNTk99V.css           28.75 kB │ gzip:   6.15 kB
+../backend/static/assets/vendor-dnd-ChRVcxfc.js        0.04 kB │ gzip:   0.06 kB
+../backend/static/assets/vendor-utils-CKIDsLVI.js     37.76 kB │ gzip:  15.12 kB
+../backend/static/assets/vendor-diff-CbggTS7A.js      56.07 kB │ gzip:  19.24 kB
+../backend/static/assets/vendor-react-BEIWTLWi.js    163.47 kB │ gzip:  53.62 kB
+../backend/static/assets/index-C3ZCqaOG.js           907.00 kB │ gzip: 251.62 kB
+../backend/static/assets/vendor-antd-B43Fk55a.js   1,205.19 kB │ gzip: 373.39 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 3.80s
+
+> frontend@1.4.6 lint
+> eslint .
+
+
+/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/src/pages/Settings.tsx
+   13:14  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+   15:14  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+   27:14  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+   34:14  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+   44:14  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+   60:14  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+   84:14  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  109:14  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  132:14  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+✖ 9 problems (9 errors, 0 warnings)
+
+
+> frontend@1.4.6 test
+> vitest --run Settings
+
+
+ RUN  v2.1.9 /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend
+
+ ✓ src/pages/__tests__/Settings.test.ts (6 tests) 2ms
+
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+   Start at  02:39:23
+   Duration  2.25s (transform 114ms, setup 0ms, collect 1.67s, tests 2ms, environment 283ms, prepare 48ms)
+
+
+> frontend@1.4.6 build
+> tsc -b && vite build
+
+vite v7.3.1 building client environment for production...
+transforming...
+✓ 3672 modules transformed.
+rendering chunks...
+computing gzip size...
+../backend/static/index.html                           0.80 kB │ gzip:   0.40 kB
+../backend/static/assets/index-DXNTk99V.css           28.75 kB │ gzip:   6.15 kB
+../backend/static/assets/vendor-dnd-ChRVcxfc.js        0.04 kB │ gzip:   0.06 kB
+../backend/static/assets/vendor-utils-CKIDsLVI.js     37.76 kB │ gzip:  15.12 kB
+../backend/static/assets/vendor-diff-CbggTS7A.js      56.07 kB │ gzip:  19.24 kB
+../backend/static/assets/vendor-react-BEIWTLWi.js    163.47 kB │ gzip:  53.62 kB
+../backend/static/assets/index-BIAXPb2i.js           907.23 kB │ gzip: 251.77 kB
+../backend/static/assets/vendor-antd-B43Fk55a.js   1,205.19 kB │ gzip: 373.39 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 3.72s
+
+> frontend@1.4.6 lint
+> eslint .
+

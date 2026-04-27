@@ -1,0 +1,420 @@
+stderr | src/pages/__tests__/extractionReview.test.tsx > extraction candidate review UI helpers > renders evidence, confidence, source chapter, and status in the review panel
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-motion/lib/CSSMotion.js:42:32
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/alert/Alert.js:74:7
+    at div
+    at Item (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/Item.js:12:3)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/index.js:44:39
+    at ExtractionCandidateReviewPanelImpl (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/src/components/ExtractionCandidateReviewPanel.tsx:110:3)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-motion/lib/CSSMotion.js:42:32
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/alert/Alert.js:74:7
+    at div
+    at Item (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/Item.js:12:3)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/index.js:44:39
+    at ExtractionCandidateReviewPanelImpl (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/src/components/ExtractionCandidateReviewPanel.tsx:110:3)
+Warning: [antd: Tabs] `destroyInactiveTabPane` is deprecated. Please use `destroyOnHidden` instead.
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-motion/lib/CSSMotion.js:42:32
+    at div
+    at div
+    at TabPanelList (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/TabPanelList/index.js:22:18)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/Tabs.js:40:18
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/tabs/index.js:35:7
+    at div
+    at Item (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/Item.js:12:3)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/index.js:44:39
+    at ExtractionCandidateReviewPanelImpl (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/src/components/ExtractionCandidateReviewPanel.tsx:110:3)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-motion/lib/CSSMotion.js:42:32
+    at div
+    at div
+    at TabPanelList (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/TabPanelList/index.js:22:18)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/Tabs.js:40:18
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/tabs/index.js:35:7
+    at div
+    at Item (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/Item.js:12:3)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/index.js:44:39
+    at ExtractionCandidateReviewPanelImpl (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/src/components/ExtractionCandidateReviewPanel.tsx:110:3)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-motion/lib/CSSMotion.js:42:32
+    at div
+    at div
+    at TabPanelList (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/TabPanelList/index.js:22:18)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/Tabs.js:40:18
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/tabs/index.js:35:7
+    at div
+    at Item (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/Item.js:12:3)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/index.js:44:39
+    at ExtractionCandidateReviewPanelImpl (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/src/components/ExtractionCandidateReviewPanel.tsx:110:3)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-motion/lib/CSSMotion.js:42:32
+    at div
+    at div
+    at TabPanelList (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/TabPanelList/index.js:22:18)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/Tabs.js:40:18
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/tabs/index.js:35:7
+    at div
+    at Item (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/Item.js:12:3)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/index.js:44:39
+    at ExtractionCandidateReviewPanelImpl (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/src/components/ExtractionCandidateReviewPanel.tsx:110:3)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-motion/lib/CSSMotion.js:42:32
+    at div
+    at div
+    at TabPanelList (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/TabPanelList/index.js:22:18)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/Tabs.js:40:18
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/tabs/index.js:35:7
+    at div
+    at Item (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/Item.js:12:3)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/index.js:44:39
+    at ExtractionCandidateReviewPanelImpl (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/src/components/ExtractionCandidateReviewPanel.tsx:110:3)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-motion/lib/CSSMotion.js:42:32
+    at div
+    at div
+    at TabPanelList (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/TabPanelList/index.js:22:18)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/Tabs.js:40:18
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/tabs/index.js:35:7
+    at div
+    at Item (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/Item.js:12:3)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/index.js:44:39
+    at ExtractionCandidateReviewPanelImpl (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/src/components/ExtractionCandidateReviewPanel.tsx:110:3)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-motion/lib/CSSMotion.js:42:32
+    at div
+    at div
+    at TabPanelList (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/TabPanelList/index.js:22:18)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/Tabs.js:40:18
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/tabs/index.js:35:7
+    at div
+    at Item (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/Item.js:12:3)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/index.js:44:39
+    at ExtractionCandidateReviewPanelImpl (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/src/components/ExtractionCandidateReviewPanel.tsx:110:3)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-motion/lib/CSSMotion.js:42:32
+    at div
+    at div
+    at TabPanelList (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/TabPanelList/index.js:22:18)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/Tabs.js:40:18
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/tabs/index.js:35:7
+    at div
+    at Item (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/Item.js:12:3)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/index.js:44:39
+    at ExtractionCandidateReviewPanelImpl (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/src/components/ExtractionCandidateReviewPanel.tsx:110:3)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/pages/__tests__/extractionReview.test.tsx > extraction candidate review UI helpers > renders evidence, confidence, source chapter, and status in the review panel
+AssertionError: expected '<div class="ant-space css-dev-only-do…' to contain '证据片段'
+
+Expected: "证据片段"
+Received: "<div class="ant-space css-dev-only-do-not-override-mncuj7 ant-space-vertical ant-space-gap-row-middle ant-space-gap-col-middle" style="width:100%;min-height:0"><div class="ant-space-item"><div data-show="true" class="ant-alert ant-alert-info ant-alert-with-description css-dev-only-do-not-override-mncuj7" role="alert"><span role="img" aria-label="info-circle" class="anticon anticon-info-circle ant-alert-icon"><svg viewBox="64 64 896 896" focusable="false" data-icon="info-circle" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm32 664c0 4.4-3.6 8-8 8h-48c-4.4 0-8-3.6-8-8V456c0-4.4 3.6-8 8-8h48c4.4 0 8 3.6 8 8v272zm-32-344a48.01 48.01 0 010-96 48.01 48.01 0 010 96z"></path></svg></span><div class="ant-alert-content"><div class="ant-alert-message">抽取优先工作流</div><div class="ant-alert-description">角色默认从章节正文自动发现，评审后再入库；手动创建/编辑仍可直接使用。</div></div></div></div><div class="ant-space-item"><div class="ant-tabs ant-tabs-top css-dev-only-do-not-override-mncuj7"><div role="tablist" aria-orientation="horizontal" class="ant-tabs-nav"><div class="ant-tabs-nav-wrap"><div class="ant-tabs-nav-list" style="transform:translate(0px, 0px)"><div data-node-key="canonical" class="ant-tabs-tab ant-tabs-tab-active"><div role="tab" aria-selected="true" class="ant-tabs-tab-btn" tabindex="0">已入库 (0)</div></div><div data-node-key="discovered" class="ant-tabs-tab"><div role="tab" aria-selected="false" class="ant-tabs-tab-btn" tabindex="-1">正文发现 (1)</div></div><div data-node-key="merge" class="ant-tabs-tab"><div role="tab" aria-selected="false" class="ant-tabs-tab-btn" tabindex="-1">待合并 (0)</div></div><div data-node-key="history" class="ant-tabs-tab"><div role="tab" aria-selected="false" class="ant-tabs-tab-btn" tabindex="-1">已拒绝/历史 (0)</div></div><div class="ant-tabs-ink-bar ant-tabs-ink-bar-animated"></div></div></div><div class="ant-tabs-nav-operations ant-tabs-nav-operations-hidden"><button type="button" class="ant-tabs-nav-more" style="visibility:hidden;order:1" aria-haspopup="listbox" aria-controls="null-more-popup" id="null-more" aria-expanded="false"><span role="img" aria-label="ellipsis" class="anticon anticon-ellipsis"><svg viewBox="64 64 896 896" focusable="false" data-icon="ellipsis" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d="M176 511a56 56 0 10112 0 56 56 0 10-112 0zm280 0a56 56 0 10112 0 56 56 0 10-112 0zm280 0a56 56 0 10112 0 56 56 0 10-112 0z"></path></svg></span></button></div></div><div class="ant-tabs-content-holder"><div class="ant-tabs-content ant-tabs-content-top"><div role="tabpanel" tabindex="0" aria-hidden="false" class="ant-tabs-tabpane ant-tabs-tabpane-active"><div>已入库角色</div></div></div></div></div></div></div>"
+
+ ❯ src/pages/__tests__/extractionReview.test.tsx:90:18
+     88| 
+     89|     expect(html).toContain('正文发现 (1)');
+     90|     expect(html).toContain('证据片段');
+       |                  ^
+     91|     expect(html).toContain('沈砚在第三章拔剑');
+     92|     expect(html).toContain('置信度 87%');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+stderr | src/pages/__tests__/extractionReview.test.tsx > extraction candidate review UI helpers > renders evidence, confidence, source chapter, and status in the review panel
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-motion/lib/CSSMotion.js:42:32
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/alert/Alert.js:74:7
+    at div
+    at Item (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/Item.js:12:3)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/index.js:44:39
+    at ExtractionCandidateReviewPanelImpl (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/src/components/ExtractionCandidateReviewPanel.tsx:110:3)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-motion/lib/CSSMotion.js:42:32
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/alert/Alert.js:74:7
+    at div
+    at Item (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/Item.js:12:3)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/index.js:44:39
+    at ExtractionCandidateReviewPanelImpl (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/src/components/ExtractionCandidateReviewPanel.tsx:110:3)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-motion/lib/CSSMotion.js:42:32
+    at div
+    at div
+    at TabPanelList (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/TabPanelList/index.js:22:18)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/Tabs.js:40:18
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/tabs/index.js:35:7
+    at div
+    at Item (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/Item.js:12:3)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/index.js:44:39
+    at ExtractionCandidateReviewPanelImpl (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/src/components/ExtractionCandidateReviewPanel.tsx:110:3)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-motion/lib/CSSMotion.js:42:32
+    at div
+    at div
+    at TabPanelList (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/TabPanelList/index.js:22:18)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/Tabs.js:40:18
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/tabs/index.js:35:7
+    at div
+    at Item (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/Item.js:12:3)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/index.js:44:39
+    at ExtractionCandidateReviewPanelImpl (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/src/components/ExtractionCandidateReviewPanel.tsx:110:3)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-motion/lib/CSSMotion.js:42:32
+    at div
+    at div
+    at TabPanelList (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/TabPanelList/index.js:22:18)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/Tabs.js:40:18
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/tabs/index.js:35:7
+    at div
+    at Item (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/Item.js:12:3)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/index.js:44:39
+    at ExtractionCandidateReviewPanelImpl (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/src/components/ExtractionCandidateReviewPanel.tsx:110:3)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-motion/lib/CSSMotion.js:42:32
+    at div
+    at div
+    at TabPanelList (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/TabPanelList/index.js:22:18)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/Tabs.js:40:18
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/tabs/index.js:35:7
+    at div
+    at Item (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/Item.js:12:3)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/index.js:44:39
+    at ExtractionCandidateReviewPanelImpl (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/src/components/ExtractionCandidateReviewPanel.tsx:110:3)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-motion/lib/CSSMotion.js:42:32
+    at div
+    at div
+    at TabPanelList (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/TabPanelList/index.js:22:18)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/Tabs.js:40:18
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/tabs/index.js:35:7
+    at div
+    at Item (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/Item.js:12:3)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/index.js:44:39
+    at ExtractionCandidateReviewPanelImpl (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/src/components/ExtractionCandidateReviewPanel.tsx:110:3)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-motion/lib/CSSMotion.js:42:32
+    at div
+    at div
+    at TabPanelList (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/TabPanelList/index.js:22:18)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/Tabs.js:40:18
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/tabs/index.js:35:7
+    at div
+    at Item (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/Item.js:12:3)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/index.js:44:39
+    at ExtractionCandidateReviewPanelImpl (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/src/components/ExtractionCandidateReviewPanel.tsx:110:3)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-motion/lib/CSSMotion.js:42:32
+    at div
+    at div
+    at TabPanelList (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/TabPanelList/index.js:22:18)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/Tabs.js:40:18
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/tabs/index.js:35:7
+    at div
+    at Item (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/Item.js:12:3)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/index.js:44:39
+    at ExtractionCandidateReviewPanelImpl (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/src/components/ExtractionCandidateReviewPanel.tsx:110:3)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-motion/lib/CSSMotion.js:42:32
+    at div
+    at div
+    at TabPanelList (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/TabPanelList/index.js:22:18)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/Tabs.js:40:18
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/tabs/index.js:35:7
+    at div
+    at Item (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/Item.js:12:3)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/index.js:44:39
+    at ExtractionCandidateReviewPanelImpl (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/src/components/ExtractionCandidateReviewPanel.tsx:110:3)
+
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+
+Task 14 QA fix note (2026-04-27): Atlas required the accept test to click through the rendered component rather than helper-only code. The first QA-fix test run exposed that the confidence value was present only as the AntD progress text (`87%`) / aria label, not with an explicit visible `置信度 87%` label. Added a visible confidence label in `ExtractionCandidateReviewPanel` and reran the required frontend test/build/lint commands successfully.
+stderr | src/pages/__tests__/extractionReview.test.tsx > extraction candidate review UI helpers > renders evidence, confidence, source chapter, and status in the review panel
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-motion/lib/CSSMotion.js:42:32
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/alert/Alert.js:74:7
+    at div
+    at Item (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/Item.js:12:3)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/index.js:44:39
+    at ExtractionCandidateReviewPanelImpl (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/src/components/ExtractionCandidateReviewPanel.tsx:110:3)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-motion/lib/CSSMotion.js:42:32
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/alert/Alert.js:74:7
+    at div
+    at Item (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/Item.js:12:3)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/index.js:44:39
+    at ExtractionCandidateReviewPanelImpl (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/src/components/ExtractionCandidateReviewPanel.tsx:110:3)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-motion/lib/CSSMotion.js:42:32
+    at div
+    at div
+    at TabPanelList (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/TabPanelList/index.js:22:18)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/Tabs.js:40:18
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/tabs/index.js:35:7
+    at div
+    at Item (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/Item.js:12:3)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/index.js:44:39
+    at ExtractionCandidateReviewPanelImpl (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/src/components/ExtractionCandidateReviewPanel.tsx:110:3)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-motion/lib/CSSMotion.js:42:32
+    at div
+    at div
+    at TabPanelList (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/TabPanelList/index.js:22:18)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/Tabs.js:40:18
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/tabs/index.js:35:7
+    at div
+    at Item (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/Item.js:12:3)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/index.js:44:39
+    at ExtractionCandidateReviewPanelImpl (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/src/components/ExtractionCandidateReviewPanel.tsx:110:3)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-motion/lib/CSSMotion.js:42:32
+    at div
+    at div
+    at TabPanelList (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/TabPanelList/index.js:22:18)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/Tabs.js:40:18
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/tabs/index.js:35:7
+    at div
+    at Item (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/Item.js:12:3)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/index.js:44:39
+    at ExtractionCandidateReviewPanelImpl (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/src/components/ExtractionCandidateReviewPanel.tsx:110:3)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-motion/lib/CSSMotion.js:42:32
+    at div
+    at div
+    at TabPanelList (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/TabPanelList/index.js:22:18)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/Tabs.js:40:18
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/tabs/index.js:35:7
+    at div
+    at Item (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/Item.js:12:3)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/index.js:44:39
+    at ExtractionCandidateReviewPanelImpl (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/src/components/ExtractionCandidateReviewPanel.tsx:110:3)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-motion/lib/CSSMotion.js:42:32
+    at div
+    at div
+    at TabPanelList (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/TabPanelList/index.js:22:18)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/Tabs.js:40:18
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/tabs/index.js:35:7
+    at div
+    at Item (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/Item.js:12:3)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/index.js:44:39
+    at ExtractionCandidateReviewPanelImpl (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/src/components/ExtractionCandidateReviewPanel.tsx:110:3)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-motion/lib/CSSMotion.js:42:32
+    at div
+    at div
+    at TabPanelList (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/TabPanelList/index.js:22:18)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/Tabs.js:40:18
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/tabs/index.js:35:7
+    at div
+    at Item (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/Item.js:12:3)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/index.js:44:39
+    at ExtractionCandidateReviewPanelImpl (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/src/components/ExtractionCandidateReviewPanel.tsx:110:3)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-motion/lib/CSSMotion.js:42:32
+    at div
+    at div
+    at TabPanelList (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/TabPanelList/index.js:22:18)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/Tabs.js:40:18
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/tabs/index.js:35:7
+    at div
+    at Item (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/Item.js:12:3)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/index.js:44:39
+    at ExtractionCandidateReviewPanelImpl (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/src/components/ExtractionCandidateReviewPanel.tsx:110:3)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-motion/lib/CSSMotion.js:42:32
+    at div
+    at div
+    at TabPanelList (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/TabPanelList/index.js:22:18)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-tabs/lib/Tabs.js:40:18
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/tabs/index.js:35:7
+    at div
+    at Item (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/Item.js:12:3)
+    at div
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/antd/lib/space/index.js:44:39
+    at ExtractionCandidateReviewPanelImpl (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/src/components/ExtractionCandidateReviewPanel.tsx:110:3)
+
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/pages/__tests__/extractionReview.test.tsx > extraction candidate review UI helpers > clicking the visible accept button calls API wrappers and refreshes candidate and canonical data
+AssertionError: expected '抽取优先工作流角色默认从章节正文自动发现，评审后再入库；手动创建/编辑仍可…' to contain '置信度 87%'
+
+Expected: "置信度 87%"
+Received: "抽取优先工作流角色默认从章节正文自动发现，评审后再入库；手动创建/编辑仍可直接使用。已入库 (0)正文发现 (1)待合并 (0)已拒绝/历史 (0)角色沈砚待评审来源：第 3 章位置：24–5187%证据片段沈砚在第三章拔剑，第一次显露出护送商队的本领。候选名称沈砚别名沈护卫状态变化初次登场选择已入库角色用于合并接受入库合并拒绝"
+
+ ❯ src/pages/__tests__/extractionReview.test.tsx:145:42
+    143|       expect(view.container.textContent).toContain('证据片段');
+    144|       expect(view.container.textContent).toContain('沈砚在第三章拔剑');
+    145|       expect(view.container.textContent).toContain('置信度 87%');
+       |                                          ^
+    146|       expect(view.container.textContent).toContain('第 3 章');
+    147|       expect(view.container.textContent).toContain('待评审');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
