@@ -1,0 +1,118 @@
+# Task 18 frontend UI/component focused evidence
+workdir: /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend
+command: npm run test -- --run src/__tests__/eventBus.contract.test.ts src/pages/__tests__/Settings.test.ts src/pages/__tests__/extractionReview.test.tsx src/pages/__tests__/worldSetting.test.tsx src/pages/__tests__/Inspiration.test.ts src/pages/__tests__/timelineReview.test.tsx
+
+> frontend@1.4.6 test
+> vitest --run src/__tests__/eventBus.contract.test.ts src/pages/__tests__/Settings.test.ts src/pages/__tests__/extractionReview.test.tsx src/pages/__tests__/worldSetting.test.tsx src/pages/__tests__/Inspiration.test.ts src/pages/__tests__/timelineReview.test.tsx
+
+
+ RUN  v2.1.9 /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend
+
+ ✓ src/__tests__/eventBus.contract.test.ts (2 tests) 3ms
+ ✓ src/pages/__tests__/Settings.test.ts (6 tests) 2ms
+ ✓ src/pages/__tests__/Inspiration.test.ts (3 tests) 4ms
+ ✓ src/pages/__tests__/extractionReview.test.tsx (3 tests) 218ms
+stderr | src/pages/__tests__/worldSetting.test.tsx > WorldSetting result review flow > accepts a pending world-setting result after review and refreshes the active snapshot
+Warning: [antd: Spin] `tip` only work in nest or fullscreen pattern.
+
+ ✓ src/pages/__tests__/worldSetting.test.tsx (1 test) 265ms
+stderr | src/pages/__tests__/timelineReview.test.tsx > timeline review panel > shows chapter 3 current relationship projection with evidence and confidence
+Error: Not implemented: window.getComputedStyle(elt, pseudoElt)
+    at module.exports (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at window.getComputedStyle (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/jsdom/lib/jsdom/browser/Window.js:895:7)
+    at measureScrollbarSize (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-util/lib/getScrollBarSize.js:35:32)
+    at getTargetScrollBarSize (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-util/lib/getScrollBarSize.js:83:10)
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-table/lib/Table.js:427:71
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-util/lib/hooks/useLayoutEffect.js:18:12
+    at commitHookEffectListMount (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitPassiveMountOnFiber (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/react-dom/cjs/react-dom.development.js:24970:11)
+    at commitPassiveMountEffects_complete (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/react-dom/cjs/react-dom.development.js:24930:9)
+    at commitPassiveMountEffects_begin (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/react-dom/cjs/react-dom.development.js:24917:7) undefined
+
+stderr | src/pages/__tests__/timelineReview.test.tsx > timeline review panel > shows chapter 6 changed current relationship and removes the older projection
+Error: Not implemented: window.getComputedStyle(elt, pseudoElt)
+    at module.exports (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at window.getComputedStyle (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/jsdom/lib/jsdom/browser/Window.js:895:7)
+    at measureScrollbarSize (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-util/lib/getScrollBarSize.js:35:32)
+    at getTargetScrollBarSize (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-util/lib/getScrollBarSize.js:83:10)
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-table/lib/Table.js:427:71
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-util/lib/hooks/useLayoutEffect.js:18:12
+    at commitHookEffectListMount (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitPassiveMountOnFiber (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/react-dom/cjs/react-dom.development.js:24970:11)
+    at commitPassiveMountEffects_complete (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/react-dom/cjs/react-dom.development.js:24930:9)
+    at commitPassiveMountEffects_begin (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/react-dom/cjs/react-dom.development.js:24917:7) undefined
+
+stderr | src/pages/__tests__/timelineReview.test.tsx > timeline review panel > keeps ended chapter 10 relationship out of current projection but visible in history
+Error: Not implemented: window.getComputedStyle(elt, pseudoElt)
+    at module.exports (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at window.getComputedStyle (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/jsdom/lib/jsdom/browser/Window.js:895:7)
+    at measureScrollbarSize (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-util/lib/getScrollBarSize.js:35:32)
+    at getTargetScrollBarSize (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-util/lib/getScrollBarSize.js:83:10)
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-table/lib/Table.js:427:71
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-util/lib/hooks/useLayoutEffect.js:18:12
+    at commitHookEffectListMount (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitPassiveMountOnFiber (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/react-dom/cjs/react-dom.development.js:24970:11)
+    at commitPassiveMountEffects_complete (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/react-dom/cjs/react-dom.development.js:24930:9)
+    at commitPassiveMountEffects_begin (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/react-dom/cjs/react-dom.development.js:24917:7) undefined
+
+stderr | src/pages/__tests__/timelineReview.test.tsx > timeline review panel > shows chapter 6 affiliation current projection with mapped organization names
+Error: Not implemented: window.getComputedStyle(elt, pseudoElt)
+    at module.exports (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at window.getComputedStyle (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/jsdom/lib/jsdom/browser/Window.js:895:7)
+    at measureScrollbarSize (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-util/lib/getScrollBarSize.js:35:32)
+    at getTargetScrollBarSize (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-util/lib/getScrollBarSize.js:83:10)
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-table/lib/Table.js:427:71
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-util/lib/hooks/useLayoutEffect.js:18:12
+    at commitHookEffectListMount (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitPassiveMountOnFiber (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/react-dom/cjs/react-dom.development.js:24970:11)
+    at commitPassiveMountEffects_complete (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/react-dom/cjs/react-dom.development.js:24930:9)
+    at commitPassiveMountEffects_begin (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/react-dom/cjs/react-dom.development.js:24917:7) undefined
+
+stderr | src/pages/__tests__/timelineReview.test.tsx > timeline review panel > keeps ended affiliation history visible after chapter 10 projection closes it
+Error: Not implemented: window.getComputedStyle(elt, pseudoElt)
+    at module.exports (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at window.getComputedStyle (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/jsdom/lib/jsdom/browser/Window.js:895:7)
+    at measureScrollbarSize (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-util/lib/getScrollBarSize.js:35:32)
+    at getTargetScrollBarSize (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-util/lib/getScrollBarSize.js:83:10)
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-table/lib/Table.js:427:71
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-util/lib/hooks/useLayoutEffect.js:18:12
+    at commitHookEffectListMount (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitPassiveMountOnFiber (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/react-dom/cjs/react-dom.development.js:24970:11)
+    at commitPassiveMountEffects_complete (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/react-dom/cjs/react-dom.development.js:24930:9)
+    at commitPassiveMountEffects_begin (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/react-dom/cjs/react-dom.development.js:24917:7) undefined
+
+stderr | src/pages/__tests__/timelineReview.test.tsx > timeline review panel > shows chapter 6 profession current projection with mapped career names
+Error: Not implemented: window.getComputedStyle(elt, pseudoElt)
+    at module.exports (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at window.getComputedStyle (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/jsdom/lib/jsdom/browser/Window.js:895:7)
+    at measureScrollbarSize (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-util/lib/getScrollBarSize.js:35:32)
+    at getTargetScrollBarSize (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-util/lib/getScrollBarSize.js:83:10)
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-table/lib/Table.js:427:71
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-util/lib/hooks/useLayoutEffect.js:18:12
+    at commitHookEffectListMount (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitPassiveMountOnFiber (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/react-dom/cjs/react-dom.development.js:24970:11)
+    at commitPassiveMountEffects_complete (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/react-dom/cjs/react-dom.development.js:24930:9)
+    at commitPassiveMountEffects_begin (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/react-dom/cjs/react-dom.development.js:24917:7) undefined
+
+stderr | src/pages/__tests__/timelineReview.test.tsx > timeline review panel > keeps ended, superseded, and rolled-back profession history visible after chapter 10
+Error: Not implemented: window.getComputedStyle(elt, pseudoElt)
+    at module.exports (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at window.getComputedStyle (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/jsdom/lib/jsdom/browser/Window.js:895:7)
+    at measureScrollbarSize (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-util/lib/getScrollBarSize.js:35:32)
+    at getTargetScrollBarSize (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-util/lib/getScrollBarSize.js:83:10)
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-table/lib/Table.js:427:71
+    at /Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/rc-util/lib/hooks/useLayoutEffect.js:18:12
+    at commitHookEffectListMount (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitPassiveMountOnFiber (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/react-dom/cjs/react-dom.development.js:24970:11)
+    at commitPassiveMountEffects_complete (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/react-dom/cjs/react-dom.development.js:24930:9)
+    at commitPassiveMountEffects_begin (/Users/shenxt/Dev/OpenCode/MuMuAINovel/frontend/node_modules/react-dom/cjs/react-dom.development.js:24917:7) undefined
+
+ ✓ src/pages/__tests__/timelineReview.test.tsx (7 tests) 810ms
+   ✓ timeline review panel > shows chapter 3 current relationship projection with evidence and confidence 356ms
+
+ Test Files  6 passed (6)
+      Tests  22 passed (22)
+   Start at  10:23:23
+   Duration  3.27s (transform 314ms, setup 0ms, collect 9.79s, tests 1.30s, environment 1.35s, prepare 288ms)
+
+exit_status: 0
