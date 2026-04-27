@@ -78,8 +78,11 @@ export interface ReasoningCapability {
   model_pattern: string;
   supported_intensities: ReasoningIntensity[];
   default_intensity: ReasoningIntensity;
-  provider_native: string;
-  provider_payload_mappings: Record<string, Record<string, unknown>>;
+  provider_metadata: {
+    native_field?: string;
+    payload_mappings?: Record<string, Record<string, unknown>>;
+    read_only?: boolean;
+  };
   last_verified_date: string;
   notes: string;
 }

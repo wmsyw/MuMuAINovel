@@ -1213,7 +1213,9 @@ function SettingsPage() {
               <Tag color={getProviderColor(provider)}>{capability.provider}</Tag>
               <Tag>{capability.model_pattern}</Tag>
               <Tag color="processing">默认 {REASONING_INTENSITY_LABELS[capability.default_intensity]}</Tag>
-              <Tag color="cyan">{capability.provider_native}</Tag>
+              {capability.provider_metadata?.native_field && (
+                <Tag color="cyan">元数据: {capability.provider_metadata.native_field}</Tag>
+              )}
             </Space>
             <Space wrap size={[8, 4]}>
               <Text type="secondary">可选强度：</Text>
