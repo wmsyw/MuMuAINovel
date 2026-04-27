@@ -5,10 +5,11 @@ from sqlalchemy import select
 import json
 
 from app.models.character import Character
-from app.models.relationship import Organization, OrganizationMember
+from app.models.relationship import Organization, OrganizationEntity, OrganizationMember
 from app.models.project import Project
 from app.services.ai_service import AIService
 from app.services.entity_generation_policy_service import entity_generation_policy_service
+from app.services.organization_compat import add_organization_member, create_organization_entity_from_payload
 from app.services.prompt_service import PromptService
 from app.logger import get_logger
 
@@ -121,46 +122,23 @@ class AutoOrganizationService:
         organization_data: Dict[str, Any],
         db: AsyncSession
     ) -> tuple:
-        """创建组织数据库记录（包括Character和Organization）"""
+        """创建组织数据库记录（OrganizationEntity + legacy bridge）"""
         
-        # 首先创建Character记录（is_organization=True）
-        character = Character(
+        entity, organization = await create_organization_entity_from_payload(
             project_id=project_id,
-            name=organization_data.get("name", "未命名组织"),
-            is_organization=True,
-            role_type=organization_data.get("role_type", "supporting"),
-            personality=organization_data.get("personality", ""),  # 组织特性
-            background=organization_data.get("background", ""),  # 组织背景
-            appearance=organization_data.get("appearance", ""),  # 外在表现
-            organization_type=organization_data.get("organization_type"),
-            organization_purpose=organization_data.get("organization_purpose"),
-            traits=json.dumps(organization_data.get("traits", []), ensure_ascii=False) if organization_data.get("traits") else None
+            payload=organization_data,
+            db=db,
+            source="ai",
         )
-        
-        db.add(character)
-        await db.flush()
-        
-        # 然后创建Organization记录
-        organization = Organization(
-            character_id=character.id,
-            project_id=project_id,
-            power_level=organization_data.get("power_level", 50),
-            member_count=0,
-            location=organization_data.get("location"),
-            motto=organization_data.get("motto"),
-            color=organization_data.get("color")
-        )
-        
-        db.add(organization)
-        await db.flush()
-        
-        logger.info(f"    ✅ 创建组织记录: {character.name}, Organization ID: {organization.id}")
-        
-        return character, organization
+
+        logger.info(f"    ✅ 创建组织记录: {entity.name}, Organization ID: {organization.id}")
+
+        return entity, organization
     
     async def _create_member_relationships(
         self,
         organization: Organization,
+        organization_entity: OrganizationEntity,
         member_specs: List[Dict[str, Any]],
         existing_characters: List[Character],
         project_id: str,
@@ -180,10 +158,7 @@ class AutoOrganizationService:
                     continue
                 
                 # 查找目标角色
-                target_char = next(
-                    (c for c in existing_characters if c.name == character_name and not c.is_organization),
-                    None
-                )
+                target_char = next((c for c in existing_characters if c.name == character_name), None)
                 
                 if not target_char:
                     logger.warning(f"    ⚠️ 目标角色不存在: {character_name}")
@@ -201,18 +176,18 @@ class AutoOrganizationService:
                     continue
                 
                 # 创建成员关系
-                member = OrganizationMember(
-                    organization_id=organization.id,
+                member = await add_organization_member(
+                    db=db,
+                    bridge=organization,
+                    entity=organization_entity,
                     character_id=target_char.id,
                     position=member_spec.get("position", "成员"),
                     rank=member_spec.get("rank", 0),
                     loyalty=member_spec.get("loyalty", 50),
                     status=member_spec.get("status", "active"),
                     joined_at=member_spec.get("joined_at"),
-                    source="auto"  # 标记为自动生成
+                    source="auto",
                 )
-                
-                db.add(member)
                 members.append(member)
                 
                 logger.info(
@@ -298,15 +273,12 @@ class AutoOrganizationService:
         
         logger.info(f"🔍 【组织校验】大纲中提到的组织: {', '.join(all_organization_names)}")
         
-        # 2. 获取项目现有组织（通过Character表的is_organization字段）
+        # 2. 获取项目现有组织（OrganizationEntity 是 canonical 组织表）
         existing_result = await db.execute(
-            select(Character).where(
-                Character.project_id == project_id,
-                Character.is_organization == True
-            )
+            select(OrganizationEntity).where(OrganizationEntity.project_id == project_id)
         )
-        existing_org_characters = existing_result.scalars().all()
-        existing_org_names = {char.name for char in existing_org_characters}
+        existing_org_entities = existing_result.scalars().all()
+        existing_org_names = {org.name for org in existing_org_entities}
         
         # 3. 找出缺失的组织
         missing_names = all_organization_names - existing_org_names
@@ -363,19 +335,17 @@ class AutoOrganizationService:
         existing_characters = list(all_chars_result.scalars().all())
         
         existing_organizations = []
-        for char in existing_org_characters:
-            org_result = await db.execute(
-                select(Organization).where(Organization.character_id == char.id)
-            )
+        for entity in existing_org_entities:
+            org_result = await db.execute(select(Organization).where(Organization.organization_entity_id == entity.id))
             org = org_result.scalar_one_or_none()
             if org:
                 existing_organizations.append({
-                    "name": char.name,
-                    "organization_type": char.organization_type,
-                    "organization_purpose": char.organization_purpose,
-                    "power_level": org.power_level,
-                    "location": org.location,
-                    "motto": org.motto
+                    "name": entity.name,
+                    "organization_type": entity.organization_type,
+                    "organization_purpose": entity.organization_purpose,
+                    "power_level": entity.power_level,
+                    "location": entity.location,
+                    "motto": entity.motto,
                 })
         
         # 6. 为每个缺失的组织生成并创建组织信息
@@ -421,23 +391,22 @@ class AutoOrganizationService:
                     )
                 
                 # 创建组织记录
-                org_character, organization = await self._create_organization_record(
+                org_entity, organization = await self._create_organization_record(
                     project_id=project_id,
                     organization_data=organization_data,
                     db=db
                 )
                 
-                created_organizations.append(org_character)
-                existing_characters.append(org_character)
+                created_organizations.append(org_entity)
                 existing_organizations.append({
-                    "name": org_character.name,
-                    "organization_type": org_character.organization_type,
-                    "organization_purpose": org_character.organization_purpose,
-                    "power_level": organization.power_level,
-                    "location": organization.location,
-                    "motto": organization.motto
+                    "name": org_entity.name,
+                    "organization_type": org_entity.organization_type,
+                    "organization_purpose": org_entity.organization_purpose,
+                    "power_level": org_entity.power_level,
+                    "location": org_entity.location,
+                    "motto": org_entity.motto,
                 })
-                logger.info(f"  ✅ [{idx+1}/{len(missing_names)}] 组织创建成功: {org_character.name}")
+                logger.info(f"  ✅ [{idx+1}/{len(missing_names)}] 组织创建成功: {org_entity.name}")
                 
                 # 建立成员关系
                 members_data = organization_data.get("initial_members", [])
@@ -449,6 +418,7 @@ class AutoOrganizationService:
                     
                     await self._create_member_relationships(
                         organization=organization,
+                        organization_entity=org_entity,
                         member_specs=members_data,
                         existing_characters=existing_characters,
                         project_id=project_id,
