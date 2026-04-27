@@ -1,9 +1,15 @@
+import asyncio
 import ast
+import json as json_module
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
 from app.schemas.settings import SettingsCreate, SettingsResponse
+from app.services.ai_clients.anthropic_client import AnthropicClient
+from app.services.ai_clients.gemini_client import GeminiClient
 from app.services.ai_capabilities import (
     NORMALIZED_REASONING_INTENSITIES,
     ReasoningIntensity,
@@ -12,6 +18,8 @@ from app.services.ai_capabilities import (
     get_reasoning_registry_metadata,
     load_reasoning_capabilities,
 )
+from app.services.ai_providers.anthropic_provider import AnthropicProvider
+from app.services.ai_providers.gemini_provider import GeminiProvider
 
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
@@ -21,6 +29,85 @@ PROVIDER_FILES = [
     BACKEND_ROOT / "app/services/ai_providers/anthropic_provider.py",
     BACKEND_ROOT / "app/services/ai_providers/gemini_provider.py",
 ]
+
+
+async def _collect_async_stream(stream: Any) -> list[Any]:
+    return [chunk async for chunk in stream]
+
+
+class _AnthropicMessagesStub:
+    def __init__(self) -> None:
+        self.create_kwargs: dict[str, Any] | None = None
+        self.stream_kwargs: dict[str, Any] | None = None
+
+    async def create(self, **kwargs: Any) -> SimpleNamespace:
+        self.create_kwargs = kwargs
+        return SimpleNamespace(
+            content=[SimpleNamespace(type="text", text="anthropic-ok")],
+            stop_reason="stop",
+            usage=SimpleNamespace(input_tokens=3, output_tokens=5),
+        )
+
+    def stream(self, **kwargs: Any) -> "_AnthropicStreamStub":
+        self.stream_kwargs = kwargs
+        return _AnthropicStreamStub()
+
+
+class _AnthropicStreamStub:
+    async def __aenter__(self) -> "_AnthropicStreamStub":
+        return self
+
+    async def __aexit__(self, exc_type: object, exc: object, traceback: object) -> bool:
+        return False
+
+    def __aiter__(self) -> Any:
+        async def chunks() -> Any:
+            yield SimpleNamespace(type="text_delta", text="anthropic-stream")
+            yield SimpleNamespace(type="message_delta", stop_reason="stop")
+
+        return chunks()
+
+
+class _GeminiResponseStub:
+    def raise_for_status(self) -> None:
+        return None
+
+    def json(self) -> dict[str, Any]:
+        return {
+            "candidates": [{"content": {"parts": [{"text": "gemini-ok"}]}}],
+            "usageMetadata": {"promptTokenCount": 2, "candidatesTokenCount": 4, "totalTokenCount": 6},
+        }
+
+
+class _GeminiStreamStub:
+    async def __aenter__(self) -> "_GeminiStreamStub":
+        return self
+
+    async def __aexit__(self, exc_type: object, exc: object, traceback: object) -> bool:
+        return False
+
+    def raise_for_status(self) -> None:
+        return None
+
+    async def aiter_lines(self) -> Any:
+        yield "data: " + json_module.dumps({"candidates": [{"content": {"parts": [{"text": "gemini-stream"}]}}]})
+
+
+class _GeminiHTTPClientStub:
+    def __init__(self) -> None:
+        self.post_json: dict[str, Any] | None = None
+        self.stream_json: dict[str, Any] | None = None
+
+    async def post(self, url: str, *, json: dict[str, Any]) -> _GeminiResponseStub:
+        _ = url
+        self.post_json = json
+        return _GeminiResponseStub()
+
+    def stream(self, method: str, url: str, *, json: dict[str, Any]) -> _GeminiStreamStub:
+        _ = method
+        _ = url
+        self.stream_json = json
+        return _GeminiStreamStub()
 
 
 def test_registry_loads_required_data_contract() -> None:
@@ -131,3 +218,94 @@ def test_provider_generate_interfaces_accept_reasoning_config() -> None:
         class_name = class_names[provider_file.name]
         assert "reasoning_config" in _method_parameter_names(provider_file, class_name, "generate")
         assert "reasoning_config" in _method_parameter_names(provider_file, class_name, "generate_stream")
+
+
+def test_anthropic_reasoning_payload_reaches_request_kwargs_for_sync_and_stream() -> None:
+    messages = _AnthropicMessagesStub()
+    client = AnthropicClient.__new__(AnthropicClient)
+    client.client = SimpleNamespace(messages=messages)
+    provider = AnthropicProvider(client)
+    reasoning_config = build_reasoning_config(
+        provider="anthropic",
+        model="claude-3-7-sonnet-20250219",
+        intensity="medium",
+    )
+
+    response = asyncio.run(provider.generate(
+        prompt="写一段摘要",
+        model="claude-3-7-sonnet-20250219",
+        temperature=0.4,
+        max_tokens=512,
+        system_prompt="保持简洁",
+        reasoning_config=reasoning_config,
+    ))
+
+    assert response["content"] == "anthropic-ok"
+    assert messages.create_kwargs is not None
+    assert messages.create_kwargs["output_config"] == {"effort": "medium"}
+    assert messages.create_kwargs["model"] == "claude-3-7-sonnet-20250219"
+    assert messages.create_kwargs["temperature"] == 0.4
+    assert messages.create_kwargs["max_tokens"] == 512
+    assert messages.create_kwargs["system"] == "保持简洁"
+
+    chunks = asyncio.run(_collect_async_stream(provider.generate_stream(
+        prompt="继续摘要",
+        model="claude-3-7-sonnet-20250219",
+        temperature=0.3,
+        max_tokens=256,
+        reasoning_config=reasoning_config,
+    )))
+
+    assert "anthropic-stream" in chunks
+    assert messages.stream_kwargs is not None
+    assert messages.stream_kwargs["output_config"] == {"effort": "medium"}
+    assert messages.stream_kwargs["temperature"] == 0.3
+    assert messages.stream_kwargs["max_tokens"] == 256
+
+
+def test_gemini_reasoning_payload_deep_merges_into_sync_and_stream_request_json() -> None:
+    http_client = _GeminiHTTPClientStub()
+    client = GeminiClient.__new__(GeminiClient)
+    client.api_key = "test-key"
+    client.base_url = "https://gemini.test/v1beta"
+    client.client = http_client
+    provider = GeminiProvider(client)
+    reasoning_config = build_reasoning_config(
+        provider="gemini",
+        model="gemini-2.5-pro",
+        intensity="medium",
+    )
+
+    response = asyncio.run(provider.generate(
+        prompt="写一段摘要",
+        model="gemini-2.5-pro",
+        temperature=0.2,
+        max_tokens=1024,
+        system_prompt="保持简洁",
+        reasoning_config=reasoning_config,
+    ))
+
+    assert response["content"] == "gemini-ok"
+    assert http_client.post_json is not None
+    assert http_client.post_json["generationConfig"] == {
+        "temperature": 0.2,
+        "maxOutputTokens": 1024,
+        "thinkingConfig": {"thinkingBudget": 4096},
+    }
+    assert http_client.post_json["systemInstruction"] == {"parts": [{"text": "保持简洁"}]}
+
+    chunks = asyncio.run(_collect_async_stream(provider.generate_stream(
+        prompt="继续摘要",
+        model="gemini-2.5-pro",
+        temperature=0.1,
+        max_tokens=768,
+        reasoning_config=reasoning_config,
+    )))
+
+    assert chunks == ["gemini-stream"]
+    assert http_client.stream_json is not None
+    assert http_client.stream_json["generationConfig"] == {
+        "temperature": 0.1,
+        "maxOutputTokens": 768,
+        "thinkingConfig": {"thinkingBudget": 4096},
+    }

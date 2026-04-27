@@ -1,4 +1,5 @@
 """Anthropic 客户端"""
+from copy import deepcopy
 from typing import Any, AsyncGenerator, Dict, Optional
 
 from anthropic import AsyncAnthropic
@@ -7,6 +8,22 @@ from app.logger import get_logger
 from app.services.ai_config import AIClientConfig, default_config
 
 logger = get_logger(__name__)
+
+
+def _merge_provider_payload(base: Dict[str, Any], provider_payload: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Merge provider-native options without mutating core request state."""
+
+    if not provider_payload:
+        return base
+
+    merged = deepcopy(base)
+    for key, value in provider_payload.items():
+        existing = merged.get(key)
+        if isinstance(existing, dict) and isinstance(value, dict):
+            merged[key] = _merge_provider_payload(existing, value)
+        else:
+            merged[key] = deepcopy(value)
+    return merged
 
 
 class AnthropicClient:
@@ -28,8 +45,9 @@ class AnthropicClient:
         system_prompt: Optional[str] = None,
         tools: Optional[list] = None,
         tool_choice: Optional[str] = None,
+        reasoning_payload: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        kwargs = {
+        kwargs: Dict[str, Any] = {
             "model": model,
             "max_tokens": max_tokens,
             "temperature": temperature,
@@ -43,6 +61,7 @@ class AnthropicClient:
                 kwargs["tool_choice"] = {"type": "any"}
             elif tool_choice == "auto":
                 kwargs["tool_choice"] = {"type": "auto"}
+        kwargs = _merge_provider_payload(kwargs, reasoning_payload)
 
         response = await self.client.messages.create(**kwargs)
 
@@ -82,6 +101,7 @@ class AnthropicClient:
         system_prompt: Optional[str] = None,
         tools: Optional[list] = None,
         tool_choice: Optional[str] = None,
+        reasoning_payload: Optional[Dict[str, Any]] = None,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         流式生成，支持工具调用
@@ -92,7 +112,7 @@ class AnthropicClient:
             - tool_calls: list - 工具调用列表（如果有）
             - done: bool - 是否结束
         """
-        kwargs = {
+        kwargs: Dict[str, Any] = {
             "model": model,
             "max_tokens": max_tokens,
             "temperature": temperature,
@@ -106,6 +126,7 @@ class AnthropicClient:
                 kwargs["tool_choice"] = {"type": "any"}
             elif tool_choice == "auto":
                 kwargs["tool_choice"] = {"type": "auto"}
+        kwargs = _merge_provider_payload(kwargs, reasoning_payload)
 
         try:
             async with self.client.messages.stream(**kwargs) as stream:

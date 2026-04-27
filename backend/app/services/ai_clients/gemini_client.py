@@ -1,10 +1,27 @@
 """Gemini 客户端"""
-from typing import Any, AsyncGenerator, Dict, List, Optional
+from copy import deepcopy
+from typing import Any, AsyncGenerator, Dict, Optional
 import httpx
 from app.services.ai_config import AIClientConfig, default_config
 from app.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+def _merge_provider_payload(base: Dict[str, Any], provider_payload: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Deep-merge provider-native options while preserving existing request fields."""
+
+    if not provider_payload:
+        return base
+
+    merged = deepcopy(base)
+    for key, value in provider_payload.items():
+        existing = merged.get(key)
+        if isinstance(existing, dict) and isinstance(value, dict):
+            merged[key] = _merge_provider_payload(existing, value)
+        else:
+            merged[key] = deepcopy(value)
+    return merged
 
 
 class GeminiClient:
@@ -53,6 +70,7 @@ class GeminiClient:
         system_prompt: Optional[str] = None,
         tools: Optional[list] = None,
         tool_choice: Optional[str] = None,
+        reasoning_payload: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         url = f"{self.base_url}/models/{model}:generateContent?key={self.api_key}"
         
@@ -61,7 +79,7 @@ class GeminiClient:
             role = "user" if msg["role"] == "user" else "model"
             contents.append({"role": role, "parts": [{"text": msg["content"]}]})
         
-        payload = {
+        payload: Dict[str, Any] = {
             "contents": contents,
             "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens}
         }
@@ -69,6 +87,7 @@ class GeminiClient:
             payload["systemInstruction"] = {"parts": [{"text": system_prompt}]}
         if tools:
             payload["tools"] = self._convert_tools_to_gemini(tools)
+        payload = _merge_provider_payload(payload, reasoning_payload)
 
         response = await self.client.post(url, json=payload)
         response.raise_for_status()
@@ -122,6 +141,7 @@ class GeminiClient:
         system_prompt: Optional[str] = None,
         tools: Optional[list] = None,
         tool_choice: Optional[str] = None,
+        reasoning_payload: Optional[Dict[str, Any]] = None,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         流式生成，支持工具调用
@@ -139,7 +159,7 @@ class GeminiClient:
             role = "user" if msg["role"] == "user" else "model"
             contents.append({"role": role, "parts": [{"text": msg["content"]}]})
         
-        payload = {
+        payload: Dict[str, Any] = {
             "contents": contents,
             "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens}
         }
@@ -147,6 +167,7 @@ class GeminiClient:
             payload["systemInstruction"] = {"parts": [{"text": system_prompt}]}
         if tools:
             payload["tools"] = self._convert_tools_to_gemini(tools)
+        payload = _merge_provider_payload(payload, reasoning_payload)
 
         try:
             async with self.client.stream("POST", url, json=payload) as response:

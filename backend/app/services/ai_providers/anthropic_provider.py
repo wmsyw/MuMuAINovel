@@ -35,6 +35,7 @@ class AnthropicProvider(BaseAIProvider):
             system_prompt=system_prompt,
             tools=tools,
             tool_choice=tool_choice,
+            reasoning_payload=reasoning_config.provider_payload if reasoning_config else None,
         )
 
     async def generate_stream(
@@ -65,6 +66,7 @@ class AnthropicProvider(BaseAIProvider):
                 system_prompt=system_prompt,
                 tools=tools,
                 tool_choice=actual_tool_choice,
+                reasoning_payload=reasoning_config.provider_payload if reasoning_config else None,
             ):
                 # 检查是否有工具调用
                 if chunk.get("tool_calls"):
@@ -90,7 +92,7 @@ class AnthropicProvider(BaseAIProvider):
                         
                         # 递归调用生成最终结果
                         async for final_chunk in self._generate_with_tools(
-                            final_messages, model, temperature, max_tokens, system_prompt, tools, user_id
+                            final_messages, model, temperature, max_tokens, system_prompt, tools, user_id, reasoning_config
                         ):
                             yield final_chunk
                     if chunk.get("finish_reason"):
@@ -113,6 +115,7 @@ class AnthropicProvider(BaseAIProvider):
             temperature=temperature,
             max_tokens=max_tokens,
             system_prompt=system_prompt,
+            reasoning_payload=reasoning_config.provider_payload if reasoning_config else None,
         ):
             if isinstance(chunk, dict):
                 if chunk.get("usage"):
@@ -133,6 +136,7 @@ class AnthropicProvider(BaseAIProvider):
         system_prompt: Optional[str] = None,
         tools: list = None,
         user_id: Optional[str] = None,
+        reasoning_config: Optional[ReasoningConfig] = None,
     ) -> AsyncGenerator[str, None]:
         """辅助方法：带工具的流式生成"""
         tool_calls_buffer = []
@@ -145,6 +149,7 @@ class AnthropicProvider(BaseAIProvider):
             system_prompt=system_prompt,
             tools=tools,
             tool_choice="auto",
+            reasoning_payload=reasoning_config.provider_payload if reasoning_config else None,
         ):
             if chunk.get("tool_calls"):
                 tool_calls_buffer.extend(chunk["tool_calls"])
@@ -163,7 +168,7 @@ class AnthropicProvider(BaseAIProvider):
                     messages.append({"role": "user", "content": f"{tool_context}\n\n请基于以上工具查询结果，给出完整详细的回答。"})
                     
                     async for final_chunk in self._generate_with_tools(
-                        messages, model, temperature, max_tokens, system_prompt, tools, user_id
+                        messages, model, temperature, max_tokens, system_prompt, tools, user_id, reasoning_config
                     ):
                         yield final_chunk
                 if chunk.get("finish_reason"):
