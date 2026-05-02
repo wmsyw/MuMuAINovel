@@ -641,6 +641,7 @@ export default function ProjectDetail() {
 
         <Layout style={{
           marginLeft: mobile ? 0 : (collapsed ? 60 : 220),
+          minHeight: 0,
           transition: 'margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
         }}>
           <Content
@@ -650,7 +651,8 @@ export default function ProjectDetail() {
               height: mobile ? 'calc(100vh - 56px)' : 'calc(100vh - 70px)',
               overflow: 'hidden',
               display: 'flex',
-              flexDirection: 'column'
+              flexDirection: 'column',
+              minHeight: 0
             }}
           >
             <div style={{
@@ -658,8 +660,10 @@ export default function ProjectDetail() {
               padding: mobile ? 12 : 24,
               borderRadius: mobile ? '8px' : '12px',
               boxShadow: `0 8px 24px ${alphaColor(token.colorText, 0.08)}`,
-              height: '100%',
-              overflow: 'hidden',
+              flex: 1,
+              minHeight: 0,
+              overflowY: 'auto',
+              overflowX: 'hidden',
               display: 'flex',
               flexDirection: 'column'
             }}>
