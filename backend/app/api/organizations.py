@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 import json
 
 from app.database import get_db
-from app.utils.sse_response import SSEResponse, create_sse_response, WizardProgressTracker
+from app.utils.sse_response import SSEResponse, create_sse_response, WizardProgressTracker, wrap_stream_with_heartbeat, HEARTBEAT
 from app.models.relationship import Organization, OrganizationEntity, OrganizationMember
 from app.models.character import Character
 from app.models.generation_history import GenerationHistory
@@ -23,7 +23,8 @@ from app.schemas.relationship import (
 )
 from app.services.ai_service import AIService
 from app.services.entity_generation_policy_service import entity_generation_policy_service
-from app.services.prompt_service import PromptService
+from app.services.json_helper import loads_json
+from app.services.prompt_service import prompt_service, PromptService
 from app.logger import get_logger
 from app.api.settings import get_user_ai_service
 from app.api.common import verify_project_access
@@ -157,17 +158,17 @@ async def get_project_organizations(
     # 验证用户权限
     user_id = getattr(request.state, 'user_id', None)
     await verify_project_access(project_id, user_id, db)
-    
+
     """
     获取项目中的所有组织及其详情
-    
+
     返回组织的基本信息和统计数据
     """
     result = await db.execute(
         select(OrganizationEntity).where(OrganizationEntity.project_id == project_id)
     )
     organizations = result.scalars().all()
-    
+
     # 获取每个组织的角色信息
     org_list = []
     for org in organizations:
@@ -181,7 +182,7 @@ async def get_project_organizations(
             include_timeline=include_timeline,
             include_policy_status=include_policy_status,
         ))
-    
+
     logger.info(f"获取项目 {project_id} 的组织列表，共 {len(org_list)} 个")
     return org_list
 
@@ -199,14 +200,14 @@ async def get_organization(
 ):
     """获取组织的详细信息"""
     org = await _get_organization_entity(org_id, db)
-    
+
     if not org:
         raise HTTPException(status_code=404, detail="组织不存在")
-    
+
     # 验证用户权限
     user_id = getattr(request.state, 'user_id', None)
     await verify_project_access(org.project_id, user_id, db)
-    
+
     response_data = await _organization_response_dict(org, db)
     response_data.update(await build_optional_entity_enrichment(
         db=db,
@@ -231,14 +232,14 @@ async def create_organization(
 ):
     """
     创建新组织
-    
+
     - 需要关联到一个已存在的角色记录（is_organization=True）
     - 可以设置父组织、势力等级等属性
     """
     # 验证用户权限
     user_id = getattr(request.state, 'user_id', None)
     await verify_project_access(organization.project_id, user_id, db)
-    
+
     entity = await _get_organization_entity(organization.character_id, db)
     if not entity:
         char_result = await db.execute(select(Character).where(Character.id == organization.character_id))
@@ -258,14 +259,14 @@ async def create_organization(
         )
         db.add(entity)
         await db.flush()
-    
+
     # 检查是否已存在
     existing = await db.execute(
         select(Organization).where(Organization.organization_entity_id == entity.id)
     )
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="该角色已有组织详情记录")
-    
+
     entity.parent_org_id = organization.parent_org_id
     entity.level = organization.level
     entity.power_level = organization.power_level
@@ -276,7 +277,7 @@ async def create_organization(
     db.add(db_org)
     await db.commit()
     await db.refresh(entity)
-    
+
     logger.info(f"创建组织成功：{db_org.id} - {entity.name}")
     return await _organization_response_dict(entity, db)
 
@@ -290,22 +291,22 @@ async def update_organization(
 ):
     """更新组织的属性"""
     db_org = await _get_organization_entity(org_id, db)
-    
+
     if not db_org:
         raise HTTPException(status_code=404, detail="组织不存在")
-    
+
     # 验证用户权限
     user_id = getattr(request.state, 'user_id', None)
     await verify_project_access(db_org.project_id, user_id, db)
-    
+
     # 更新 Organization 表字段
     update_data = organization.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(db_org, field, value)
-    
+
     await db.commit()
     await db.refresh(db_org)
-    
+
     logger.info(f"更新组织成功：{org_id}")
     return await _organization_response_dict(db_org, db)
 
@@ -318,14 +319,14 @@ async def delete_organization(
 ):
     """删除组织（会级联删除所有成员关系）"""
     db_org = await _get_organization_entity(org_id, db)
-    
+
     if not db_org:
         raise HTTPException(status_code=404, detail="组织不存在")
-    
+
     # 验证用户权限
     user_id = getattr(request.state, 'user_id', None)
     await verify_project_access(db_org.project_id, user_id, db)
-    
+
     members = (await db.execute(select(OrganizationMember).where(OrganizationMember.organization_entity_id == db_org.id))).scalars().all()
     for member in members:
         await db.delete(member)
@@ -334,7 +335,7 @@ async def delete_organization(
         await db.delete(bridge)
     await db.delete(db_org)
     await db.commit()
-    
+
     logger.info(f"删除组织成功：{org_id}")
     return {"message": "组织删除成功", "id": org_id}
 
@@ -349,18 +350,18 @@ async def get_organization_members(
 ):
     """
     获取组织的所有成员
-    
+
     按职位等级（rank）降序排列
     """
     # 验证组织存在
     org = await _get_organization_entity(org_id, db)
     if not org:
         raise HTTPException(status_code=404, detail="组织不存在")
-    
+
     # 验证用户权限
     user_id = getattr(request.state, 'user_id', None)
     await verify_project_access(org.project_id, user_id, db)
-    
+
     # 获取成员列表
     result = await db.execute(
         select(OrganizationMember)
@@ -368,7 +369,7 @@ async def get_organization_members(
         .order_by(OrganizationMember.rank.desc(), OrganizationMember.created_at)
     )
     members = result.scalars().all()
-    
+
     # 获取成员角色信息
     member_list = []
     for member in members:
@@ -376,7 +377,7 @@ async def get_organization_members(
             select(Character).where(Character.id == member.character_id)
         )
         char = char_result.scalar_one_or_none()
-        
+
         if char:
             member_list.append(OrganizationMemberDetailResponse(
                 id=member.id,
@@ -391,7 +392,7 @@ async def get_organization_members(
                 left_at=member.left_at,
                 notes=member.notes
             ))
-    
+
     logger.info(f"获取组织 {org_id} 的成员列表，共 {len(member_list)} 人")
     return member_list
 
@@ -405,7 +406,7 @@ async def add_organization_member(
 ):
     """
     添加角色到组织
-    
+
     - 一个角色在同一组织中只能有一个职位
     - 会自动更新组织的成员计数
     """
@@ -413,11 +414,11 @@ async def add_organization_member(
     org = await _get_organization_entity(org_id, db)
     if not org:
         raise HTTPException(status_code=404, detail="组织不存在")
-    
+
     # 验证用户权限
     user_id = getattr(request.state, 'user_id', None)
     await verify_project_access(org.project_id, user_id, db)
-    
+
     # 验证角色存在
     char_result = await db.execute(
         select(Character).where(Character.id == member.character_id)
@@ -436,7 +437,7 @@ async def add_organization_member(
     )
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="该角色已在组织中")
-    
+
     # 创建成员关系
     bridge = await _ensure_organization_bridge(org, db)
     db_member = OrganizationMember(
@@ -446,13 +447,13 @@ async def add_organization_member(
         source="manual"
     )
     db.add(db_member)
-    
+
     # 更新组织成员计数
     org.member_count = (org.member_count or 0) + 1
-    
+
     await db.commit()
     await db.refresh(db_member)
-    
+
     logger.info(f"添加成员成功：{char.name} 加入组织 {org_id}")
     return db_member
 
@@ -469,25 +470,25 @@ async def update_organization_member(
         select(OrganizationMember).where(OrganizationMember.id == member_id)
     )
     db_member = result.scalar_one_or_none()
-    
+
     if not db_member:
         raise HTTPException(status_code=404, detail="成员记录不存在")
-    
+
     # 通过成员所属的组织验证用户权限
     org = await _get_organization_entity(db_member.organization_entity_id or db_member.organization_id, db)
     if not org:
         raise HTTPException(status_code=404, detail="组织不存在")
     user_id = getattr(request.state, 'user_id', None)
     await verify_project_access(org.project_id, user_id, db)
-    
+
     # 更新字段
     update_data = member.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(db_member, field, value)
-    
+
     await db.commit()
     await db.refresh(db_member)
-    
+
     logger.info(f"更新成员信息成功：{member_id}")
     return db_member
 
@@ -500,30 +501,30 @@ async def remove_organization_member(
 ):
     """
     从组织中移除成员
-    
+
     会自动更新组织的成员计数
     """
     result = await db.execute(
         select(OrganizationMember).where(OrganizationMember.id == member_id)
     )
     db_member = result.scalar_one_or_none()
-    
+
     if not db_member:
         raise HTTPException(status_code=404, detail="成员记录不存在")
-    
+
     # 更新组织成员计数
     org = await _get_organization_entity(db_member.organization_entity_id or db_member.organization_id, db)
     if not org:
         raise HTTPException(status_code=404, detail="组织不存在")
-    
+
     # 验证用户权限
     user_id = getattr(request.state, 'user_id', None)
     await verify_project_access(org.project_id, user_id, db)
     org.member_count = max(0, (org.member_count or 0) - 1)
-    
+
     await db.delete(db_member)
     await db.commit()
-    
+
     logger.info(f"移除成员成功：{member_id}")
     return {"message": "成员移除成功", "id": member_id}
 
@@ -536,7 +537,7 @@ async def generate_organization_stream(
 ):
     """
     使用AI生成组织设定（支持SSE流式进度显示）
-    
+
     通过Server-Sent Events返回实时进度信息
     """
     async def generate() -> AsyncGenerator[str, None]:
@@ -562,24 +563,24 @@ async def generate_organization_stream(
                 yield await tracker.result(candidate_policy_payload(policy_decision.to_response()))
                 yield await tracker.done()
                 return
-            
+
             yield await tracker.start()
-            
+
             # 获取已存在的角色和组织列表
             yield await tracker.loading("获取项目上下文...", 0.3)
-            
+
             existing_chars_result = await db.execute(
                 select(Character)
                 .where(Character.project_id == gen_request.project_id)
                 .order_by(Character.created_at.desc())
             )
             existing_characters = existing_chars_result.scalars().all()
-            
+
             # 构建现有角色和组织信息摘要
             existing_info = ""
             character_list = []
             organization_list = []
-            
+
             if existing_characters:
                 for c in existing_characters[:10]:
                     character_list.append(f"- {c.name}（{c.role_type or '未知'}）")
@@ -592,12 +593,12 @@ async def generate_organization_stream(
                 )
                 for org in existing_orgs_result.scalars().all():
                     organization_list.append(f"- {org.name} [{org.organization_type or '组织'}]")
-                
+
                 if character_list:
                     existing_info += "\n已有角色：\n" + "\n".join(character_list)
                 if organization_list:
                     existing_info += "\n\n已有组织：\n" + "\n".join(organization_list)
-            
+
             # 构建项目上下文
             project_context = f"""
 项目信息：
@@ -610,7 +611,7 @@ async def generate_organization_stream(
 - 世界规则：{project.world_rules or '未设定'}
 {existing_info}
 """
-            
+
             user_input = f"""
 用户要求：
 - 组织名称：{gen_request.name or '请AI生成'}
@@ -618,10 +619,10 @@ async def generate_organization_stream(
 - 背景设定：{gen_request.background or '无特殊要求'}
 - 其他要求：{gen_request.requirements or '无'}
 """
-            
+
             yield await tracker.loading("项目上下文准备完成", 0.7)
             yield await tracker.preparing("构建AI提示词...")
-            
+
             # 获取自定义提示词模板
             template = await PromptService.get_template("SINGLE_ORGANIZATION_GENERATION", user_id, db)
             # 格式化提示词
@@ -630,55 +631,63 @@ async def generate_organization_stream(
                 project_context=project_context,
                 user_input=user_input
             )
-            
+
             yield await tracker.generating(0, max(3000, len(prompt) * 8), "调用AI服务生成组织...")
             logger.info(f"🎯 开始为项目 {gen_request.project_id} 生成组织（SSE流式）")
-            
+
             try:
                 # 使用流式生成替代非流式
                 ai_content = ""
                 chunk_count = 0
                 estimated_total = max(3000, len(prompt) * 8)
-                
-                async for chunk in user_ai_service.generate_text_stream(prompt=prompt):
+
+                async for chunk in wrap_stream_with_heartbeat(
+                    user_ai_service.generate_text_stream(prompt=prompt),
+                    heartbeat_interval=15.0
+                ):
+                    # 心跳哨兵：发送心跳保活，不混入AI响应
+                    if chunk is HEARTBEAT:
+                        yield await tracker.heartbeat()
+                        continue
+
                     chunk_count += 1
                     ai_content += chunk
-                    
+
                     # 发送内容块
                     yield await SSEResponse.send_chunk(chunk)
-                    
+
                     # 定期更新字数（避免过于频繁）
                     if chunk_count % 5 == 0:
                         yield await tracker.generating(len(ai_content), estimated_total)
-                    
+
                     # 心跳
                     if chunk_count % 20 == 0:
                         yield await tracker.heartbeat()
-                        
+
             except Exception as ai_error:
                 logger.error(f"❌ AI服务调用异常：{str(ai_error)}")
                 yield await tracker.error(f"AI服务调用失败：{str(ai_error)}")
                 return
-            
+
             if not ai_content or not ai_content.strip():
                 yield await tracker.error("AI服务返回空响应")
                 return
-            
+
             yield await tracker.parsing("解析AI响应...", 0.5)
-            
+
             # ✅ 使用统一的 JSON 清洗方法
             try:
                 cleaned_response = user_ai_service._clean_json_response(ai_content)
-                organization_data = json.loads(cleaned_response)
+                organization_data = loads_json(cleaned_response)
                 logger.info(f"✅ 组织JSON解析成功")
             except json.JSONDecodeError as e:
                 logger.error(f"❌ 组织JSON解析失败: {e}")
                 logger.error(f"   原始响应预览: {ai_content[:200]}")
                 yield await tracker.error(f"AI返回的内容无法解析为JSON：{str(e)}")
                 return
-            
+
             yield await tracker.saving("创建组织记录...", 0.3)
-            
+
             # 创建规范组织实体
             organization = OrganizationEntity(
                 project_id=gen_request.project_id,
@@ -689,7 +698,7 @@ async def generate_organization_stream(
                 organization_type=organization_data.get("organization_type"),
                 organization_purpose=organization_data.get("organization_purpose"),
                 traits=json.dumps(
-                    organization_data.get("traits", []), 
+                    organization_data.get("traits", []),
                     ensure_ascii=False
                 ),
                 power_level=organization_data.get("power_level", 50),
@@ -702,9 +711,9 @@ async def generate_organization_stream(
             await db.flush()
             await _ensure_organization_bridge(organization, db)
             logger.info(f"✅ 组织详情创建成功：{organization.name} (Org ID: {organization.id})")
-            
+
             yield await tracker.saving("保存生成历史...", 0.9)
-            
+
             # 记录生成历史
             history = GenerationHistory(
                 project_id=gen_request.project_id,
@@ -719,14 +728,14 @@ async def generate_organization_stream(
                 [organization.id],
                 extra_payload={"history_model": user_ai_service.default_model},
             )
-              
+
             await db.commit()
             await db.refresh(organization)
-            
+
             logger.info(f"🎉 成功生成组织: {organization.name}")
-            
+
             yield await tracker.complete("组织生成完成！")
-            
+
             # 发送结果数据
             yield await tracker.result({
                 "character": {
@@ -736,14 +745,14 @@ async def generate_organization_stream(
                     "is_organization": True
                 }
             })
-            
+
             yield await tracker.done()
-            
+
         except HTTPException as he:
             logger.error(f"HTTP异常: {he.detail}")
             yield await tracker.error(he.detail, he.status_code)
         except Exception as e:
             logger.error(f"生成组织失败: {str(e)}")
             yield await tracker.error(f"生成组织失败: {str(e)}")
-    
+
     return create_sse_response(generate())

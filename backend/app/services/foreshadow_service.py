@@ -24,33 +24,33 @@ logger = get_logger(__name__)
 def generate_stable_foreshadow_id(chapter_id: str, content: str, foreshadow_type: str = "planted") -> str:
     """
     生成稳定的伏笔唯一标识符
-    
+
     使用 chapter_id + content_hash 的方式，确保：
     1. 同一章节、相同内容的伏笔只有一个唯一ID
     2. 重新分析同一章节不会产生新ID
     3. 标识符足够短且可读
-    
+
     Args:
         chapter_id: 章节ID
         content: 伏笔内容
         foreshadow_type: 伏笔类型（planted/resolved）
-    
+
     Returns:
         稳定的唯一标识符，格式：{type}_{chapter_id_hash}_{content_hash}
     """
     # 生成内容哈希（取前12位，足够区分）
     content_normalized = content.strip().lower()
     content_hash = hashlib.md5(content_normalized.encode('utf-8')).hexdigest()[:12]
-    
+
     # 生成章节ID哈希（取前8位）
     chapter_hash = hashlib.md5(chapter_id.encode('utf-8')).hexdigest()[:8]
-    
+
     return f"{foreshadow_type}_{chapter_hash}_{content_hash}"
 
 
 class ForeshadowService:
     """伏笔管理服务"""
-    
+
     async def get_project_foreshadows(
         self,
         db: AsyncSession,
@@ -64,7 +64,7 @@ class ForeshadowService:
     ) -> Dict[str, Any]:
         """
         获取项目伏笔列表
-        
+
         Args:
             db: 数据库会话
             project_id: 项目ID
@@ -74,14 +74,14 @@ class ForeshadowService:
             is_long_term: 是否长线伏笔
             page: 页码
             limit: 每页数量
-        
+
         Returns:
             包含列表和统计的字典
         """
         try:
             # 构建查询条件
             conditions = [Foreshadow.project_id == project_id]
-            
+
             if status:
                 conditions.append(Foreshadow.status == status)
             if category:
@@ -90,12 +90,12 @@ class ForeshadowService:
                 conditions.append(Foreshadow.source_type == source_type)
             if is_long_term is not None:
                 conditions.append(Foreshadow.is_long_term == is_long_term)
-            
+
             # 查询总数
             count_query = select(func.count(Foreshadow.id)).where(and_(*conditions))
             total_result = await db.execute(count_query)
             total = total_result.scalar() or 0
-            
+
             # 查询列表
             query = (
                 select(Foreshadow)
@@ -108,23 +108,23 @@ class ForeshadowService:
                 .offset((page - 1) * limit)
                 .limit(limit)
             )
-            
+
             result = await db.execute(query)
             foreshadows = result.scalars().all()
-            
+
             # 获取统计
             stats = await self.get_stats(db, project_id)
-            
+
             return {
                 "total": total,
                 "items": [f.to_dict() for f in foreshadows],
                 "stats": stats
             }
-            
+
         except Exception as e:
             logger.error(f"❌ 获取伏笔列表失败: {str(e)}")
             raise
-    
+
     async def get_foreshadow(
         self,
         db: AsyncSession,
@@ -135,7 +135,7 @@ class ForeshadowService:
             select(Foreshadow).where(Foreshadow.id == foreshadow_id)
         )
         return result.scalar_one_or_none()
-    
+
     async def create_foreshadow(
         self,
         db: AsyncSession,
@@ -143,11 +143,11 @@ class ForeshadowService:
     ) -> Foreshadow:
         """
         创建伏笔
-        
+
         Args:
             db: 数据库会话
             data: 创建数据
-        
+
         Returns:
             创建的伏笔对象
         """
@@ -177,19 +177,19 @@ class ForeshadowService:
                 remind_before_chapters=data.remind_before_chapters,
                 include_in_context=data.include_in_context
             )
-            
+
             db.add(foreshadow)
             await db.commit()
             await db.refresh(foreshadow)
-            
+
             logger.info(f"✅ 创建伏笔成功: {foreshadow.title}")
             return foreshadow
-            
+
         except Exception as e:
             await db.rollback()
             logger.error(f"❌ 创建伏笔失败: {str(e)}")
             raise
-    
+
     async def update_foreshadow(
         self,
         db: AsyncSession,
@@ -198,12 +198,12 @@ class ForeshadowService:
     ) -> Optional[Foreshadow]:
         """
         更新伏笔
-        
+
         Args:
             db: 数据库会话
             foreshadow_id: 伏笔ID
             data: 更新数据
-        
+
         Returns:
             更新后的伏笔对象
         """
@@ -211,24 +211,24 @@ class ForeshadowService:
             foreshadow = await self.get_foreshadow(db, foreshadow_id)
             if not foreshadow:
                 return None
-            
+
             # 更新字段
             update_data = data.model_dump(exclude_unset=True)
             for key, value in update_data.items():
                 if hasattr(foreshadow, key):
                     setattr(foreshadow, key, value)
-            
+
             await db.commit()
             await db.refresh(foreshadow)
-            
+
             logger.info(f"✅ 更新伏笔成功: {foreshadow.title}")
             return foreshadow
-            
+
         except Exception as e:
             await db.rollback()
             logger.error(f"❌ 更新伏笔失败: {str(e)}")
             raise
-    
+
     async def delete_foreshadow(
         self,
         db: AsyncSession,
@@ -368,7 +368,7 @@ class ForeshadowService:
             await db.rollback()
             logger.error(f"❌ 删除伏笔失败: {str(e)}")
             raise
-    
+
     async def mark_as_planted(
         self,
         db: AsyncSession,
@@ -377,12 +377,12 @@ class ForeshadowService:
     ) -> Optional[Foreshadow]:
         """
         标记伏笔为已埋入
-        
+
         Args:
             db: 数据库会话
             foreshadow_id: 伏笔ID
             data: 埋入信息
-        
+
         Returns:
             更新后的伏笔对象
         """
@@ -390,26 +390,26 @@ class ForeshadowService:
             foreshadow = await self.get_foreshadow(db, foreshadow_id)
             if not foreshadow:
                 return None
-            
+
             foreshadow.status = "planted"
             foreshadow.plant_chapter_id = data.chapter_id
             foreshadow.plant_chapter_number = data.chapter_number
             foreshadow.planted_at = datetime.now()
-            
+
             if data.hint_text:
                 foreshadow.hint_text = data.hint_text
-            
+
             await db.commit()
             await db.refresh(foreshadow)
-            
+
             logger.info(f"✅ 伏笔已标记为埋入: {foreshadow.title} (第{data.chapter_number}章)")
             return foreshadow
-            
+
         except Exception as e:
             await db.rollback()
             logger.error(f"❌ 标记伏笔埋入失败: {str(e)}")
             raise
-    
+
     async def mark_as_resolved(
         self,
         db: AsyncSession,
@@ -418,12 +418,12 @@ class ForeshadowService:
     ) -> Optional[Foreshadow]:
         """
         标记伏笔为已回收
-        
+
         Args:
             db: 数据库会话
             foreshadow_id: 伏笔ID
             data: 回收信息
-        
+
         Returns:
             更新后的伏笔对象
         """
@@ -431,30 +431,30 @@ class ForeshadowService:
             foreshadow = await self.get_foreshadow(db, foreshadow_id)
             if not foreshadow:
                 return None
-            
+
             if data.is_partial:
                 foreshadow.status = "partially_resolved"
             else:
                 foreshadow.status = "resolved"
-            
+
             foreshadow.actual_resolve_chapter_id = data.chapter_id
             foreshadow.actual_resolve_chapter_number = data.chapter_number
             foreshadow.resolved_at = datetime.now()
-            
+
             if data.resolution_text:
                 foreshadow.resolution_text = data.resolution_text
-            
+
             await db.commit()
             await db.refresh(foreshadow)
-            
+
             logger.info(f"✅ 伏笔已标记为回收: {foreshadow.title} (第{data.chapter_number}章)")
             return foreshadow
-            
+
         except Exception as e:
             await db.rollback()
             logger.error(f"❌ 标记伏笔回收失败: {str(e)}")
             raise
-    
+
     async def mark_as_abandoned(
         self,
         db: AsyncSession,
@@ -466,22 +466,22 @@ class ForeshadowService:
             foreshadow = await self.get_foreshadow(db, foreshadow_id)
             if not foreshadow:
                 return None
-            
+
             foreshadow.status = "abandoned"
             if reason:
                 foreshadow.notes = f"{foreshadow.notes or ''}\n[废弃原因] {reason}".strip()
-            
+
             await db.commit()
             await db.refresh(foreshadow)
-            
+
             logger.info(f"✅ 伏笔已标记为废弃: {foreshadow.title}")
             return foreshadow
-            
+
         except Exception as e:
             await db.rollback()
             logger.error(f"❌ 标记伏笔废弃失败: {str(e)}")
             raise
-    
+
     async def sync_from_analysis(
         self,
         db: AsyncSession,
@@ -490,15 +490,15 @@ class ForeshadowService:
     ) -> Dict[str, Any]:
         """
         从章节分析结果同步伏笔（重构版）
-        
+
         统一复用 auto_update_from_analysis 的核心逻辑，避免重复代码。
         本方法仅负责从 PlotAnalysis 表读取数据，然后委托处理。
-        
+
         Args:
             db: 数据库会话
             project_id: 项目ID
             data: 同步请求数据
-        
+
         Returns:
             同步结果
         """
@@ -510,19 +510,19 @@ class ForeshadowService:
                 "new_foreshadows": [],
                 "skipped_reasons": []
             }
-            
+
             # 获取分析结果
             query = select(PlotAnalysis).where(PlotAnalysis.project_id == project_id)
             if data.chapter_ids:
                 query = query.where(PlotAnalysis.chapter_id.in_(data.chapter_ids))
-            
+
             result = await db.execute(query)
             analyses = result.scalars().all()
-            
+
             for analysis in analyses:
                 if not analysis.foreshadows:
                     continue
-                
+
                 # 获取章节信息
                 chapter_result = await db.execute(
                     select(Chapter).where(Chapter.id == analysis.chapter_id)
@@ -530,7 +530,7 @@ class ForeshadowService:
                 chapter = chapter_result.scalar_one_or_none()
                 if not chapter:
                     continue
-                
+
                 # 委托给统一的处理方法
                 chapter_stats = await self.auto_update_from_analysis(
                     db=db,
@@ -539,21 +539,21 @@ class ForeshadowService:
                     chapter_number=chapter.chapter_number,
                     analysis_foreshadows=analysis.foreshadows
                 )
-                
+
                 # 汇总统计
                 total_stats["synced_count"] += chapter_stats.get("planted_count", 0) + chapter_stats.get("resolved_count", 0)
                 total_stats["resolved_count"] += chapter_stats.get("resolved_count", 0)
                 total_stats["skipped_count"] += chapter_stats.get("skipped_resolve_count", 0)
-            
+
             logger.info(f"✅ 伏笔同步完成: 同步{total_stats['synced_count']}个（其中回收{total_stats['resolved_count']}个）, 跳过{total_stats['skipped_count']}个")
-            
+
             return total_stats
-            
+
         except Exception as e:
             await db.rollback()
             logger.error(f"❌ 同步伏笔失败: {str(e)}")
             raise
-    
+
     async def get_pending_resolve_foreshadows(
         self,
         db: AsyncSession,
@@ -563,13 +563,13 @@ class ForeshadowService:
     ) -> List[Foreshadow]:
         """
         获取即将需要回收的伏笔
-        
+
         Args:
             db: 数据库会话
             project_id: 项目ID
             current_chapter: 当前章节号
             lookahead: 向前看几章
-        
+
         Returns:
             待回收伏笔列表
         """
@@ -588,14 +588,14 @@ class ForeshadowService:
                 )
                 .order_by(Foreshadow.target_resolve_chapter_number)
             )
-            
+
             result = await db.execute(query)
             return list(result.scalars().all())
-            
+
         except Exception as e:
             logger.error(f"❌ 获取待回收伏笔失败: {str(e)}")
             return []
-    
+
     async def get_overdue_foreshadows(
         self,
         db: AsyncSession,
@@ -604,12 +604,12 @@ class ForeshadowService:
     ) -> List[Foreshadow]:
         """
         获取超期未回收的伏笔
-        
+
         Args:
             db: 数据库会话
             project_id: 项目ID
             current_chapter: 当前章节号
-        
+
         Returns:
             超期伏笔列表
         """
@@ -626,14 +626,14 @@ class ForeshadowService:
                 )
                 .order_by(Foreshadow.target_resolve_chapter_number)
             )
-            
+
             result = await db.execute(query)
             return list(result.scalars().all())
-            
+
         except Exception as e:
             logger.error(f"❌ 获取超期伏笔失败: {str(e)}")
             return []
-    
+
     async def get_must_resolve_foreshadows(
         self,
         db: AsyncSession,
@@ -642,14 +642,14 @@ class ForeshadowService:
     ) -> List[Foreshadow]:
         """
         获取本章必须回收的伏笔（target_resolve_chapter_number == chapter_number）
-        
+
         这些伏笔是用户明确指定在本章回收的，必须在本章完成回收
-        
+
         Args:
             db: 数据库会话
             project_id: 项目ID
             chapter_number: 当前章节号
-        
+
         Returns:
             必须回收的伏笔列表
         """
@@ -665,14 +665,14 @@ class ForeshadowService:
                 )
                 .order_by(desc(Foreshadow.importance))
             )
-            
+
             result = await db.execute(query)
             return list(result.scalars().all())
-            
+
         except Exception as e:
             logger.error(f"❌ 获取本章必须回收伏笔失败: {str(e)}")
             return []
-    
+
     async def get_foreshadows_to_plant(
         self,
         db: AsyncSession,
@@ -681,12 +681,12 @@ class ForeshadowService:
     ) -> List[Foreshadow]:
         """
         获取计划在本章埋入的伏笔
-        
+
         Args:
             db: 数据库会话
             project_id: 项目ID
             chapter_number: 章节号
-        
+
         Returns:
             待埋入伏笔列表
         """
@@ -702,14 +702,14 @@ class ForeshadowService:
                 )
                 .order_by(desc(Foreshadow.importance))
             )
-            
+
             result = await db.execute(query)
             return list(result.scalars().all())
-            
+
         except Exception as e:
             logger.error(f"❌ 获取待埋入伏笔失败: {str(e)}")
             return []
-    
+
     async def build_chapter_context(
         self,
         db: AsyncSession,
@@ -721,13 +721,13 @@ class ForeshadowService:
     ) -> Dict[str, Any]:
         """
         构建章节生成的伏笔上下文（智能分层提醒策略）
-        
+
         核心策略：
         1. 本章必须回收的伏笔 → 明确要求回收
         2. 超期伏笔 → 强调需要尽快回收
         3. 即将回收的伏笔 → 仅作为背景信息，明确禁止提前回收
         4. 远期伏笔 → 不发送，防止干扰
-        
+
         Args:
             db: 数据库会话
             project_id: 项目ID
@@ -735,7 +735,7 @@ class ForeshadowService:
             include_pending: 包含待埋入伏笔
             include_overdue: 包含超期伏笔
             lookahead: 向前看几章（用于背景提醒，非强制回收）
-        
+
         Returns:
             伏笔上下文信息
         """
@@ -745,7 +745,7 @@ class ForeshadowService:
             must_resolve = []  # 本章必须回收
             overdue = []       # 超期待回收
             upcoming = []      # 即将回收（仅参考）
-            
+
             # 1. 获取本章必须回收的伏笔（target_resolve_chapter_number == chapter_number）
             must_resolve = await self.get_must_resolve_foreshadows(db, project_id, chapter_number)
             if must_resolve:
@@ -757,7 +757,7 @@ class ForeshadowService:
                     if f.resolution_notes:
                         lines.append(f"  回收提示：{f.resolution_notes}")
                     lines.append("")
-            
+
             # 2. 超期伏笔（已过目标回收章节但未回收）
             if include_overdue:
                 overdue = await self.get_overdue_foreshadows(db, project_id, chapter_number)
@@ -769,7 +769,7 @@ class ForeshadowService:
                         lines.append(f"  埋入章节：第{f.plant_chapter_number}章，原计划第{f.target_resolve_chapter_number}章回收")
                         lines.append(f"  伏笔内容：{f.content[:80]}...")
                     lines.append("")
-            
+
             # 3. 即将需要回收的伏笔（仅作为背景参考，明确禁止提前回收）
             upcoming_raw = await self.get_pending_resolve_foreshadows(
                 db, project_id, chapter_number, lookahead
@@ -777,7 +777,7 @@ class ForeshadowService:
             # 过滤：排除本章必须回收的和超期的，只保留未来章节的
             upcoming = [f for f in upcoming_raw
                        if (f.target_resolve_chapter_number or 0) > chapter_number]
-            
+
             if upcoming:
                 lines.append("【📋 近期待回收伏笔（仅供参考，请勿在本章回收）】")
                 lines.append("⚠️ 以下伏笔尚未到回收时机，本章请勿提前回收，仅作为剧情背景了解")
@@ -785,7 +785,7 @@ class ForeshadowService:
                     remaining = (f.target_resolve_chapter_number or 0) - chapter_number
                     lines.append(f"- {f.title}（计划第{f.target_resolve_chapter_number}章回收，还有{remaining}章）")
                 lines.append("")
-            
+
             # 4. 本章待埋入伏笔
             if include_pending:
                 to_plant = await self.get_foreshadows_to_plant(db, project_id, chapter_number)
@@ -798,9 +798,9 @@ class ForeshadowService:
                         if f.hint_text:
                             lines.append(f"  埋入提示：{f.hint_text}")
                     lines.append("")
-            
+
             context_text = "\n".join(lines) if lines else ""
-            
+
             return {
                 "chapter_number": chapter_number,
                 "context_text": context_text,
@@ -810,7 +810,7 @@ class ForeshadowService:
                 "overdue": [f.to_dict() for f in overdue],
                 "recently_planted": []  # 可扩展
             }
-            
+
         except Exception as e:
             logger.error(f"❌ 构建伏笔上下文失败: {str(e)}")
             return {
@@ -822,7 +822,7 @@ class ForeshadowService:
                 "overdue": [],
                 "recently_planted": []
             }
-    
+
     async def get_stats(
         self,
         db: AsyncSession,
@@ -831,12 +831,12 @@ class ForeshadowService:
     ) -> Dict[str, int]:
         """
         获取伏笔统计
-        
+
         Args:
             db: 数据库会话
             project_id: 项目ID
             current_chapter: 当前章节号(用于计算超期)
-        
+
         Returns:
             统计信息字典
         """
@@ -850,13 +850,13 @@ class ForeshadowService:
                 .where(Foreshadow.project_id == project_id)
                 .group_by(Foreshadow.status)
             )
-            
+
             result = await db.execute(stats_query)
             status_counts = {row.status: row.count for row in result}
-            
+
             # 总数
             total = sum(status_counts.values())
-            
+
             # 长线伏笔数量
             long_term_query = (
                 select(func.count(Foreshadow.id))
@@ -869,13 +869,13 @@ class ForeshadowService:
             )
             long_term_result = await db.execute(long_term_query)
             long_term_count = long_term_result.scalar() or 0
-            
+
             # 超期数量
             overdue_count = 0
             if current_chapter:
                 overdue = await self.get_overdue_foreshadows(db, project_id, current_chapter)
                 overdue_count = len(overdue)
-            
+
             return {
                 "total": total,
                 "pending": status_counts.get("pending", 0),
@@ -886,7 +886,7 @@ class ForeshadowService:
                 "long_term_count": long_term_count,
                 "overdue_count": overdue_count
             }
-            
+
         except Exception as e:
             logger.error(f"❌ 获取伏笔统计失败: {str(e)}")
             return {
@@ -899,7 +899,7 @@ class ForeshadowService:
                 "long_term_count": 0,
                 "overdue_count": 0
             }
-    
+
     async def get_planted_foreshadows_for_analysis(
         self,
         db: AsyncSession,
@@ -908,17 +908,17 @@ class ForeshadowService:
     ) -> List[Dict[str, Any]]:
         """
         获取用于分析时注入的已埋入伏笔列表（智能过滤版）
-        
+
         策略：
         1. 只返回 status='planted' 的伏笔
         2. 如果指定了当前章节号，会标记哪些伏笔应该在本章回收
         3. 区分"可回收"和"不可回收"伏笔，帮助AI正确识别
-        
+
         Args:
             db: 数据库会话
             project_id: 项目ID
             current_chapter_number: 当前章节号（可选，用于智能标记）
-        
+
         Returns:
             伏笔列表（带回收标记）
         """
@@ -933,24 +933,24 @@ class ForeshadowService:
                 )
                 .order_by(Foreshadow.plant_chapter_number)
             )
-            
+
             result = await db.execute(query)
             foreshadows = result.scalars().all()
-            
+
             formatted_list = []
             for f in foreshadows:
                 item = {
                     "id": f.id,
                     "title": f.title,
                     "content": f.content,
-                    "hint_text": f.hint_text, 
+                    "hint_text": f.hint_text,
                     "plant_chapter_number": f.plant_chapter_number,
                     "target_resolve_chapter_number": f.target_resolve_chapter_number,
                     "category": f.category,
                     "related_characters": f.related_characters or [],
                     "is_long_term": f.is_long_term
                 }
-                
+
                 # 智能标记回收状态
                 if current_chapter_number and f.target_resolve_chapter_number:
                     if f.target_resolve_chapter_number == current_chapter_number:
@@ -965,15 +965,15 @@ class ForeshadowService:
                 else:
                     item["resolve_status"] = "no_plan"  # 无明确计划
                     item["resolve_hint"] = "无明确回收计划，根据剧情自然回收"
-                
+
                 formatted_list.append(item)
-            
+
             return formatted_list
-            
+
         except Exception as e:
             logger.error(f"❌ 获取已埋入伏笔失败: {str(e)}")
             return []
-    
+
     async def delete_chapter_foreshadows(
         self,
         db: AsyncSession,
@@ -983,16 +983,16 @@ class ForeshadowService:
     ) -> Dict[str, Any]:
         """
         删除与指定章节相关的伏笔
-        
+
         当章节内容被清空或重新生成时调用，清理残留数据
-        
+
         Args:
             db: 数据库会话
             project_id: 项目ID
             chapter_id: 章节ID
             only_analysis_source: 是否只删除来源为 analysis 的伏笔（默认True）
                                   如果为False，则删除所有与该章节相关的伏笔
-        
+
         Returns:
             删除统计信息
         """
@@ -1002,9 +1002,9 @@ class ForeshadowService:
             analysis_query = select(PlotAnalysis.id).where(PlotAnalysis.chapter_id == chapter_id)
             analysis_result = await db.execute(analysis_query)
             analysis_ids = [row[0] for row in analysis_result.fetchall()]
-            
+
             logger.debug(f"🔍 找到章节 {chapter_id[:8]} 的分析ID: {len(analysis_ids)} 个")
-            
+
             # 2. 构建查询条件：查找与该章节相关的伏笔
             # 匹配方式：
             # 1. 埋入章节是该章节 (plant_chapter_id)
@@ -1014,53 +1014,53 @@ class ForeshadowService:
                 Foreshadow.plant_chapter_id == chapter_id,
                 Foreshadow.actual_resolve_chapter_id == chapter_id,
             ]
-            
+
             # 如果找到了分析ID，添加 source_analysis_id 匹配条件
             if analysis_ids:
                 or_conditions.append(Foreshadow.source_analysis_id.in_(analysis_ids))
-            
+
             conditions = [
                 Foreshadow.project_id == project_id,
                 or_(*or_conditions)
             ]
-            
+
             # 如果只删除分析来源的伏笔
             if only_analysis_source:
                 conditions.append(Foreshadow.source_type == "analysis")
-            
+
             # 查询要删除的伏笔
             query = select(Foreshadow).where(and_(*conditions))
             result = await db.execute(query)
             foreshadows_to_delete = result.scalars().all()
-            
+
             deleted_count = len(foreshadows_to_delete)
             deleted_ids = [f.id for f in foreshadows_to_delete]
             deleted_titles = [f.title for f in foreshadows_to_delete]
-            
+
             # 执行删除
             for foreshadow in foreshadows_to_delete:
                 await db.delete(foreshadow)
-            
+
             await db.commit()
-            
+
             if deleted_count > 0:
                 logger.info(f"🗑️ 已删除章节 {chapter_id[:8]} 相关的 {deleted_count} 个伏笔")
                 for title in deleted_titles[:5]:  # 只打印前5个
                     logger.debug(f"  - {title}")
                 if deleted_count > 5:
                     logger.debug(f"  ... 还有 {deleted_count - 5} 个")
-            
+
             return {
                 "deleted_count": deleted_count,
                 "deleted_ids": deleted_ids,
                 "deleted_titles": deleted_titles
             }
-            
+
         except Exception as e:
             await db.rollback()
             logger.error(f"❌ 删除章节伏笔失败: {str(e)}")
             raise
-    
+
     async def clean_chapter_analysis_foreshadows(
         self,
         db: AsyncSession,
@@ -1069,18 +1069,18 @@ class ForeshadowService:
     ) -> Dict[str, Any]:
         """
         清理章节分析产生的伏笔（用于重新分析前的清理）
-        
+
         两步操作：
         1. 删除 source_type='analysis' 且 plant_chapter_id == chapter_id 的伏笔
         2. 回退在本章被回收的伏笔（将其从 resolved 恢复为 planted）
-        
+
         保留手动创建的伏笔
-        
+
         Args:
             db: 数据库会话
             project_id: 项目ID
             chapter_id: 章节ID
-        
+
         Returns:
             清理统计信息
         """
@@ -1093,35 +1093,35 @@ class ForeshadowService:
                     Foreshadow.plant_chapter_id == chapter_id
                 )
             )
-            
+
             result = await db.execute(query)
             foreshadows_to_clean = result.scalars().all()
-            
+
             cleaned_count = len(foreshadows_to_clean)
             cleaned_ids = [f.id for f in foreshadows_to_clean]
-            
+
             for foreshadow in foreshadows_to_clean:
                 await db.delete(foreshadow)
-            
+
             # 步骤2: 回退在本章被回收的伏笔（恢复为 planted 状态）
             reverted_count = await self._revert_chapter_resolutions(db, project_id, chapter_id)
-            
+
             await db.commit()
-            
+
             if cleaned_count > 0 or reverted_count > 0:
                 logger.info(f"🧹 已清理章节 {chapter_id[:8]}: 删除{cleaned_count}个分析伏笔, 回退{reverted_count}个回收状态")
-            
+
             return {
                 "cleaned_count": cleaned_count,
                 "cleaned_ids": cleaned_ids,
                 "reverted_count": reverted_count
             }
-            
+
         except Exception as e:
             await db.rollback()
             logger.error(f"❌ 清理章节分析伏笔失败: {str(e)}")
             raise
-    
+
     async def _revert_chapter_resolutions(
         self,
         db: AsyncSession,
@@ -1130,15 +1130,15 @@ class ForeshadowService:
     ) -> int:
         """
         回退在指定章节中被回收的伏笔
-        
+
         将 actual_resolve_chapter_id == chapter_id 且 status 为 resolved/partially_resolved 的伏笔
         恢复为 planted 状态，以便重新分析时可以重新匹配回收
-        
+
         Args:
             db: 数据库会话
             project_id: 项目ID
             chapter_id: 章节ID
-        
+
         Returns:
             回退的伏笔数量
         """
@@ -1162,12 +1162,12 @@ class ForeshadowService:
             )
             result = await db.execute(update_query)
             reverted_count = result.rowcount
-            
+
             if reverted_count > 0:
                 logger.info(f"↩️ 回退了 {reverted_count} 个在章节 {chapter_id[:8]} 中被回收的伏笔")
-            
+
             return reverted_count
-            
+
         except Exception as e:
             logger.error(f"❌ 回退章节回收失败: {str(e)}")
             return 0
@@ -1179,14 +1179,14 @@ class ForeshadowService:
     ) -> Dict[str, int]:
         """
         全新生成时清理项目伏笔
-        
+
         1. 删除所有 source_type='analysis' 的伏笔
         2. 重置所有 source_type='manual' 的伏笔为 pending 状态
-        
+
         Args:
             db: 数据库会话
             project_id: 项目ID
-            
+
         Returns:
             清理统计
         """
@@ -1200,7 +1200,7 @@ class ForeshadowService:
             )
             delete_result = await db.execute(delete_query)
             deleted_count = delete_result.rowcount
-            
+
             # 2. 重置手动创建的伏笔
             # 将 planted/resolved/partially_resolved 状态重置为 pending
             # 清空章节关联信息
@@ -1227,16 +1227,16 @@ class ForeshadowService:
             )
             update_result = await db.execute(update_query)
             reset_count = update_result.rowcount
-            
+
             await db.commit()
-            
+
             logger.info(f"🧹 项目 {project_id} 伏笔清理完成: 删除 {deleted_count} 个分析伏笔, 重置 {reset_count} 个手动伏笔")
-            
+
             return {
                 "deleted_count": deleted_count,
                 "reset_count": reset_count
             }
-            
+
         except Exception as e:
             await db.rollback()
             logger.error(f"❌ 清理项目伏笔失败: {str(e)}")
@@ -1252,20 +1252,20 @@ class ForeshadowService:
     ) -> Dict[str, Any]:
         """
         根据章节分析结果自动更新伏笔状态
-        
+
         功能：
         1. 自动标记新埋入的伏笔为 planted
         2. 根据 reference_foreshadow_id 自动回收已有伏笔
         3. 如果没有 reference_foreshadow_id，使用内容匹配备用机制
         4. 创建新发现的伏笔记录
-        
+
         Args:
             db: 数据库会话
             project_id: 项目ID
             chapter_id: 章节ID
             chapter_number: 章节号
             analysis_foreshadows: 分析结果中的伏笔列表
-        
+
         Returns:
             更新统计
         """
@@ -1279,19 +1279,23 @@ class ForeshadowService:
                 "matched_by_content": 0, # 通过内容匹配回收的数量
                 "errors": []             # 错误信息
             }
-            
+
             # 预先获取所有已埋入的伏笔，用于内容匹配
             planted_foreshadows = await self.get_planted_foreshadows_for_analysis(db, project_id)
-            
+
+            # 每章最多创建的新伏笔数量
+            MAX_NEW_FORESHADOWS_PER_CHAPTER = 5
+            new_foreshadow_count = 0
+
             for fs_data in analysis_foreshadows:
                 try:
                     fs_type = fs_data.get("type", "planted")
                     reference_id = fs_data.get("reference_foreshadow_id")
-                    
+
                     if fs_type == "resolved":
                         existing = None
                         matched_by_content = False
-                        
+
                         # 策略1: 优先使用 reference_id 精确匹配
                         # 重要：如果分析结果里已经给出了 reference_foreshadow_id，
                         # 但该伏笔已被用户删除或已不属于当前项目，则直接跳过，
@@ -1306,7 +1310,7 @@ class ForeshadowService:
                                 stats["skipped_resolve_count"] = stats.get("skipped_resolve_count", 0) + 1
                                 stats["errors"].append(f"reference_foreshadow_id 无效或已删除: {reference_id}")
                                 continue
-                        
+
                         # 策略2: 内容匹配备用机制（仅在 analysis 未提供 reference_id 时启用）
                         if not reference_id and not existing and planted_foreshadows:
                             matched = self._match_foreshadow_by_content(
@@ -1317,7 +1321,7 @@ class ForeshadowService:
                                 logger.info(f"🔍 通过内容匹配找到伏笔: {matched.get('title')}")
                                 # 重新获取完整的伏笔对象
                                 existing = await self.get_foreshadow(db, matched.get('id'))
-                        
+
                         # 检查伏笔是否已被回收（防止重复回收）
                         if existing:
                             if existing.status == "resolved" and existing.actual_resolve_chapter_number == chapter_number:
@@ -1326,7 +1330,7 @@ class ForeshadowService:
                             elif existing.status == "resolved":
                                 logger.warning(f"⚠️ 伏笔已在第{existing.actual_resolve_chapter_number}章回收，跳过: {existing.title}")
                                 continue
-                        
+
                         # 执行回收
                         if existing and existing.status == "planted":
                             # 更新为已回收状态
@@ -1334,20 +1338,20 @@ class ForeshadowService:
                             existing.actual_resolve_chapter_id = chapter_id
                             existing.actual_resolve_chapter_number = chapter_number
                             existing.resolved_at = datetime.now()
-                            
+
                             # 更新回收文本
                             if fs_data.get("content"):
                                 existing.resolution_text = fs_data.get("content")
-                            
+
                             await db.flush()
                             await db.refresh(existing)
-                            
+
                             stats["resolved_count"] += 1
                             stats["updated_ids"].append(existing.id)
                             if matched_by_content:
                                 stats["matched_by_content"] += 1
                             logger.info(f"✅ 自动回收伏笔: {existing.title} (ID: {existing.id}, status: {existing.status})")
-                            
+
                             # 从待匹配列表中移除已回收的伏笔
                             planted_foreshadows = [f for f in planted_foreshadows if f['id'] != existing.id]
                         elif existing:
@@ -1361,22 +1365,22 @@ class ForeshadowService:
                             logger.warning(f"   提示：AI可能误识别了回收伏笔，或者 reference_foreshadow_id 未正确填写")
                             stats["skipped_resolve_count"] = stats.get("skipped_resolve_count", 0) + 1
                             continue
-                    
+
                     elif fs_type == "planted":
                         fs_content = fs_data.get("content", "")
                         if not fs_content:
                             logger.warning(f"⚠️ 伏笔内容为空，跳过")
                             continue
-                        
+
                         fs_title = fs_data.get("title", "")
                         if not fs_title:
                             fs_title = fs_content[:50] + ("..." if len(fs_content) > 50 else "")
-                        
+
                         # 使用稳定的唯一标识符（基于 chapter_id + content_hash）
                         source_memory_id = generate_stable_foreshadow_id(
                             chapter_id, fs_content, fs_type
                         )
-                        
+
                         # 检查是否已存在（使用稳定ID去重，防止重复分析创建重复记录）
                         existing_check = await db.execute(
                             select(Foreshadow).where(
@@ -1396,7 +1400,7 @@ class ForeshadowService:
                             )
                         )
                         existing_fs = existing_check.scalar_one_or_none()
-                        
+
                         if existing_fs:
                             # 更新已存在的伏笔，避免重复创建
                             existing_fs.title = fs_title
@@ -1416,11 +1420,16 @@ class ForeshadowService:
                             logger.info(f"📝 更新已存在伏笔（避免重复）: {fs_title} (ID: {existing_fs.id})")
                         else:
                             # 创建新伏笔
+                            # 检查每章新伏笔数量上限
+                            if new_foreshadow_count >= MAX_NEW_FORESHADOWS_PER_CHAPTER:
+                                logger.info(f"🚫 已达每章新伏笔上限({MAX_NEW_FORESHADOWS_PER_CHAPTER}个)，跳过: {fs_title}")
+                                continue
+
                             # 不再为 estimated_resolve_chapter 设置默认值，避免误报"超期"
                             estimated_resolve = fs_data.get("estimated_resolve_chapter")
                             if estimated_resolve is None:
                                 logger.info(f"ℹ️ AI未填写estimated_resolve_chapter，不设默认值，标记为无明确回收计划")
-                            
+
                             new_foreshadow = Foreshadow(
                                 id=str(uuid.uuid4()),
                                 project_id=project_id,
@@ -1444,30 +1453,31 @@ class ForeshadowService:
                                 remind_before_chapters=5,
                                 include_in_context=True
                             )
-                            
+
                             db.add(new_foreshadow)
                             await db.flush()
-                            
+
+                            new_foreshadow_count += 1
                             stats["planted_count"] += 1
                             stats["created_count"] += 1
                             stats["created_ids"].append(new_foreshadow.id)
-                            logger.info(f"✅ 自动创建伏笔: {fs_title} (ID: {new_foreshadow.id})")
-                    
+                            logger.info(f"✅ 自动创建伏笔: {fs_title} (ID: {new_foreshadow.id}) [{new_foreshadow_count}/{MAX_NEW_FORESHADOWS_PER_CHAPTER}]")
+
                 except Exception as item_error:
                     error_msg = f"处理伏笔时出错: {str(item_error)}"
                     stats["errors"].append(error_msg)
                     logger.error(f"❌ {error_msg}")
-            
+
             await db.commit()
-            
+
             logger.info(f"📊 伏笔自动更新完成: 埋入{stats['planted_count']}个, 回收{stats['resolved_count']}个, 创建{stats['created_count']}个")
             return stats
-            
+
         except Exception as e:
             await db.rollback()
             logger.error(f"❌ 自动更新伏笔失败: {str(e)}")
             raise
-    
+
     async def auto_plant_pending_foreshadows(
         self,
         db: AsyncSession,
@@ -1478,17 +1488,17 @@ class ForeshadowService:
     ) -> Dict[str, Any]:
         """
         自动将计划在本章埋入的伏笔标记为已埋入
-        
+
         检查 pending 状态且 plant_chapter_number == chapter_number 的伏笔，
         如果章节内容中包含相关关键词，则自动标记为 planted
-        
+
         Args:
             db: 数据库会话
             project_id: 项目ID
             chapter_id: 章节ID
             chapter_number: 章节号
             chapter_content: 章节内容
-        
+
         Returns:
             更新统计
         """
@@ -1498,37 +1508,37 @@ class ForeshadowService:
                 "planted_count": 0,
                 "planted_ids": []
             }
-            
+
             # 获取计划在本章埋入的伏笔
             pending_foreshadows = await self.get_foreshadows_to_plant(
                 db, project_id, chapter_number
             )
-            
+
             stats["checked_count"] = len(pending_foreshadows)
-            
+
             for fs in pending_foreshadows:
                 # 用户明确指定了本章埋入的伏笔，自动标记为已埋入
                 # 注：只有 pending 状态且 plant_chapter_number == chapter_number 的伏笔
                 # 才会被 get_foreshadows_to_plant 查出，所以这里直接标记即可
                 should_plant = True
-                
+
                 if should_plant:
                     fs.status = "planted"
                     fs.plant_chapter_id = chapter_id
                     fs.planted_at = datetime.now()
                     await db.flush()
-                    
+
                     stats["planted_count"] += 1
                     stats["planted_ids"].append(fs.id)
                     logger.info(f"✅ 自动标记伏笔已埋入: {fs.title} (第{chapter_number}章)")
-            
+
             await db.commit()
-            
+
             if stats["planted_count"] > 0:
                 logger.info(f"📊 自动埋入伏笔: 检查{stats['checked_count']}个, 埋入{stats['planted_count']}个")
-            
+
             return stats
-            
+
         except Exception as e:
             await db.rollback()
             logger.error(f"❌ 自动埋入伏笔失败: {str(e)}")
@@ -1543,7 +1553,7 @@ class ForeshadowService:
     ) -> Optional[Dict[str, Any]]:
         """
         通过内容相似度匹配伏笔（备用机制）
-        
+
         匹配策略（按优先级）：
         1. 标题完全匹配（权重最高）
         2. 标题部分匹配（包含关系）
@@ -1551,25 +1561,25 @@ class ForeshadowService:
         4. 关键词匹配
         5. 内容关键词匹配
         6. 相关角色匹配 + 分类匹配
-        
+
         Args:
             resolved_fs_data: 分析结果中的回收伏笔数据
             planted_foreshadows: 已埋入的伏笔列表
             min_similarity: 最低相似度阈值
-        
+
         Returns:
             最匹配的伏笔对象或None
         """
         if not planted_foreshadows:
             return None
-        
+
         resolved_title = resolved_fs_data.get("title", "").strip()
         resolved_content = resolved_fs_data.get("content", "").strip()
         resolved_keyword = resolved_fs_data.get("keyword", "").strip()
         resolved_category = resolved_fs_data.get("category")
         resolved_characters = set(resolved_fs_data.get("related_characters", []))
         reference_chapter = resolved_fs_data.get("reference_chapter")
-        
+
         # 处理标题后缀（兜底机制）
         resolved_title_clean = resolved_title
         for suffix in ["回收", "揭示", "解答", "兑现"]:
@@ -1577,10 +1587,10 @@ class ForeshadowService:
                 resolved_title_clean = resolved_title[:-len(suffix)]
                 logger.debug(f"🔍 去除标题后缀: '{resolved_title}' -> '{resolved_title_clean}'")
                 break
-        
+
         best_match = None
         best_score = 0.0
-        
+
         for fs in planted_foreshadows:
             score = 0.0
             fs_title = fs.get("title", "").strip()
@@ -1588,7 +1598,7 @@ class ForeshadowService:
             fs_category = fs.get("category")
             fs_characters = set(fs.get("related_characters", []))
             fs_plant_chapter = fs.get("plant_chapter_number")
-            
+
             # 策略1: 标题匹配
             if resolved_title and fs_title:
                 if resolved_title == fs_title:
@@ -1608,75 +1618,75 @@ class ForeshadowService:
                     score = max(score, title_overlap * 0.7)
                     if title_overlap > 0.3:
                         logger.debug(f"📊 标题词重叠: overlap={title_overlap:.2f}")
-            
+
             # 策略2: 关键词匹配
             if resolved_keyword and fs_content:
                 if resolved_keyword in fs_content:
                     score = max(score, 0.75)
-            
+
             # 策略3: 内容关键词匹配
             if resolved_content and fs_content:
                 content_overlap = self._calculate_word_overlap(resolved_content, fs_content)
                 score = max(score, content_overlap * 0.6)
-            
+
             # 策略4: 引用章节号匹配（如果分析结果中有reference_chapter）
             if reference_chapter and fs_plant_chapter:
                 if reference_chapter == fs_plant_chapter:
                     score += 0.15  # 加分
-            
+
             # 策略5: 分类匹配
             if resolved_category and fs_category:
                 if resolved_category == fs_category:
                     score += 0.1
-            
+
             # 策略6: 相关角色匹配
             if resolved_characters and fs_characters:
                 character_overlap = len(resolved_characters & fs_characters) / max(len(resolved_characters | fs_characters), 1)
                 score += character_overlap * 0.1
-            
+
             # 更新最佳匹配
             if score > best_score and score >= min_similarity:
                 best_score = score
                 best_match = fs
-        
+
         if best_match:
             logger.info(f"🎯 内容匹配成功: '{resolved_title}' -> '{best_match.get('title')}' (相似度: {best_score:.2f})")
-        
+
         return best_match
-    
+
     def _calculate_word_overlap(self, text1: str, text2: str) -> float:
         """
         计算两个文本的词重叠度
-        
+
         使用字符级别的 n-gram 相似度计算
-        
+
         Args:
             text1: 文本1
             text2: 文本2
-        
+
         Returns:
             0-1之间的相似度分数
         """
         if not text1 or not text2:
             return 0.0
-        
+
         # 使用2-gram和3-gram
         def get_ngrams(text: str, n: int) -> set:
             text = text.lower().replace(" ", "").replace("\n", "")
             if len(text) < n:
                 return {text}
             return {text[i:i+n] for i in range(len(text) - n + 1)}
-        
+
         # 计算2-gram相似度
         ngrams1_2 = get_ngrams(text1, 2)
         ngrams2_2 = get_ngrams(text2, 2)
         overlap_2 = len(ngrams1_2 & ngrams2_2) / max(len(ngrams1_2 | ngrams2_2), 1)
-        
+
         # 计算3-gram相似度
         ngrams1_3 = get_ngrams(text1, 3)
         ngrams2_3 = get_ngrams(text2, 3)
         overlap_3 = len(ngrams1_3 & ngrams2_3) / max(len(ngrams1_3 | ngrams2_3), 1)
-        
+
         # 综合评分（3-gram权重更高，因为更精确）
         return overlap_2 * 0.4 + overlap_3 * 0.6
 

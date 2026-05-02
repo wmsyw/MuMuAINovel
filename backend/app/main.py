@@ -29,21 +29,35 @@ async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     # 注册MCP状态同步服务
     register_status_sync()
-    
+
+    # 安全保障：确保后台任务表存在（兼容未执行Alembic迁移的旧部署）
+    try:
+        from app.database import get_engine
+        from app.models.background_task import BackgroundTask
+        _startup_engine = await get_engine("system")
+        async with _startup_engine.begin() as conn:
+            # 仅创建 background_tasks 表（如果不存在），不影响其他表
+            await conn.run_sync(
+                lambda sync_conn: BackgroundTask.__table__.create(sync_conn, checkfirst=True)
+            )
+        logger.info("后台任务表检查完成")
+    except Exception as e:
+        logger.warning(f"后台任务表检查失败（不影响启动）: {e}")
+
     logger.info("应用启动完成")
-    
+
     yield
-    
+
     # 清理MCP插件
     await mcp_client.cleanup()
-    
+
     # 清理HTTP客户端池
     from app.services.ai_service import cleanup_http_clients
     await cleanup_http_clients()
-    
+
     # 关闭数据库连接
     await close_db()
-    
+
     logger.info("应用已关闭")
 
 
@@ -109,7 +123,7 @@ async def health_check():
 async def db_session_stats(request: Request):
     """
     数据库会话统计（监控连接泄漏）
-    
+
     返回：
     - created: 总创建会话数
     - closed: 总关闭会话数
@@ -133,7 +147,8 @@ from app.api import (
     auth, users, settings, writing_styles, memories,
     mcp_plugins, admin, inspiration, prompt_templates,
     changelog, careers, foreshadows, prompt_workshop, book_import,
-    project_covers, extraction, timeline, world_setting_results, goldfingers, sync
+    project_covers, extraction, timeline, world_setting_results, goldfingers, sync,
+    tasks
 )
 
 app.include_router(auth.router, prefix="/api")
@@ -164,6 +179,7 @@ app.include_router(prompt_templates.router, prefix="/api")  # 提示词模板管
 app.include_router(changelog.router, prefix="/api")  # 更新日志API
 app.include_router(prompt_workshop.router, prefix="/api")  # 提示词工坊API
 app.include_router(book_import.router, prefix="/api")  # 拆书导入API
+app.include_router(tasks.router, prefix="/api")  # 后台任务API
 
 static_dir = Path(__file__).parent.parent / "static"
 generated_assets_root_dir = Path(__file__).parent.parent / "storage"
@@ -172,7 +188,7 @@ generated_covers_dir.mkdir(parents=True, exist_ok=True)
 if static_dir.exists():
     app.mount("/assets", StaticFiles(directory=str(static_dir / "assets")), name="assets")
     app.mount("/generated-assets/covers", StaticFiles(directory=str(generated_covers_dir)), name="generated-covers")
-    
+
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
         """服务单页应用，所有非API路径返回index.html"""
@@ -181,7 +197,7 @@ if static_dir.exists():
                 status_code=404,
                 content={"detail": "API路径不存在"}
             )
-        
+
         file_path = static_dir / full_path
         try:
             resolved_file = file_path.resolve()
@@ -195,18 +211,18 @@ if static_dir.exists():
 
         if resolved_file.is_file():
             return FileResponse(resolved_file)
-        
+
         index_file = static_dir / "index.html"
         if index_file.exists():
             return FileResponse(index_file)
-        
+
         return JSONResponse(
             status_code=404,
             content={"detail": "页面不存在"}
         )
 else:
     logger.warning("静态文件目录不存在，请先构建前端: cd frontend && npm run build")
-    
+
     @app.get("/")
     async def root():
         return {

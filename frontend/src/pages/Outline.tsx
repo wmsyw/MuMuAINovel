@@ -2,11 +2,12 @@ import { useState, useEffect, useMemo } from 'react';
 import { Button, List, Modal, Form, Input, message, Empty, Space, Popconfirm, Card, Select, Radio, Tag, InputNumber, Tabs, Pagination, theme } from 'antd';
 import { EditOutlined, DeleteOutlined, ThunderboltOutlined, BranchesOutlined, AppstoreAddOutlined, CheckCircleOutlined, ExclamationCircleOutlined, PlusOutlined, FileTextOutlined } from '@ant-design/icons';
 import { useStore } from '../store';
+import { eventBus } from '../store/eventBus';
+import { getProjectTasks, type TaskStatus } from '../services/backgroundTaskService';
 import { useOutlineSync } from '../store/hooks';
-import { SSEPostClient } from '../utils/sseClient';
-import { SSEProgressModal } from '../components/progress/SSEProgressModal';
+import { generateOutlineBackground } from '../services/backgroundTaskService';
 import { outlineApi, chapterApi, projectApi, characterApi } from '../services/api';
-import type { OutlineExpansionResponse, BatchOutlineExpansionResponse, ChapterPlanItem, ApiError, Character } from '../types';
+import type { ApiError, Character } from '../types';
 
 // 大纲生成请求数据类型
 interface OutlineGenerateRequestData {
@@ -24,20 +25,6 @@ interface OutlineGenerateRequestData {
   provider?: string;
 }
 
-// 跳过的大纲信息类型
-interface SkippedOutlineInfo {
-  outline_id: string;
-  outline_title: string;
-  reason: string;
-}
-
-// 场景类型
-interface SceneInfo {
-  location: string;
-  characters: string[];
-  purpose: string;
-}
-
 // 角色/组织条目类型（新格式）
 interface CharacterEntry {
   name: string;
@@ -51,7 +38,7 @@ interface CharacterEntry {
  */
 function parseCharacterEntries(characters: unknown): CharacterEntry[] {
   if (!Array.isArray(characters) || characters.length === 0) return [];
-  
+
   return characters.map((entry) => {
     if (typeof entry === 'string') {
       // 旧格式：纯字符串，默认为 character
@@ -140,20 +127,6 @@ export default function Outline() {
   // ✅ 新增：记录场景区域的展开/折叠状态
   const [scenesExpandStatus, setScenesExpandStatus] = useState<Record<string, boolean>>({});
 
-  // 缓存批量展开的规划数据，避免重复AI调用
-  const [cachedBatchExpansionResponse, setCachedBatchExpansionResponse] = useState<BatchOutlineExpansionResponse | null>(null);
-
-  // 批量展开预览的状态
-  const [batchPreviewVisible, setBatchPreviewVisible] = useState(false);
-  const [batchPreviewData, setBatchPreviewData] = useState<BatchOutlineExpansionResponse | null>(null);
-  const [selectedOutlineIdx, setSelectedOutlineIdx] = useState(0);
-  const [selectedChapterIdx, setSelectedChapterIdx] = useState(0);
-
-  // SSE进度状态
-  const [sseProgress, setSSEProgress] = useState(0);
-  const [sseMessage, setSSEMessage] = useState('');
-  const [sseModalVisible, setSSEModalVisible] = useState(false);
-
   useEffect(() => {
     const handleResize = () => {
       setIsMobile(window.innerWidth <= 768);
@@ -181,9 +154,25 @@ export default function Outline() {
       refreshOutlines();
       // 加载项目角色列表
       loadProjectCharacters();
+      // 检查是否有活跃的大纲生成任务，恢复按钮禁用状态
+      checkActiveOutlineTasks();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentProject?.id]); // 只依赖 ID，不依赖函数
+
+  // 检查是否有活跃的大纲生成任务（页面切换后恢复状态）
+  const checkActiveOutlineTasks = async () => {
+    if (!currentProject?.id) return;
+    try {
+      const result = await getProjectTasks(currentProject.id, 'outline_new', 5);
+      const result2 = await getProjectTasks(currentProject.id, 'outline_continue', 5);
+      const allTasks = [...(result.items || []), ...(result2.items || [])];
+      const hasActive = allTasks.some((t: TaskStatus) => t.status === 'running' || t.status === 'pending');
+      setIsGenerating(hasActive);
+    } catch (error) {
+      console.error('检查活跃大纲任务失败:', error);
+    }
+  };
 
   // 加载项目角色列表
   const loadProjectCharacters = async () => {
@@ -266,12 +255,12 @@ export default function Outline() {
     const outline = outlines.find(o => o.id === id);
     if (outline) {
       const structureData = outlineStructureMap[outline.id] || {};
-      
+
       // 解析角色/组织条目（兼容新旧格式）
       const editEntries = parseCharacterEntries(structureData.characters);
       const editCharNames = getCharacterNames(editEntries);
       const editOrgNames = getOrganizationNames(editEntries);
-      
+
       // 处理场景数据 - 可能是字符串数组或对象数组
       let scenesText = '';
       if (structureData.scenes) {
@@ -285,10 +274,10 @@ export default function Outline() {
             .join('\n');
         }
       }
-      
+
       // 处理情节要点数据
       const keyPointsText = structureData.key_points ? structureData.key_points.join('\n') : '';
-      
+
       // 设置表单初始值
       editForm.setFieldsValue({
         title: outline.title,
@@ -300,7 +289,7 @@ export default function Outline() {
         emotion: structureData.emotion || '',
         goal: structureData.goal || ''
       });
-      
+
       modalApi.confirm({
         title: '编辑大纲',
         width: 800,
@@ -334,7 +323,7 @@ export default function Outline() {
             >
               <TextArea rows={4} placeholder="输入大纲内容..." />
             </Form.Item>
-            
+
             <Form.Item
               label="涉及角色"
               name="characters"
@@ -350,7 +339,7 @@ export default function Outline() {
                 maxTagCount="responsive"
               />
             </Form.Item>
-            
+
             <Form.Item
               label="涉及组织"
               name="organizations"
@@ -365,7 +354,7 @@ export default function Outline() {
                 maxTagCount="responsive"
               />
             </Form.Item>
-            
+
             <Form.Item
               label="场景信息"
               name="scenes"
@@ -377,7 +366,7 @@ export default function Outline() {
                 placeholder="每行一个场景&#10;详细格式：地点|角色1、角色2|目的"
               />
             </Form.Item>
-            
+
             <Form.Item
               label="情节要点"
               name="key_points"
@@ -389,7 +378,7 @@ export default function Outline() {
                 placeholder="每行一个情节要点"
               />
             </Form.Item>
-            
+
             <Form.Item
               label="情感基调"
               name="emotion"
@@ -398,7 +387,7 @@ export default function Outline() {
             >
               <Input placeholder="例如：冷冽与躁动并存" />
             </Form.Item>
-            
+
             <Form.Item
               label="叙事目标"
               name="goal"
@@ -416,7 +405,7 @@ export default function Outline() {
           try {
             // 解析并重构structure数据（使用预解析缓存，避免重复 JSON.parse）
             const originalStructure = outlineStructureMap[outline.id] || {};
-            
+
             // 处理角色和组织数据 - 合并为带类型标识的新格式
             const charNames = Array.isArray(values.characters)
               ? values.characters.filter((c: string) => c && c.trim())
@@ -428,17 +417,17 @@ export default function Outline() {
               ...charNames.map((name: string) => ({ name: name.trim(), type: 'character' as const })),
               ...orgNames.map((name: string) => ({ name: name.trim(), type: 'organization' as const }))
             ];
-            
+
             // 处理场景数据 - 检测原始格式
             let scenes: string[] | Array<{location: string; characters: string[]; purpose: string}> | undefined;
             if (values.scenes) {
               const lines = values.scenes.split('\n')
                 .map((line: string) => line.trim())
                 .filter((line: string) => line);
-              
+
               // 检查是否包含管道符，判断格式
               const hasStructuredFormat = lines.some((line: string) => line.includes('|'));
-              
+
               if (hasStructuredFormat) {
                 // 尝试解析为对象数组格式
                 scenes = lines
@@ -459,14 +448,14 @@ export default function Outline() {
                 scenes = lines;
               }
             }
-            
+
             // 处理情节要点数据
             const keyPoints = values.key_points
               ? values.key_points.split('\n')
                   .map((line: string) => line.trim())
                   .filter((line: string) => line)
               : undefined;
-            
+
             // 合并structure数据，只包含AI实际生成的字段
             const newStructure = {
               ...originalStructure,
@@ -478,14 +467,14 @@ export default function Outline() {
               emotion: values.emotion || undefined,
               goal: values.goal || undefined
             };
-            
+
             // 更新大纲
             await updateOutline(id, {
               title: values.title,
               content: values.content,
               structure: JSON.stringify(newStructure, null, 2)
             });
-            
+
             message.success('大纲更新成功');
           } catch (error) {
             console.error('更新失败:', error);
@@ -537,11 +526,6 @@ export default function Outline() {
       // 关闭生成表单Modal
       Modal.destroyAll();
 
-      // 显示进度Modal
-      setSSEProgress(0);
-      setSSEMessage('正在连接AI服务...');
-      setSSEModalVisible(true);
-
       // 准备请求数据
       const requestData: OutlineGenerateRequestData = {
         project_id: currentProject.id,
@@ -573,38 +557,31 @@ export default function Outline() {
       console.log('6. 最终请求数据:', JSON.stringify(requestData, null, 2));
       console.log('=========================');
 
-      // 使用SSE客户端
-      const apiUrl = `/api/outlines/generate-stream`;
-      const client = new SSEPostClient(apiUrl, requestData, {
-        onProgress: (msg: string, progress: number) => {
-          setSSEMessage(msg);
-          setSSEProgress(progress);
+      // 使用后台任务生成（不怕断连，关闭浏览器也继续运行）
+      // 不再强制显示进度弹窗，任务进度在右下角悬浮任务框中显示
+      await generateOutlineBackground(
+        requestData,
+        () => {
+          // 进度更新由悬浮任务框处理，无需额外操作
         },
-        onResult: (data: unknown) => {
-          console.log('生成完成，结果:', data);
-        },
-        onError: (error: string) => {
-          // 现在只处理真正的错误
-          message.error(`生成失败: ${error}`);
-          setSSEModalVisible(false);
+        (result) => {
+          message.success(result.task_result?.message as string || '大纲生成完成！');
           setIsGenerating(false);
-        },
-        onComplete: () => {
-          message.success('大纲生成完成！');
-          setSSEModalVisible(false);
-          setIsGenerating(false);
-          // 刷新大纲列表
           refreshOutlines();
+        },
+        (error) => {
+          message.error(`生成失败: ${error}`);
+          setIsGenerating(false);
         }
-      });
+      );
 
-      // 开始连接
-      client.connect();
+      message.info('大纲生成任务已提交，可在右下角任务面板查看进度');
+      // 通知悬浮任务框刷新
+      eventBus.emit('background-task-created');
 
     } catch (error) {
       console.error('AI生成失败:', error);
       message.error('AI生成失败');
-      setSSEModalVisible(false);
       setIsGenerating(false);
     }
   };
@@ -914,7 +891,7 @@ export default function Outline() {
     });
   };
 
-  // 展开单个大纲为多章 - 使用SSE显示进度
+  // 展开单个大纲为多章 - 提交后台任务并在悬浮任务面板显示进度
   const handleExpandOutline = async (outlineId: string, outlineTitle: string) => {
     try {
       setIsExpanding(true);
@@ -1035,61 +1012,39 @@ export default function Outline() {
             </Form>
           </div>
         ),
-        okText: '生成规划预览',
+        okText: '提交后台任务',
         cancelText: '取消',
         onOk: async () => {
           try {
             const values = await expansionForm.validateFields();
 
-            // 关闭配置表单
             Modal.destroyAll();
-
-            // 显示SSE进度Modal
-            setSSEProgress(0);
-            setSSEMessage('正在准备展开大纲...');
-            setSSEModalVisible(true);
             setIsExpanding(true);
 
-            // 准备请求数据
             const requestData = {
               ...values,
-              auto_create_chapters: false, // 第一步：仅生成规划
-              enable_scene_analysis: true,
-              batch_size: 10
+              auto_create_chapters: true,
+              enable_scene_analysis: true
             };
 
-            // 使用SSE客户端调用新的流式端点
-            const apiUrl = `/api/outlines/${outlineId}/expand-stream`;
-            const client = new SSEPostClient(apiUrl, requestData, {
-              onProgress: (msg: string, progress: number) => {
-                setSSEMessage(msg);
-                setSSEProgress(progress);
-              },
-              onResult: (data: OutlineExpansionResponse) => {
-                console.log('展开完成，结果:', data);
-                // 关闭SSE进度Modal
-                setSSEModalVisible(false);
-                // 显示规划预览
-                showExpansionPreview(outlineId, data);
-              },
-              onError: (error: string) => {
-                message.error(`展开失败: ${error}`);
-                setSSEModalVisible(false);
-                setIsExpanding(false);
-              },
-              onComplete: () => {
-                setSSEModalVisible(false);
-                setIsExpanding(false);
-              }
+            const response = await fetch(`/api/outlines/${outlineId}/expand-background`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(requestData),
             });
 
-            // 开始连接
-            client.connect();
+            if (!response.ok) {
+              const err = await response.json().catch(() => ({ detail: response.statusText }));
+              throw new Error(err.detail || '创建大纲展开任务失败');
+            }
+
+            message.success('大纲展开任务已提交，可在右下角任务面板查看进度');
+            eventBus.emit('background-task-created');
+            setIsExpanding(false);
 
           } catch (error) {
             console.error('展开失败:', error);
-            message.error('展开失败');
-            setSSEModalVisible(false);
+            message.error(error instanceof Error ? error.message : '展开失败');
             setIsExpanding(false);
           }
         },
@@ -1384,134 +1339,7 @@ export default function Outline() {
     });
   };
 
-  // 显示展开规划预览，并提供确认创建章节的选项
-  const showExpansionPreview = (outlineId: string, response: OutlineExpansionResponse) => {
-    // 缓存AI生成的规划数据
-    const cachedPlans = response.chapter_plans;
-
-    modalApi.confirm({
-      title: (
-        <Space>
-          <CheckCircleOutlined style={{ color: token.colorSuccess }} />
-          <span>展开规划预览</span>
-        </Space>
-      ),
-      width: 900,
-      centered: true,
-      okText: '确认并创建章节',
-      cancelText: '暂不创建',
-      content: (
-        <div>
-          <div style={{ marginBottom: 16 }}>
-            <Tag color="blue">策略: {response.expansion_strategy}</Tag>
-            <Tag color="green">章节数: {response.actual_chapter_count}</Tag>
-            <Tag color="orange">预览模式（未创建章节）</Tag>
-          </div>
-          <Tabs
-            defaultActiveKey="0"
-            type="card"
-            items={response.chapter_plans.map((plan, idx) => ({
-              key: idx.toString(),
-              label: (
-                <Space size="small">
-                  <span style={{ fontWeight: 500 }}>{idx + 1}. {plan.title}</span>
-                </Space>
-              ),
-              children: (
-                <div style={{ maxHeight: '500px', overflowY: 'auto', padding: '8px 0' }}>
-                  <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                    <Card size="small" title="基本信息">
-                      <Space wrap>
-                        <Tag color="blue">{plan.emotional_tone}</Tag>
-                        <Tag color="orange">{plan.conflict_type}</Tag>
-                        <Tag color="green">约{plan.estimated_words}字</Tag>
-                      </Space>
-                    </Card>
-
-                    <Card size="small" title="情节概要">
-                      {plan.plot_summary}
-                    </Card>
-
-                    <Card size="small" title="叙事目标">
-                      {plan.narrative_goal}
-                    </Card>
-
-                    <Card size="small" title="关键事件">
-                      <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                        {plan.key_events.map((event, eventIdx) => (
-                          <div key={eventIdx}>• {event}</div>
-                        ))}
-                      </Space>
-                    </Card>
-
-                    <Card size="small" title="涉及角色">
-                      <Space wrap>
-                        {plan.character_focus.map((char, charIdx) => (
-                          <Tag key={charIdx} color="purple">{char}</Tag>
-                        ))}
-                      </Space>
-                    </Card>
-
-                    {plan.scenes && plan.scenes.length > 0 && (
-                      <Card size="small" title="场景">
-                        <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                          {plan.scenes.map((scene, sceneIdx) => (
-                            <Card key={sceneIdx} size="small" style={{ backgroundColor: token.colorFillQuaternary }}>
-                              <div><strong>地点：</strong>{scene.location}</div>
-                              <div><strong>角色：</strong>{scene.characters.join('、')}</div>
-                              <div><strong>目的：</strong>{scene.purpose}</div>
-                            </Card>
-                          ))}
-                        </Space>
-                      </Card>
-                    )}
-                  </Space>
-                </div>
-              )
-            }))}
-          />
-        </div>
-      ),
-      onOk: async () => {
-        // 第二步：用户确认后，直接使用缓存的规划创建章节（避免重复调用AI）
-        await handleConfirmCreateChapters(outlineId, cachedPlans);
-      },
-      onCancel: () => {
-        message.info('已取消创建章节');
-      }
-    });
-  };
-
-  // 确认创建章节 - 使用缓存的规划数据，避免重复AI调用
-  const handleConfirmCreateChapters = async (
-    outlineId: string,
-    cachedPlans: ChapterPlanItem[]
-  ) => {
-    try {
-      setIsExpanding(true);
-
-      // 使用新的API端点，直接传递缓存的规划数据
-      const response = await outlineApi.createChaptersFromPlans(outlineId, cachedPlans);
-
-      message.success(
-        `成功创建${response.chapters_created}个章节！`,
-        3
-      );
-
-      console.log('✅ 使用缓存的规划创建章节，避免了重复的AI调用');
-
-      // 刷新大纲和章节列表
-      refreshOutlines();
-
-    } catch (error) {
-      console.error('创建章节失败:', error);
-      message.error('创建章节失败');
-    } finally {
-      setIsExpanding(false);
-    }
-  };
-
-  // 批量展开所有大纲 - 使用SSE流式显示进度
+  // 批量展开所有大纲 - 提交后台任务并在悬浮任务面板显示进度
   const handleBatchExpandOutlines = () => {
     if (!currentProject?.id || outlines.length === 0) {
       message.warning('没有可展开的大纲');
@@ -1577,355 +1405,50 @@ export default function Outline() {
           </Form>
         </div>
       ),
-      okText: '开始展开',
+      okText: '提交后台任务',
       cancelText: '取消',
       okButtonProps: { type: 'primary' },
       onOk: async () => {
         try {
           const values = await batchExpansionForm.validateFields();
 
-          // 关闭配置表单
           Modal.destroyAll();
-
-          // 显示SSE进度Modal
-          setSSEProgress(0);
-          setSSEMessage('正在准备批量展开...');
-          setSSEModalVisible(true);
           setIsExpanding(true);
 
-          // 准备请求数据
           const requestData = {
             project_id: currentProject.id,
             ...values,
-            auto_create_chapters: false // 第一步：仅生成规划
+            auto_create_chapters: true,
+            enable_scene_analysis: true
           };
 
-          // 使用SSE客户端
-          const apiUrl = `/api/outlines/batch-expand-stream`;
-          const client = new SSEPostClient(apiUrl, requestData, {
-            onProgress: (msg: string, progress: number) => {
-              setSSEMessage(msg);
-              setSSEProgress(progress);
-            },
-            onResult: (data: BatchOutlineExpansionResponse) => {
-              console.log('批量展开完成，结果:', data);
-              // 缓存AI生成的规划数据
-              setCachedBatchExpansionResponse(data);
-              setBatchPreviewData(data);
-              // 关闭SSE进度Modal
-              setSSEModalVisible(false);
-              // 重置选择状态
-              setSelectedOutlineIdx(0);
-              setSelectedChapterIdx(0);
-              // 显示批量预览Modal
-              setBatchPreviewVisible(true);
-            },
-            onError: (error: string) => {
-              message.error(`批量展开失败: ${error}`);
-              setSSEModalVisible(false);
-              setIsExpanding(false);
-            },
-            onComplete: () => {
-              setSSEModalVisible(false);
-              setIsExpanding(false);
-            }
+          const response = await fetch('/api/outlines/batch-expand-background', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestData),
           });
 
-          // 开始连接
-          client.connect();
+          if (!response.ok) {
+            const err = await response.json().catch(() => ({ detail: response.statusText }));
+            throw new Error(err.detail || '创建批量展开任务失败');
+          }
+
+          message.success('批量展开任务已提交，可在右下角任务面板查看进度');
+          eventBus.emit('background-task-created');
+          setIsExpanding(false);
 
         } catch (error) {
           console.error('批量展开失败:', error);
-          message.error('批量展开失败');
-          setSSEModalVisible(false);
+          message.error(error instanceof Error ? error.message : '批量展开失败');
           setIsExpanding(false);
         }
       },
     });
   };
 
-  // 渲染批量展开预览 Modal 内容
-  const renderBatchPreviewContent = () => {
-    if (!batchPreviewData) return null;
-
-    return (
-      <div>
-        {/* 顶部统计信息 */}
-        <div style={{ marginBottom: 16 }}>
-          <Tag color="blue">已处理: {batchPreviewData.total_outlines_expanded} 个大纲</Tag>
-          <Tag color="green">总章节数: {batchPreviewData.expansion_results.reduce((sum: number, r: OutlineExpansionResponse) => sum + r.actual_chapter_count, 0)}</Tag>
-          <Tag color="orange">预览模式（未创建章节）</Tag>
-          {batchPreviewData.skipped_outlines && batchPreviewData.skipped_outlines.length > 0 && (
-            <Tag color="warning">跳过: {batchPreviewData.skipped_outlines.length} 个大纲</Tag>
-          )}
-        </div>
-
-        {/* 显示跳过的大纲信息 */}
-        {batchPreviewData.skipped_outlines && batchPreviewData.skipped_outlines.length > 0 && (
-          <div style={{
-            marginBottom: 16,
-            padding: 12,
-            background: token.colorWarningBg,
-            borderRadius: token.borderRadius,
-            border: `1px solid ${token.colorWarningBorder}`
-          }}>
-            <div style={{ fontWeight: 500, marginBottom: 8, color: token.colorWarning }}>
-              ⚠️ 以下大纲已展开过，已自动跳过：
-            </div>
-            <Space direction="vertical" size="small" style={{ width: '100%' }}>
-              {batchPreviewData.skipped_outlines.map((skipped: SkippedOutlineInfo, idx: number) => (
-                <div key={idx} style={{ fontSize: 13, color: token.colorTextSecondary }}>
-                  • {skipped.outline_title} <Tag color="default" style={{ fontSize: 11 }}>{skipped.reason}</Tag>
-                </div>
-              ))}
-            </Space>
-          </div>
-        )}
-
-        {/* 水平三栏布局 */}
-        <div style={{ display: 'flex', gap: 16, height: 500 }}>
-          {/* 左栏：大纲列表 */}
-          <div style={{
-            width: 280,
-            borderRight: `1px solid ${token.colorBorderSecondary}`,
-            paddingRight: 12,
-            overflowY: 'auto'
-          }}>
-            <div style={{ fontWeight: 500, marginBottom: 8, color: token.colorTextSecondary }}>大纲列表</div>
-            <List
-              size="small"
-              dataSource={batchPreviewData.expansion_results}
-              renderItem={(result: OutlineExpansionResponse, idx: number) => (
-                <List.Item
-                  key={idx}
-                  onClick={() => {
-                    setSelectedOutlineIdx(idx);
-                    setSelectedChapterIdx(0);
-                  }}
-                  style={{
-                    cursor: 'pointer',
-                    padding: '8px 12px',
-                    background: selectedOutlineIdx === idx ? token.colorPrimaryBg : 'transparent',
-                    borderRadius: token.borderRadius,
-                    marginBottom: 4,
-                    border: selectedOutlineIdx === idx ? `1px solid ${token.colorPrimary}` : '1px solid transparent'
-                  }}
-                >
-                  <div style={{ width: '100%' }}>
-                    <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 4 }}>
-                      {idx + 1}. {result.outline_title}
-                    </div>
-                    <Space size={4}>
-                      <Tag color="blue" style={{ fontSize: 11, margin: 0 }}>{result.expansion_strategy}</Tag>
-                      <Tag color="green" style={{ fontSize: 11, margin: 0 }}>{result.actual_chapter_count} 章</Tag>
-                    </Space>
-                  </div>
-                </List.Item>
-              )}
-            />
-          </div>
-
-          {/* 中栏：章节列表 */}
-          <div style={{
-            width: 320,
-            borderRight: `1px solid ${token.colorBorderSecondary}`,
-            paddingRight: 12,
-            overflowY: 'auto'
-          }}>
-            <div style={{ fontWeight: 500, marginBottom: 8, color: token.colorTextSecondary }}>
-              章节列表 ({batchPreviewData.expansion_results[selectedOutlineIdx]?.actual_chapter_count || 0} 章)
-            </div>
-            {batchPreviewData.expansion_results[selectedOutlineIdx] && (
-              <List
-                size="small"
-                dataSource={batchPreviewData.expansion_results[selectedOutlineIdx].chapter_plans}
-                renderItem={(plan: ChapterPlanItem, idx: number) => (
-                  <List.Item
-                    key={idx}
-                    onClick={() => setSelectedChapterIdx(idx)}
-                    style={{
-                      cursor: 'pointer',
-                      padding: '8px 12px',
-                      background: selectedChapterIdx === idx ? token.colorPrimaryBg : 'transparent',
-                      borderRadius: token.borderRadius,
-                      marginBottom: 4,
-                      border: selectedChapterIdx === idx ? `1px solid ${token.colorPrimary}` : '1px solid transparent'
-                    }}
-                  >
-                    <div style={{ width: '100%' }}>
-                      <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 4 }}>
-                        {idx + 1}. {plan.title}
-                      </div>
-                      <Space size={4} wrap>
-                        <Tag color="blue" style={{ fontSize: 11, margin: 0 }}>{plan.emotional_tone}</Tag>
-                        <Tag color="orange" style={{ fontSize: 11, margin: 0 }}>{plan.conflict_type}</Tag>
-                        <Tag color="green" style={{ fontSize: 11, margin: 0 }}>约{plan.estimated_words}字</Tag>
-                      </Space>
-                    </div>
-                  </List.Item>
-                )}
-              />
-            )}
-          </div>
-
-          {/* 右栏：章节详情 */}
-          <div style={{ flex: 1, overflowY: 'auto', paddingLeft: 12 }}>
-            <div style={{ fontWeight: 500, marginBottom: 12, color: token.colorTextSecondary }}>章节详情</div>
-            {batchPreviewData.expansion_results[selectedOutlineIdx]?.chapter_plans[selectedChapterIdx] ? (
-              <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                <Card size="small" title="情节概要" bordered={false}>
-                  {batchPreviewData.expansion_results[selectedOutlineIdx].chapter_plans[selectedChapterIdx].plot_summary}
-                </Card>
-
-                <Card size="small" title="叙事目标" bordered={false}>
-                  {batchPreviewData.expansion_results[selectedOutlineIdx].chapter_plans[selectedChapterIdx].narrative_goal}
-                </Card>
-
-                <Card size="small" title="关键事件" bordered={false}>
-                  <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                    {(batchPreviewData.expansion_results[selectedOutlineIdx].chapter_plans[selectedChapterIdx].key_events as string[]).map((event: string, eventIdx: number) => (
-                      <div key={eventIdx}>• {event}</div>
-                    ))}
-                  </Space>
-                </Card>
-
-                <Card size="small" title="涉及角色" bordered={false}>
-                  <Space wrap>
-                    {(batchPreviewData.expansion_results[selectedOutlineIdx].chapter_plans[selectedChapterIdx].character_focus as string[]).map((char: string, charIdx: number) => (
-                      <Tag key={charIdx} color="purple">{char}</Tag>
-                    ))}
-                  </Space>
-                </Card>
-
-                {batchPreviewData.expansion_results[selectedOutlineIdx].chapter_plans[selectedChapterIdx].scenes && batchPreviewData.expansion_results[selectedOutlineIdx].chapter_plans[selectedChapterIdx].scenes!.length > 0 && (
-                  <Card size="small" title="场景" bordered={false}>
-                    <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                      {batchPreviewData.expansion_results[selectedOutlineIdx].chapter_plans[selectedChapterIdx].scenes!.map((scene: SceneInfo, sceneIdx: number) => (
-                        <Card key={sceneIdx} size="small" style={{ backgroundColor: token.colorFillQuaternary }}>
-                          <div><strong>地点：</strong>{scene.location}</div>
-                          <div><strong>角色：</strong>{scene.characters.join('、')}</div>
-                          <div><strong>目的：</strong>{scene.purpose}</div>
-                        </Card>
-                      ))}
-                    </Space>
-                  </Card>
-                )}
-              </Space>
-            ) : (
-              <Empty description="请选择章节查看详情" />
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // 处理批量预览确认
-  const handleBatchPreviewOk = async () => {
-    setBatchPreviewVisible(false);
-    await handleConfirmBatchCreateChapters();
-  };
-
-  // 处理批量预览取消
-  const handleBatchPreviewCancel = () => {
-    setBatchPreviewVisible(false);
-    message.info('已取消创建章节，规划已保存');
-  };
-
-
-  // 确认批量创建章节 - 使用缓存的规划数据
-  const handleConfirmBatchCreateChapters = async () => {
-    try {
-      setIsExpanding(true);
-
-      // 使用缓存的规划数据，避免重复调用AI
-      if (!cachedBatchExpansionResponse) {
-        message.error('规划数据丢失，请重新展开');
-        return;
-      }
-
-      console.log('✅ 使用缓存的批量规划数据创建章节，避免重复AI调用');
-
-      // 逐个大纲创建章节
-      let totalCreated = 0;
-      const errors: string[] = [];
-
-      for (const result of cachedBatchExpansionResponse.expansion_results) {
-        try {
-          // 使用create-chapters-from-plans接口，直接传递缓存的规划
-          const response = await outlineApi.createChaptersFromPlans(
-            result.outline_id,
-            result.chapter_plans
-          );
-          totalCreated += response.chapters_created;
-        } catch (error: unknown) {
-          const apiError = error as ApiError;
-          const err = error as Error;
-          const errorMsg = apiError.response?.data?.detail || err.message || '未知错误';
-          errors.push(`${result.outline_title}: ${errorMsg}`);
-          console.error(`创建大纲 ${result.outline_title} 的章节失败:`, error);
-        }
-      }
-
-      // 显示结果
-      if (errors.length === 0) {
-        message.success(
-          `批量创建完成！共创建 ${totalCreated} 个章节`,
-          3
-        );
-      } else {
-        message.warning(
-          `部分完成：成功创建 ${totalCreated} 个章节，${errors.length} 个失败`,
-          5
-        );
-        console.error('失败详情:', errors);
-      }
-
-      // 清除缓存
-      setCachedBatchExpansionResponse(null);
-
-      // 刷新列表
-      refreshOutlines();
-
-    } catch (error) {
-      console.error('批量创建章节失败:', error);
-      message.error('批量创建章节失败');
-    } finally {
-      setIsExpanding(false);
-    }
-  };
-
-
   return (
     <>
-      {/* 批量展开预览 Modal */}
-      <Modal
-        title={
-          <Space>
-            <CheckCircleOutlined style={{ color: token.colorSuccess }} />
-            <span>批量展开规划预览</span>
-          </Space>
-        }
-        open={batchPreviewVisible}
-        onOk={handleBatchPreviewOk}
-        onCancel={handleBatchPreviewCancel}
-        width={1200}
-        centered
-        okText="确认并批量创建章节"
-        cancelText="暂不创建"
-        okButtonProps={{ danger: true }}
-      >
-        {renderBatchPreviewContent()}
-      </Modal>
-
       {contextHolder}
-      {/* SSE进度Modal - 使用统一组件 */}
-      <SSEProgressModal
-        visible={sseModalVisible}
-        progress={sseProgress}
-        message={sseMessage}
-        title="AI生成中..."
-      />
 
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         {/* 固定头部 */}
@@ -2010,7 +1533,7 @@ export default function Outline() {
                   const organizationNames = getOrganizationNames(characterEntries);
                   const isOutlineExpanded = outlineContentExpandStatus[item.id] || false;
                   const previewContent = getOutlinePreview(item.content, isMobile ? 70 : 140);
-                  
+
                   return (
                     <List.Item
                       style={{
@@ -2188,7 +1711,7 @@ export default function Outline() {
                                   </Space>
                                 </div>
                               )}
-                              
+
                               {/* 🏛️ 涉及组织展示 */}
                               {organizationNames.length > 0 && (
                                 <div style={{
@@ -2252,14 +1775,14 @@ export default function Outline() {
                                   </Space>
                                 </div>
                               )}
-                              
+
                               {/* ✨ 场景信息展示 - 优化版（支持折叠，最多显示3个） */}
                               {structureData.scenes && structureData.scenes.length > 0 ? (() => {
                                 const isExpanded = scenesExpandStatus[item.id] || false;
                                 const maxVisibleScenes = 4;
                                 const hasMoreScenes = structureData.scenes!.length > maxVisibleScenes;
                                 const visibleScenes = isExpanded ? structureData.scenes : structureData.scenes!.slice(0, maxVisibleScenes);
-                                
+
                                 return (
                                   <div style={{
                                     marginTop: isMobile ? 10 : 12,
@@ -2475,7 +1998,7 @@ export default function Outline() {
                                   </div>
                                 );
                               })() : null}
-                            
+
                             {/* ✨ 关键事件展示 */}
                             {structureData.key_events && structureData.key_events.length > 0 && (
                               <div style={{
@@ -2552,7 +2075,7 @@ export default function Outline() {
                                 </Space>
                               </div>
                             )}
-                            
+
                             {/* ✨ 情节要点展示 (key_points) */}
                             {structureData.key_points && structureData.key_points.length > 0 && (
                               <div style={{
@@ -2653,7 +2176,7 @@ export default function Outline() {
                                 </div>
                               </div>
                             )}
-                            
+
                             {/* ✨ 情感基调展示 (emotion) */}
                             {structureData.emotion && (
                               <div style={{
@@ -2689,7 +2212,7 @@ export default function Outline() {
                                 </Tag>
                               </div>
                             )}
-                            
+
                             {/* ✨ 叙事目标展示 (goal) */}
                             {structureData.goal && (
                               <div style={{
@@ -2728,7 +2251,7 @@ export default function Outline() {
                           </div>
                         }
                       />
-                        
+
                         {/* 操作按钮区域 - 在卡片内部 */}
                         <div style={{
                           marginTop: 16,

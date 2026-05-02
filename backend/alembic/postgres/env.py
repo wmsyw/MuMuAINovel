@@ -27,7 +27,8 @@ from app.models import (
     ExtractionRun, ExtractionCandidate, EntityAlias, EntityProvenance,
     RelationshipTimelineEvent, WorldSettingResult,
     StoryMemory, PlotAnalysis, AnalysisTask, BatchGenerationTask,
-    RegenerationTask, Career, CharacterCareer, User, MCPPlugin, PromptTemplate
+    RegenerationTask, Career, CharacterCareer, User, MCPPlugin, PromptTemplate,
+    BackgroundTask
 )
 
 # Alembic Config 对象
@@ -78,7 +79,7 @@ async def run_async_migrations() -> None:
     """在'在线'模式下运行异步迁移"""
     configuration = config.get_section(config.config_ini_section, {})
     configuration["sqlalchemy.url"] = settings.database_url
-    
+
     connectable = async_engine_from_config(
         configuration,
         prefix="sqlalchemy.",

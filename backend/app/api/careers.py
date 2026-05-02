@@ -7,7 +7,7 @@ import json
 from typing import AsyncGenerator
 
 from app.database import get_db
-from app.utils.sse_response import SSEResponse, create_sse_response, WizardProgressTracker
+from app.utils.sse_response import SSEResponse, create_sse_response, WizardProgressTracker, wrap_stream_with_heartbeat, HEARTBEAT
 from app.models.career import Career, CharacterCareer
 from app.models.relationship import RelationshipTimelineEvent
 from app.models.character import Character
@@ -28,6 +28,7 @@ from app.schemas.career import (
 from app.services.ai_service import AIService
 from app.services.entity_generation_policy_service import entity_generation_policy_service
 from app.services.timeline_projection_service import TimelineProjectionService
+from app.services.json_helper import loads_json
 from app.logger import get_logger
 from app.api.settings import get_user_ai_service
 from app.api.common import verify_project_access
@@ -142,13 +143,13 @@ async def get_careers(
     """获取指定项目的所有职业"""
     user_id = getattr(request.state, 'user_id', None)
     await verify_project_access(project_id, user_id, db)
-    
+
     # 获取总数
     count_result = await db.execute(
         select(func.count(Career.id)).where(Career.project_id == project_id)
     )
     total = count_result.scalar_one()
-    
+
     # 获取职业列表
     result = await db.execute(
         select(Career)
@@ -156,11 +157,11 @@ async def get_careers(
         .order_by(Career.type, Career.created_at.desc())
     )
     careers = result.scalars().all()
-    
+
     # 分类返回
     main_careers = []
     sub_careers = []
-    
+
     for career in careers:
         career_dict = await _career_response_dict(
             career,
@@ -172,12 +173,12 @@ async def get_careers(
             include_timeline=include_timeline,
             include_policy_status=include_policy_status,
         )
-        
+
         if career.type == "main":
             main_careers.append(career_dict)
         else:
             sub_careers.append(career_dict)
-    
+
     return CareerListResponse(
         total=total,
         main_careers=main_careers,
@@ -194,12 +195,12 @@ async def create_career(
     """手动创建职业"""
     user_id = getattr(request.state, 'user_id', None)
     await verify_project_access(career_data.project_id, user_id, db)
-    
+
     try:
         # 转换stages为JSON字符串
         stages_json = json.dumps([stage.model_dump() for stage in career_data.stages], ensure_ascii=False)
         attribute_bonuses_json = json.dumps(career_data.attribute_bonuses, ensure_ascii=False) if career_data.attribute_bonuses else None
-        
+
         # 创建职业
         career = Career(
             project_id=career_data.project_id,
@@ -218,9 +219,9 @@ async def create_career(
         db.add(career)
         await db.commit()
         await db.refresh(career)
-        
+
         logger.info(f"✅ 创建职业成功：{career.name} (ID: {career.id}, 类型: {career.type})")
-        
+
         return CareerResponse(
             id=career.id,
             project_id=career.project_id,
@@ -238,26 +239,22 @@ async def create_career(
             created_at=career.created_at,
             updated_at=career.updated_at
         )
-        
+
     except Exception as e:
         logger.error(f"创建职业失败: {str(e)}")
         raise HTTPException(status_code=500, detail=f"创建职业失败: {str(e)}")
 
 
-@router.get("/generate-system", summary="AI生成新职业（增量式，流式）")
+@router.post("/generate-system", summary="AI生成新职业（增量式，流式）")
 async def generate_career_system(
-    project_id: str,
-    main_career_count: int = 3,
-    sub_career_count: int = 6,
-    user_requirements: str = "",
-    enable_mcp: bool = False,
-    http_request: Request = None,
+    request_data: CareerGenerateRequest,
+    http_request: Request,
     db: AsyncSession = Depends(get_db),
     user_ai_service: AIService = Depends(get_user_ai_service)
 ):
     """
     使用AI生成新职业（增量式，基于已有职业补充，支持SSE流式进度显示）
-    
+
     通过Server-Sent Events返回实时进度信息
     """
     async def generate() -> AsyncGenerator[str, None]:
@@ -265,6 +262,10 @@ async def generate_career_system(
         try:
             # 验证用户权限和项目是否存在
             user_id = getattr(http_request.state, 'user_id', None)
+            project_id = request_data.project_id
+            main_career_count = request_data.main_career_count
+            sub_career_count = request_data.sub_career_count
+            user_requirements = request_data.user_requirements
             project = await verify_project_access(project_id, user_id, db)
             policy_decision = await entity_generation_policy_service.evaluate_for_user(
                 db,
@@ -283,17 +284,17 @@ async def generate_career_system(
                 yield await tracker.result(candidate_policy_payload(policy_decision.to_response()))
                 yield await tracker.done()
                 return
-            
+
             yield await tracker.start()
-            
+
             # 获取已有职业列表
             yield await tracker.loading("分析已有职业...", 0.3)
-            
+
             existing_careers_result = await db.execute(
                 select(Career).where(Career.project_id == project_id)
             )
             existing_careers = existing_careers_result.scalars().all()
-            
+
             # 构建已有职业摘要
             existing_main_careers = []
             existing_sub_careers = []
@@ -301,24 +302,24 @@ async def generate_career_system(
                 career_summary = f"- {career.name}（{career.category or '未分类'}，{career.max_stage}阶）"
                 if career.description:
                     career_summary += f": {career.description[:50]}"
-                
+
                 if career.type == "main":
                     existing_main_careers.append(career_summary)
                 else:
                     existing_sub_careers.append(career_summary)
-            
+
             existing_careers_text = ""
             if existing_main_careers:
                 existing_careers_text += f"\n已有主职业（{len(existing_main_careers)}个）：\n" + "\n".join(existing_main_careers)
             if existing_sub_careers:
                 existing_careers_text += f"\n\n已有副职业（{len(existing_sub_careers)}个）：\n" + "\n".join(existing_sub_careers)
-            
+
             if not existing_careers_text:
                 existing_careers_text = "\n当前还没有任何职业，这是第一次创建职业体系。"
-            
+
             # 构建项目上下文
             yield await tracker.loading("分析项目世界观...", 0.6)
-            
+
             project_context = f"""
 项目信息：
 - 书名：{project.title}
@@ -329,7 +330,7 @@ async def generate_career_system(
 - 氛围基调：{project.world_atmosphere or '未设定'}
 - 世界规则：{project.world_rules or '未设定'}
 """
-            
+
             sanitized_user_requirements = user_requirements.strip()
             extra_requirement_text = ""
             if sanitized_user_requirements:
@@ -355,9 +356,9 @@ async def generate_career_system(
 - 副职业可以更加自由灵活，包含生产、辅助、特殊类型
 
 {extra_requirement_text}"""
-            
+
             yield await tracker.preparing("构建AI提示词...")
-            
+
             # 构建提示词
             prompt = f"""{project_context}
 
@@ -412,55 +413,63 @@ async def generate_career_system(
 7. 如果提供了用户额外要求，请优先满足；若与世界观冲突，必须以世界观为准进行合理改写
 8. 只返回纯JSON，不要添加任何解释文字
 """
-            
+
             yield await tracker.generating(0, max(3000, len(prompt) * 8), "调用AI生成新职业...")
             logger.info(f"🎯 开始为项目 {project_id} 生成新职业（增量式，已有{len(existing_careers)}个职业）")
-            
+
             try:
                 # 使用流式生成替代非流式
                 ai_response = ""
                 chunk_count = 0
                 estimated_total = max(3000, len(prompt) * 8)
-                
-                async for chunk in user_ai_service.generate_text_stream(prompt=prompt):
+
+                async for chunk in wrap_stream_with_heartbeat(
+                    user_ai_service.generate_text_stream(prompt=prompt),
+                    heartbeat_interval=15.0
+                ):
+                    # 心跳哨兵：发送心跳保活，不混入AI响应
+                    if chunk is HEARTBEAT:
+                        yield await tracker.heartbeat()
+                        continue
+
                     chunk_count += 1
                     ai_response += chunk
-                    
+
                     # 发送内容块
                     yield await SSEResponse.send_chunk(chunk)
-                    
+
                     # 平滑更新进度（避免过于频繁）
                     if chunk_count % 10 == 0:
                         yield await tracker.generating(len(ai_response), estimated_total)
-                    
+
                     # 心跳
                     if chunk_count % 20 == 0:
                         yield await tracker.heartbeat()
-                
+
             except Exception as ai_error:
                 logger.error(f"❌ AI服务调用异常：{str(ai_error)}")
                 yield await tracker.error(f"AI服务调用失败：{str(ai_error)}")
                 return
-            
+
             if not ai_response or not ai_response.strip():
                 yield await tracker.error("AI服务返回空响应")
                 return
-            
+
             yield await tracker.parsing("解析AI响应...", 0.5)
-            
+
             # 清洗并解析JSON
             try:
                 cleaned_response = user_ai_service._clean_json_response(ai_response)
-                career_data = json.loads(cleaned_response)
+                career_data = loads_json(cleaned_response)
                 logger.info(f"✅ 职业体系JSON解析成功")
             except json.JSONDecodeError as e:
                 logger.error(f"❌ 职业体系JSON解析失败: {e}")
                 logger.error(f"   原始响应预览: {ai_response[:200]}")
                 yield await tracker.error(f"AI返回的内容无法解析为JSON：{str(e)}")
                 return
-            
+
             yield await tracker.saving("保存主职业到数据库...", 0.3)
-            
+
             # 保存主职业
             main_careers_created = []
             created_career_ids = []
@@ -469,7 +478,7 @@ async def generate_career_system(
                     stages_json = json.dumps(career_info.get("stages", []), ensure_ascii=False)
                     attribute_bonuses = career_info.get("attribute_bonuses")
                     attribute_bonuses_json = json.dumps(attribute_bonuses, ensure_ascii=False) if attribute_bonuses else None
-                    
+
                     career = Career(
                         project_id=project_id,
                         name=career_info.get("name", f"未命名主职业{idx+1}"),
@@ -492,9 +501,9 @@ async def generate_career_system(
                 except Exception as e:
                     logger.error(f"  ❌ 创建主职业失败：{str(e)}")
                     continue
-            
+
             yield await tracker.saving("保存副职业到数据库...", 0.6)
-            
+
             # 保存副职业
             sub_careers_created = []
             for idx, career_info in enumerate(career_data.get("sub_careers", [])):
@@ -502,7 +511,7 @@ async def generate_career_system(
                     stages_json = json.dumps(career_info.get("stages", []), ensure_ascii=False)
                     attribute_bonuses = career_info.get("attribute_bonuses")
                     attribute_bonuses_json = json.dumps(attribute_bonuses, ensure_ascii=False) if attribute_bonuses else None
-                    
+
                     career = Career(
                         project_id=project_id,
                         name=career_info.get("name", f"未命名副职业{idx+1}"),
@@ -525,7 +534,7 @@ async def generate_career_system(
                 except Exception as e:
                     logger.error(f"  ❌ 创建副职业失败：{str(e)}")
                     continue
-            
+
             entity_generation_policy_service.record_override_audit(
                 db,
                 policy_decision,
@@ -536,15 +545,15 @@ async def generate_career_system(
                 },
             )
             await db.commit()
-            
+
             total_main = len(existing_main_careers) + len(main_careers_created)
             total_sub = len(existing_sub_careers) + len(sub_careers_created)
-            
+
             logger.info(f"🎉 新职业生成完成：新增主职业{len(main_careers_created)}个，新增副职业{len(sub_careers_created)}个")
             logger.info(f"   职业体系总数：主职业{total_main}个，副职业{total_sub}个")
-            
+
             yield await tracker.complete(f"新职业生成完成！（主职业{total_main}个，副职业{total_sub}个）")
-            
+
             # 发送结果数据
             yield await tracker.result({
                 "main_careers_count": len(main_careers_created),
@@ -552,16 +561,16 @@ async def generate_career_system(
                 "main_careers": main_careers_created,
                 "sub_careers": sub_careers_created
             })
-            
+
             yield await tracker.done()
-            
+
         except HTTPException as he:
             logger.error(f"HTTP异常: {he.detail}")
             yield await tracker.error(he.detail, he.status_code)
         except Exception as e:
             logger.error(f"生成职业体系失败: {str(e)}")
             yield await tracker.error(f"生成新职业失败: {str(e)}")
-    
+
     return create_sse_response(generate())
 
 
@@ -577,17 +586,17 @@ async def update_career(
         select(Career).where(Career.id == career_id)
     )
     career = result.scalar_one_or_none()
-    
+
     if not career:
         raise HTTPException(status_code=404, detail="职业不存在")
-    
+
     # 验证用户权限
     user_id = getattr(request.state, 'user_id', None)
     await verify_project_access(career.project_id, user_id, db)
-    
+
     # 更新字段
     update_data = career_update.model_dump(exclude_unset=True)
-    
+
     for field, value in update_data.items():
         if field == "stages" and value is not None:
             # 转换为JSON字符串
@@ -602,16 +611,16 @@ async def update_career(
             setattr(career, field, json.dumps(value, ensure_ascii=False))
         else:
             setattr(career, field, value)
-    
+
     await db.commit()
     await db.refresh(career)
-    
+
     logger.info(f"✅ 更新职业成功：{career.name} (ID: {career_id})")
-    
+
     # 解析JSON返回
     stages = json.loads(career.stages) if career.stages else []
     attribute_bonuses = json.loads(career.attribute_bonuses) if career.attribute_bonuses else None
-    
+
     return CareerResponse(
         id=career.id,
         project_id=career.project_id,
@@ -642,31 +651,31 @@ async def delete_career(
         select(Career).where(Career.id == career_id)
     )
     career = result.scalar_one_or_none()
-    
+
     if not career:
         raise HTTPException(status_code=404, detail="职业不存在")
-    
+
     # 验证用户权限
     user_id = getattr(request.state, 'user_id', None)
     await verify_project_access(career.project_id, user_id, db)
-    
+
     # 检查是否有角色使用该职业
     char_career_result = await db.execute(
         select(func.count(CharacterCareer.id)).where(CharacterCareer.career_id == career_id)
     )
     usage_count = char_career_result.scalar_one()
-    
+
     if usage_count > 0:
         raise HTTPException(
             status_code=400,
             detail=f"该职业被{usage_count}个角色使用，无法删除。请先移除角色的职业关联。"
         )
-    
+
     await db.delete(career)
     await db.commit()
-    
+
     logger.info(f"✅ 删除职业成功：{career.name} (ID: {career_id})")
-    
+
     return {"message": "职业删除成功"}
 
 
@@ -686,14 +695,14 @@ async def get_career(
         select(Career).where(Career.id == career_id)
     )
     career = result.scalar_one_or_none()
-    
+
     if not career:
         raise HTTPException(status_code=404, detail="职业不存在")
-    
+
     # 验证用户权限
     user_id = getattr(request.state, 'user_id', None)
     await verify_project_access(career.project_id, user_id, db)
-    
+
     return await _career_response_dict(
         career,
         db,
@@ -723,14 +732,14 @@ async def get_character_careers(
         select(Character).where(Character.id == character_id)
     )
     character = char_result.scalar_one_or_none()
-    
+
     if not character:
         raise HTTPException(status_code=404, detail="角色不存在")
-    
+
     # 验证用户权限
     user_id = getattr(request.state, 'user_id', None)
     await verify_project_access(character.project_id, user_id, db)
-    
+
     # 获取角色的所有职业关联
     result = await db.execute(
         select(CharacterCareer, Career)
@@ -739,14 +748,14 @@ async def get_character_careers(
         .order_by(CharacterCareer.career_type.desc())  # main排在前
     )
     career_relations = result.all()
-    
+
     main_career = None
     sub_careers = []
-    
+
     for char_career, career in career_relations:
         # 解析职业的阶段信息
         stages = json.loads(career.stages) if career.stages else []
-        
+
         # 找到当前阶段信息
         stage_name = "未知阶段"
         stage_description = None
@@ -755,7 +764,7 @@ async def get_character_careers(
                 stage_name = stage.get("name", f"第{char_career.current_stage}阶段")
                 stage_description = stage.get("description")
                 break
-        
+
         career_detail = CharacterCareerDetail(
             id=char_career.id,
             character_id=char_career.character_id,
@@ -773,12 +782,12 @@ async def get_character_careers(
             created_at=char_career.created_at,
             updated_at=char_career.updated_at
         )
-        
+
         if char_career.career_type == "main":
             main_career = career_detail
         else:
             sub_careers.append(career_detail)
-    
+
     response = CharacterCareerResponse(
         main_career=main_career,
         sub_careers=sub_careers
@@ -820,14 +829,14 @@ async def set_main_career(
         select(Character).where(Character.id == character_id)
     )
     character = char_result.scalar_one_or_none()
-    
+
     if not character:
         raise HTTPException(status_code=404, detail="角色不存在")
-    
+
     # 验证用户权限
     user_id = getattr(request.state, 'user_id', None)
     await verify_project_access(character.project_id, user_id, db)
-    
+
     # 验证职业存在且为主职业类型
     career_result = await db.execute(
         select(Career).where(
@@ -836,20 +845,20 @@ async def set_main_career(
         )
     )
     career = career_result.scalar_one_or_none()
-    
+
     if not career:
         raise HTTPException(status_code=404, detail="职业不存在")
-    
+
     if career.type != "main":
         raise HTTPException(status_code=400, detail="该职业不是主职业类型，无法设置为主职业")
-    
+
     # 验证阶段有效性
     if career_request.current_stage > career.max_stage:
         raise HTTPException(
             status_code=400,
             detail=f"阶段超出范围，该职业最大阶段为{career.max_stage}"
         )
-    
+
     # 检查是否已有主职业
     existing_main = await db.execute(
         select(CharacterCareer).where(
@@ -858,12 +867,12 @@ async def set_main_career(
         )
     )
     current_main = existing_main.scalar_one_or_none()
-    
+
     if current_main:
         # 删除旧的主职业
         await db.delete(current_main)
         logger.info(f"  移除旧主职业关联: {current_main.career_id}")
-    
+
     # 创建新的主职业关联
     char_career = CharacterCareer(
         character_id=character_id,
@@ -890,9 +899,9 @@ async def set_main_career(
         story_time_label=career_request.story_time_label or career_request.started_at,
     )
     await db.commit()
-    
+
     logger.info(f"✅ 设置主职业成功：角色{character.name} -> {career.name}（第{career_request.current_stage}阶段）")
-    
+
     return {"message": "主职业设置成功", "career_name": career.name}
 
 
@@ -909,14 +918,14 @@ async def add_sub_career(
         select(Character).where(Character.id == character_id)
     )
     character = char_result.scalar_one_or_none()
-    
+
     if not character:
         raise HTTPException(status_code=404, detail="角色不存在")
-    
+
     # 验证用户权限
     user_id = getattr(request.state, 'user_id', None)
     await verify_project_access(character.project_id, user_id, db)
-    
+
     # 验证职业存在且为副职业类型
     career_result = await db.execute(
         select(Career).where(
@@ -925,20 +934,20 @@ async def add_sub_career(
         )
     )
     career = career_result.scalar_one_or_none()
-    
+
     if not career:
         raise HTTPException(status_code=404, detail="职业不存在")
-    
+
     if career.type != "sub":
         raise HTTPException(status_code=400, detail="该职业不是副职业类型，无法添加为副职业")
-    
+
     # 验证阶段有效性
     if career_request.current_stage > career.max_stage:
         raise HTTPException(
             status_code=400,
             detail=f"阶段超出范围，该职业最大阶段为{career.max_stage}"
         )
-    
+
     # 检查是否已存在
     existing_check = await db.execute(
         select(CharacterCareer).where(
@@ -948,7 +957,7 @@ async def add_sub_career(
     )
     if existing_check.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="该角色已拥有此副职业")
-    
+
     # 检查副职业数量限制（可选，这里设置为最多5个）
     sub_count_result = await db.execute(
         select(func.count(CharacterCareer.id)).where(
@@ -957,10 +966,10 @@ async def add_sub_career(
         )
     )
     sub_count = sub_count_result.scalar_one()
-    
+
     if sub_count >= 5:
         raise HTTPException(status_code=400, detail="副职业数量已达上限（最多5个）")
-    
+
     # 创建副职业关联
     char_career = CharacterCareer(
         character_id=character_id,
@@ -985,9 +994,9 @@ async def add_sub_career(
         story_time_label=career_request.story_time_label or career_request.started_at,
     )
     await db.commit()
-    
+
     logger.info(f"✅ 添加副职业成功：角色{character.name} -> {career.name}（第{career_request.current_stage}阶段）")
-    
+
     return {"message": "副职业添加成功", "career_name": career.name}
 
 
@@ -1011,27 +1020,27 @@ async def update_career_stage(
         )
     )
     relation_data = result.one_or_none()
-    
+
     if not relation_data:
         raise HTTPException(status_code=404, detail="角色职业关联不存在")
-    
+
     char_career, career, character = relation_data
-    
+
     # 验证用户权限
     user_id = getattr(request.state, 'user_id', None)
     await verify_project_access(character.project_id, user_id, db)
-    
+
     # 验证新阶段有效性
     if stage_request.current_stage > career.max_stage:
         raise HTTPException(
             status_code=400,
             detail=f"阶段超出范围，该职业最大阶段为{career.max_stage}"
         )
-    
+
     # 验证阶段递增规则（不能倒退，除非降级）
     if stage_request.current_stage < char_career.current_stage:
         logger.warning(f"⚠️ 角色{character.name}的职业{career.name}阶段降低：{char_career.current_stage} -> {stage_request.current_stage}")
-    
+
     # 更新阶段信息
     char_career.current_stage = stage_request.current_stage
     char_career.stage_progress = stage_request.stage_progress
@@ -1054,11 +1063,11 @@ async def update_career_stage(
         valid_from_chapter_order=stage_request.valid_from_chapter_order,
         story_time_label=stage_request.story_time_label or stage_request.reached_current_stage_at,
     )
-    
+
     await db.commit()
-    
+
     logger.info(f"✅ 更新职业阶段成功：{character.name}的{career.name} -> 第{stage_request.current_stage}阶段")
-    
+
     return {
         "message": "职业阶段更新成功",
         "career_name": career.name,
@@ -1084,23 +1093,23 @@ async def remove_sub_career(
         )
     )
     relation_data = result.one_or_none()
-    
+
     if not relation_data:
         raise HTTPException(status_code=404, detail="角色职业关联不存在")
-    
+
     char_career, character = relation_data
-    
+
     # 验证用户权限
     user_id = getattr(request.state, 'user_id', None)
     await verify_project_access(character.project_id, user_id, db)
-    
+
     # 不允许删除主职业
     if char_career.career_type == "main":
         raise HTTPException(status_code=400, detail="无法删除主职业，只能更换")
-    
+
     await db.delete(char_career)
     await db.commit()
-    
+
     logger.info(f"✅ 删除副职业成功：角色{character.name}移除职业{career_id}")
-    
+
     return {"message": "副职业删除成功"}

@@ -54,65 +54,75 @@ async def _register_plugin_background(
     plugin_type: str,
     server_url: str,
     headers: Optional[dict],
-    config: Optional[dict]
+    config: Optional[dict],
+    max_retries: int = 2,
+    retry_delay: float = 3.0
 ):
     """
-    后台任务：注册MCP插件并更新数据库状态
+    后台任务：注册MCP插件并更新数据库状态（带重试）
 
-    在独立的任务中执行MCP连接，避免阻塞请求处理
+    在独立的任务中执行MCP连接，避免阻塞请求处理。
+    连接失败时会自动重试，提高对临时网络问题的容错性。
     """
+    last_error = None
+
+    for attempt in range(max_retries + 1):
+        try:
+            if attempt > 0:
+                logger.info(f"后台注册MCP插件重试 ({attempt}/{max_retries}): {plugin_name}")
+                await asyncio.sleep(retry_delay)
+            else:
+                logger.info(f"后台注册MCP插件: {plugin_name}")
+
+            if plugin_type in HTTP_PLUGIN_TYPES and server_url:
+                server_url = _validate_mcp_server_url(plugin_type, server_url)
+                success = await mcp_client.register(MCPPluginConfig(
+                    user_id=user_id,
+                    plugin_name=plugin_name,
+                    url=server_url,
+                    plugin_type=plugin_type,
+                    headers=headers,
+                    timeout=config.get('timeout', 60.0) if config else 60.0
+                ))
+            else:
+                success = False
+
+            if success:
+                # 更新数据库状态为active
+                engine = await get_engine(user_id)
+                AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+                async with AsyncSessionLocal() as db:
+                    stmt = (
+                        update(MCPPlugin)
+                        .where(MCPPlugin.user_id == user_id, MCPPlugin.plugin_name == plugin_name)
+                        .values(status="active", last_error=None)
+                    )
+                    await db.execute(stmt)
+                    await db.commit()
+                logger.info(f"后台注册MCP插件成功: {plugin_name}")
+                return
+            else:
+                last_error = "连接失败"
+
+        except Exception as e:
+            last_error = str(e)
+            logger.warning(f"后台注册MCP插件异常 (尝试 {attempt + 1}/{max_retries + 1}): {plugin_name}, 错误: {e}")
+
+    # 所有重试都失败，更新数据库状态为error
+    logger.error(f"后台注册MCP插件最终失败 (已重试{max_retries}次): {plugin_name}, 错误: {last_error}")
     try:
-        logger.info(f"后台注册MCP插件: {plugin_name}")
-
-        if plugin_type in HTTP_PLUGIN_TYPES and server_url:
-            server_url = _validate_mcp_server_url(plugin_type, server_url)
-            success = await mcp_client.register(MCPPluginConfig(
-                user_id=user_id,
-                plugin_name=plugin_name,
-                url=server_url,
-                plugin_type=plugin_type,
-                headers=headers,
-                timeout=config.get('timeout', 60.0) if config else 60.0
-            ))
-        else:
-            success = False
-
-        # 更新数据库状态
         engine = await get_engine(user_id)
         AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-
         async with AsyncSessionLocal() as db:
             stmt = (
                 update(MCPPlugin)
                 .where(MCPPlugin.user_id == user_id, MCPPlugin.plugin_name == plugin_name)
-                .values(
-                    status="active" if success else "error",
-                    last_error=None if success else "连接失败"
-                )
+                .values(status="error", last_error=str(last_error)[:500] if last_error else "连接失败")
             )
             await db.execute(stmt)
             await db.commit()
-
-        if success:
-            logger.info(f"后台注册MCP插件成功: {plugin_name}")
-        else:
-            logger.warning(f"后台注册MCP插件失败: {plugin_name}")
-
-    except Exception as e:
-        logger.error(f"后台注册MCP插件异常: {plugin_name}, 错误: {e}")
-        try:
-            engine = await get_engine(user_id)
-            AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-            async with AsyncSessionLocal() as db:
-                stmt = (
-                    update(MCPPlugin)
-                    .where(MCPPlugin.user_id == user_id, MCPPlugin.plugin_name == plugin_name)
-                    .values(status="error", last_error=str(e))
-                )
-                await db.execute(stmt)
-                await db.commit()
-        except Exception as db_error:
-            logger.error(f"更新插件状态失败: {db_error}")
+    except Exception as db_error:
+        logger.error(f"更新插件状态失败: {db_error}")
 
 
 async def _unregister_plugin_safe(user_id: str, plugin_name: str):
@@ -127,11 +137,11 @@ async def _unregister_plugin_safe(user_id: str, plugin_name: str):
 async def _register_plugin_to_facade(plugin: MCPPlugin, user_id: str) -> bool:
     """
     将插件注册到统一门面
-    
+
     Args:
         plugin: 插件对象
         user_id: 用户ID
-        
+
     Returns:
         是否注册成功
     """
@@ -161,18 +171,18 @@ async def list_plugins(
     获取用户的所有MCP插件
     """
     query = select(MCPPlugin).where(MCPPlugin.user_id == user.user_id)
-    
+
     if enabled_only:
         query = query.where(MCPPlugin.enabled == True)
-    
+
     if category:
         query = query.where(MCPPlugin.category == category)
-    
+
     query = query.order_by(MCPPlugin.sort_order, MCPPlugin.created_at)
-    
+
     result = await db.execute(query)
     plugins = result.scalars().all()
-    
+
     logger.info(f"用户 {user.user_id} 查询插件列表，共 {len(plugins)} 个")
     return plugins
 
@@ -194,43 +204,47 @@ async def create_plugin(
         )
     )
     existing = result.scalar_one_or_none()
-    
+
     if existing:
         raise HTTPException(status_code=400, detail=f"插件名已存在: {data.plugin_name}")
-    
+
     # 创建插件数据
     plugin_data = data.model_dump()
     plugin_data["server_url"] = _validate_mcp_server_url(
         plugin_data.get("plugin_type", "http"),
         plugin_data.get("server_url")
     )
-    
+
     # 如果没有提供display_name，使用plugin_name作为默认值
     if not plugin_data.get("display_name"):
         plugin_data["display_name"] = plugin_data["plugin_name"]
-    
+
     # 创建插件
     plugin = MCPPlugin(
         user_id=user.user_id,
         **plugin_data
     )
-    
+
+    # 如果启用，设为pending状态等待后台连接
+    if plugin.enabled:
+        plugin.status = "pending"
+
     db.add(plugin)
     await db.commit()
     await db.refresh(plugin)
-    
-    # 如果启用，注册到统一门面
+
+    # 如果启用，后台注册到统一门面（避免MCP操作阻塞导致超时）
     if plugin.enabled:
-        success = await _register_plugin_to_facade(plugin, user.user_id)
-        if success:
-            plugin.status = "active"
-        else:
-            plugin.status = "error"
-            plugin.last_error = "加载失败"
-        await db.commit()
-        await db.refresh(plugin)
-    
-    logger.info(f"用户 {user.user_id} 创建插件: {plugin.plugin_name}")
+        asyncio.create_task(_register_plugin_background(
+            user_id=user.user_id,
+            plugin_name=plugin.plugin_name,
+            plugin_type=plugin.plugin_type,
+            server_url=plugin.server_url,
+            headers=plugin.headers,
+            config=plugin.config
+        ))
+
+    logger.info(f"用户 {user.user_id} 创建插件: {plugin.plugin_name}（MCP注册在后台执行）")
     return plugin
 
 
@@ -242,40 +256,40 @@ async def create_plugin_simple(
 ):
     """
     通过标准MCP配置JSON创建或更新插件（简化版）
-    
+
     接受格式：
     {
       "config_json": '{"mcpServers": {"exa": {"type": "http", "url": "...", "headers": {}}}}',
       "category": "search"
     }
-    
+
     自动从mcpServers中提取插件名称（取第一个键）
     如果插件已存在，则更新；否则创建新插件
     """
     try:
         # 解析配置JSON
         config = json.loads(data.config_json)
-        
+
         # 验证格式
         if "mcpServers" not in config:
             raise HTTPException(status_code=400, detail="配置JSON必须包含mcpServers字段")
-        
+
         servers = config["mcpServers"]
         if not servers or len(servers) == 0:
             raise HTTPException(status_code=400, detail="mcpServers不能为空")
-        
+
         # 自动提取第一个插件名称
         plugin_name = list(servers.keys())[0]
         server_config = servers[plugin_name]
-        
+
         logger.info(f"从配置中提取插件名称: {plugin_name}")
-        
+
         # 提取配置
         server_type = server_config.get("type", "http")
-        
+
         if server_type not in ["http", "stdio", "streamable_http", "sse"]:
             raise HTTPException(status_code=400, detail=f"不支持的服务器类型: {server_type}")
-        
+
         # 检查插件名是否已存在
         result = await db.execute(
             select(MCPPlugin).where(
@@ -284,37 +298,37 @@ async def create_plugin_simple(
             )
         )
         existing = result.scalar_one_or_none()
-        
+
         # 构建插件数据
         plugin_data = {
             "plugin_name": plugin_name,
-            "display_name": plugin_name, 
+            "display_name": plugin_name,
             "plugin_type": server_type,
             "enabled": data.enabled,
             "category": data.category,
             "sort_order": 0
         }
-        
+
         if server_type in HTTP_PLUGIN_TYPES:
             plugin_data["server_url"] = _validate_mcp_server_url(server_type, server_config.get("url"))
             plugin_data["headers"] = server_config.get("headers", {})
-        
+
         elif server_type == "stdio":
             plugin_data["command"] = server_config.get("command")
             plugin_data["args"] = server_config.get("args", [])
             plugin_data["env"] = server_config.get("env", {})
-            
+
             if not plugin_data["command"]:
                 raise HTTPException(status_code=400, detail="Stdio类型插件必须提供command字段")
-        
+
         if existing:
             # 更新现有插件
             logger.info(f"插件 {plugin_name} 已存在，执行更新操作")
-            
+
             # 保存旧状态
             old_enabled = existing.enabled
             old_plugin_name = existing.plugin_name
-            
+
             # 更新字段
             for key, value in plugin_data.items():
                 setattr(existing, key, value)
@@ -371,9 +385,9 @@ async def create_plugin_simple(
                 ))
 
             logger.info(f"用户 {user.user_id} 通过简化配置创建插件: {plugin_name}")
-        
+
         return plugin
-        
+
     except json.JSONDecodeError as e:
         raise HTTPException(status_code=400, detail=f"配置JSON格式错误: {str(e)}")
     except HTTPException:
@@ -399,10 +413,10 @@ async def get_plugin(
         )
     )
     plugin = result.scalar_one_or_none()
-    
+
     if not plugin:
         raise HTTPException(status_code=404, detail="插件不存在")
-    
+
     return plugin
 
 
@@ -423,10 +437,10 @@ async def update_plugin(
         )
     )
     plugin = result.scalar_one_or_none()
-    
+
     if not plugin:
         raise HTTPException(status_code=404, detail="插件不存在")
-    
+
     # 更新字段
     update_data = data.model_dump(exclude_unset=True)
     target_type = update_data.get("plugin_type", plugin.plugin_type)
@@ -437,16 +451,30 @@ async def update_plugin(
         )
     for key, value in update_data.items():
         setattr(plugin, key, value)
-    
+
+    # 如果启用，设为pending状态等待后台连接
+    if plugin.enabled:
+        plugin.status = "pending"
+        plugin.last_error = None
+
     await db.commit()
     await db.refresh(plugin)
-    
-    # 如果插件已启用，重新注册
+
+    # 如果插件已启用，后台重新注册MCP连接
     if plugin.enabled:
-        await mcp_client.unregister(user.user_id, plugin.plugin_name)
-        await _register_plugin_to_facade(plugin, user.user_id)
-    
-    logger.info(f"用户 {user.user_id} 更新插件: {plugin.plugin_name}")
+        # 先后台注销旧连接
+        asyncio.create_task(_unregister_plugin_safe(user.user_id, plugin.plugin_name))
+        # 再后台注册新连接
+        asyncio.create_task(_register_plugin_background(
+            user_id=user.user_id,
+            plugin_name=plugin.plugin_name,
+            plugin_type=plugin.plugin_type,
+            server_url=plugin.server_url,
+            headers=plugin.headers,
+            config=plugin.config
+        ))
+
+    logger.info(f"用户 {user.user_id} 更新插件: {plugin.plugin_name}（MCP操作在后台执行）")
     return plugin
 
 
@@ -466,19 +494,23 @@ async def delete_plugin(
         )
     )
     plugin = result.scalar_one_or_none()
-    
+
     if not plugin:
         raise HTTPException(status_code=404, detail="插件不存在")
-    
-    # 从统一门面注销
-    await mcp_client.unregister(user.user_id, plugin.plugin_name)
-    
-    # 删除数据库记录
+
+    # 保存插件信息用于后台注销
+    plugin_name = plugin.plugin_name
+    user_id = user.user_id
+
+    # 先删除数据库记录
     await db.delete(plugin)
     await db.commit()
-    
-    logger.info(f"用户 {user.user_id} 删除插件: {plugin.plugin_name}")
-    return {"message": "插件已删除", "plugin_name": plugin.plugin_name}
+
+    # 后台从统一门面注销（避免MCP操作阻塞导致超时）
+    asyncio.create_task(_unregister_plugin_safe(user_id, plugin_name))
+
+    logger.info(f"用户 {user.user_id} 删除插件: {plugin_name}（MCP注销在后台执行）")
+    return {"message": "插件已删除", "plugin_name": plugin_name}
 
 
 @router.post("/{plugin_id}/toggle", response_model=MCPPluginResponse)
@@ -490,6 +522,10 @@ async def toggle_plugin(
 ):
     """
     启用或禁用插件
+
+    启用时：先更新数据库状态为pending，再通过后台任务注册MCP连接，
+    避免长时间持有数据库会话导致超时。
+    禁用时：先更新数据库状态，再通过后台任务注销MCP连接。
     """
     result = await db.execute(
         select(MCPPlugin).where(
@@ -498,62 +534,46 @@ async def toggle_plugin(
         )
     )
     plugin = result.scalar_one_or_none()
-    
+
     if not plugin:
         raise HTTPException(status_code=404, detail="插件不存在")
-    
+
     # 保存插件信息用于后续MCP操作
     plugin_name = plugin.plugin_name
     plugin_type = plugin.plugin_type
     server_url = plugin.server_url
     headers = plugin.headers
     config = plugin.config
-    
-    # 先更新数据库状态
+
+    # 更新数据库状态
     plugin.enabled = enabled
-    if not enabled:
+    if enabled:
+        # 启用时先设为pending状态，等待后台MCP连接完成
+        plugin.status = "pending"
+        plugin.last_error = None
+    else:
         plugin.status = "inactive"
-    
+
     await db.commit()
     await db.refresh(plugin)
-    
-    # 数据库操作完成后，再进行MCP操作
+
+    # 数据库操作完成后，通过后台任务进行MCP操作（避免长时间持有数据库会话）
     if enabled:
-        # 启用：注册到统一门面
-        try:
-            if plugin_type in HTTP_PLUGIN_TYPES and server_url:
-                server_url = _validate_mcp_server_url(plugin_type, server_url)
-                success = await mcp_client.register(MCPPluginConfig(
-                    user_id=user.user_id,
-                    plugin_name=plugin_name,
-                    url=server_url,
-                    plugin_type=plugin_type,
-                    headers=headers,
-                    timeout=config.get('timeout', 60.0) if config else 60.0
-                ))
-            else:
-                success = False
-            
-            # 更新状态
-            plugin.status = "active" if success else "error"
-            plugin.last_error = None if success else "加载失败"
-            await db.commit()
-            await db.refresh(plugin)
-        except Exception as e:
-            logger.error(f"注册插件失败: {plugin_name}, 错误: {e}")
-            plugin.status = "error"
-            plugin.last_error = str(e)
-            await db.commit()
-            await db.refresh(plugin)
+        # 启用：后台注册到统一门面
+        asyncio.create_task(_register_plugin_background(
+            user_id=user.user_id,
+            plugin_name=plugin_name,
+            plugin_type=plugin_type,
+            server_url=server_url,
+            headers=headers,
+            config=config
+        ))
     else:
-        # 禁用：从统一门面注销（不影响数据库状态）
-        try:
-            await mcp_client.unregister(user.user_id, plugin_name)
-        except Exception as e:
-            logger.warning(f"注销插件时出错（可忽略）: {plugin_name}, 错误: {e}")
-    
+        # 禁用：后台从统一门面注销（不影响数据库状态）
+        asyncio.create_task(_unregister_plugin_safe(user.user_id, plugin_name))
+
     action = "启用" if enabled else "禁用"
-    logger.info(f"用户 {user.user_id} {action}插件: {plugin_name}")
+    logger.info(f"用户 {user.user_id} {action}插件: {plugin_name}（MCP操作在后台执行）")
     return plugin
 
 
@@ -655,14 +675,14 @@ async def _ensure_plugin_registered(
 ) -> bool:
     """
     确保插件已注册到统一门面
-    
+
     Args:
         plugin: 插件对象
         user_id: 用户ID
-        
+
     Returns:
         是否成功
-        
+
     Raises:
         HTTPException: 注册失败
     """
@@ -703,14 +723,14 @@ async def get_plugin_status(
         )
     )
     plugin = result.scalar_one_or_none()
-    
+
     if not plugin:
         raise HTTPException(status_code=404, detail="插件不存在")
-    
+
     session_stats = mcp_client.get_session_stats()
     session_key = f"{user.user_id}:{plugin.plugin_name}"
     session_info = next((s for s in session_stats.get("sessions", []) if s["key"] == session_key), None)
-    
+
     return {
         "plugin_id": plugin_id,
         "plugin_name": plugin.plugin_name,
@@ -730,10 +750,10 @@ async def get_metrics(
 ):
     """
     获取MCP工具调用指标
-    
+
     Query参数:
         - tool_name: 可选，指定工具名称获取特定工具的指标
-        
+
     Returns:
         工具调用指标字典，包含：
         - total_calls: 总调用次数
@@ -745,7 +765,7 @@ async def get_metrics(
     """
     # 使用统一门面获取指标
     metrics = mcp_client.get_metrics(tool_name)
-    
+
     return {
         "metrics": metrics,
         "tool_name": tool_name,
@@ -759,7 +779,7 @@ async def get_cache_stats(
 ):
     """
     获取工具缓存统计信息
-    
+
     Returns:
         缓存统计信息，包含：
         - total_entries: 缓存条目总数
@@ -769,7 +789,7 @@ async def get_cache_stats(
     """
     # 使用统一门面获取缓存统计
     stats = mcp_client.get_cache_stats()
-    
+
     return {
         "cache_stats": stats,
         "timestamp": datetime.now().isoformat()
@@ -782,7 +802,7 @@ async def get_session_stats(
 ):
     """
     获取MCP会话统计信息
-    
+
     Returns:
         会话统计信息，包含：
         - total_sessions: 会话总数
@@ -790,7 +810,7 @@ async def get_session_stats(
     """
     # 使用统一门面获取会话统计
     stats = mcp_client.get_session_stats()
-    
+
     return {
         "session_stats": stats,
         "timestamp": datetime.now().isoformat()
@@ -805,11 +825,11 @@ async def clear_cache(
 ):
     """
     清理工具缓存
-    
+
     Query参数:
         - user_id: 可选，清理特定用户的缓存
         - plugin_name: 可选，清理特定插件的缓存
-        
+
     说明:
         - 不提供任何参数：清理所有缓存
         - 只提供user_id：清理该用户的所有缓存
@@ -818,13 +838,13 @@ async def clear_cache(
     # 非管理员只能清理自己的缓存
     if user_id and user_id != user.user_id:
         raise HTTPException(status_code=403, detail="无权清理其他用户的缓存")
-    
+
     # 如果没有指定user_id，使用当前用户
     target_user_id = user_id or user.user_id
-    
+
     # 使用统一门面清理缓存
     mcp_client.clear_cache(target_user_id, plugin_name)
-    
+
     message = "已清理"
     if plugin_name:
         message += f"插件 {plugin_name} 的缓存"
@@ -832,9 +852,9 @@ async def clear_cache(
         message += f"用户 {target_user_id} 的所有缓存"
     else:
         message += "所有缓存"
-    
+
     logger.info(f"用户 {user.user_id} {message}")
-    
+
     return {
         "success": True,
         "message": message,
@@ -858,24 +878,24 @@ async def get_plugin_tools(
         )
     )
     plugin = result.scalar_one_or_none()
-    
+
     if not plugin:
         raise HTTPException(status_code=404, detail="插件不存在")
-    
+
     if not plugin.enabled:
         raise HTTPException(status_code=400, detail="插件未启用")
-    
+
     try:
         # 确保插件已注册
         await _ensure_plugin_registered(plugin, user.user_id)
-        
+
         # 使用统一门面获取工具列表
         tools = await mcp_client.get_tools(user.user_id, plugin.plugin_name)
-        
+
         # 更新数据库中的工具缓存
         plugin.tools = tools
         await db.commit()
-        
+
         return {
             "plugin_name": plugin.plugin_name,
             "tools": tools,
@@ -905,17 +925,17 @@ async def call_mcp_tool(
         )
     )
     plugin = result.scalar_one_or_none()
-    
+
     if not plugin:
         raise HTTPException(status_code=404, detail="插件不存在")
-    
+
     if not plugin.enabled:
         raise HTTPException(status_code=400, detail="插件未启用")
-    
+
     try:
         # 确保插件已注册
         await _ensure_plugin_registered(plugin, user.user_id)
-        
+
         # 使用统一门面调用工具
         tool_result = await mcp_client.call_tool(
             user_id=user.user_id,
@@ -923,7 +943,7 @@ async def call_mcp_tool(
             tool_name=data.tool_name,
             arguments=data.arguments
         )
-        
+
         return {
             "success": True,
             "plugin_name": plugin.plugin_name,

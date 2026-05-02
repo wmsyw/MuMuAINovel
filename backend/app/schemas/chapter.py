@@ -57,7 +57,7 @@ class ChapterResponse(BaseModel):
     outline_order: Optional[int] = None  # 大纲排序序号（从Outline表联查）
     created_at: datetime
     updated_at: datetime
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -138,6 +138,7 @@ class BatchGenerateRequest(BaseModel):
     enable_mcp: bool = Field(True, description="是否启用MCP工具增强（搜索参考资料）")
     max_retries: int = Field(3, description="每个章节的最大重试次数", ge=0, le=5)
     model: Optional[str] = Field(None, description="指定使用的AI模型，不提供则使用用户默认模型")
+    narrative_perspective: Optional[str] = Field(None, description="临时指定叙事人称，不提供则使用项目默认")
 
 
 class BatchGenerateResponse(BaseModel):
@@ -182,7 +183,7 @@ class ExpansionPlanUpdate(BaseModel):
     conflict_type: Optional[str] = Field(None, description="冲突类型")
     estimated_words: Optional[int] = Field(None, description="预估字数", ge=500, le=10000)
     scenes: Optional[List[SceneData]] = Field(None, description="场景列表")
-    
+
     model_config = ConfigDict(json_schema_extra={
             "example": {
                 "key_events": ["主角遇到挑战", "关键决策时刻"],
@@ -215,7 +216,7 @@ class PartialRegenerateRequest(BaseModel):
     start_position: int = Field(..., description="在章节内容中的起始位置（字符索引）", ge=0)
     end_position: int = Field(..., description="在章节内容中的结束位置（字符索引）", ge=0)
     user_instructions: str = Field(..., description="用户的修改要求", min_length=1, max_length=1000)
-    
+
     # 可选参数
     context_chars: int = Field(
         500,
@@ -234,7 +235,7 @@ class PartialRegenerateRequest(BaseModel):
         ge=10,
         le=5000
     )
-    
+
     model_config = ConfigDict(json_schema_extra={
         "example": {
             "selected_text": "林霄挥剑斩向敌人，剑光凌厉，一招制敌。",

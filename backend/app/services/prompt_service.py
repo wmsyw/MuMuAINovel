@@ -114,15 +114,18 @@ class WritingStyleManager:
         """
         将写作风格应用到基础提示词中
 
+        注意：写作风格已通过 system_prompt 注入（system_prompt_with_style），
+        此方法仅追加输出指令，不再重复注入 style_content，避免风格信息被注入两次。
+
         Args:
             base_prompt: 基础提示词
-            style_content: 风格要求内容
+            style_content: 风格要求内容（已通过 system_prompt 注入，此处不使用）
 
         Returns:
-            组合后的提示词
+            追加输出指令后的提示词
         """
-        # 在基础提示词末尾添加风格要求
-        return f"{base_prompt}\n\n{style_content}\n\n请直接输出章节正文内容，不要包含章节标题和其他说明文字。"
+        # 写作风格已在 system_prompt 中注入，此处只追加输出格式指令
+        return f"{base_prompt}\n\n请直接输出章节正文内容，不要包含章节标题和其他说明文字。"
 
 
 class PromptService:
@@ -2433,7 +2436,7 @@ class PromptService:
   "appearance": "外貌描述（50-100字）",
   "traits": ["特长1", "特长2", "特长3"],
   "relationships_text": "用自然语言描述该角色与其他角色的关系网络",
-  
+
   "relationships": [
     {{
       "target_character_name": "已存在的角色名称",
@@ -2451,7 +2454,7 @@ class PromptService:
       "loyalty": 80
     }}
   ],
-  
+
   "career_info": {{
     "main_career_name": "从可用主职业列表中选择的职业名称",
     "main_career_stage": 5,

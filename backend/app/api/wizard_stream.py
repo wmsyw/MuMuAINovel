@@ -17,6 +17,7 @@ from app.models.writing_style import WritingStyle
 from app.models.project_default_style import ProjectDefaultStyle
 from app.services.ai_service import AIService
 from app.services.entity_generation_policy_service import entity_generation_policy_service
+from app.services.json_helper import loads_json
 from app.services.prompt_service import prompt_service, PromptService
 from app.services.plot_expansion_service import PlotExpansionService
 from app.services.organization_compat import add_organization_member, create_organization_entity_from_payload
@@ -51,11 +52,11 @@ async def world_building_generator(
     db_committed = False
     # 初始化标准进度追踪器
     tracker = WizardProgressTracker("世界观")
-    
+
     try:
         # 发送开始消息
         yield await tracker.start()
-        
+
         # 提取参数
         title = data.get("title")
         description = data.get("description")
@@ -70,11 +71,11 @@ async def world_building_generator(
         model = data.get("model")
         enable_mcp = data.get("enable_mcp", True)  # 默认启用MCP
         user_id = data.get("user_id")  # 从中间件注入
-        
+
         if not title or not description or not theme or not genre:
             yield await tracker.error("title、description、theme 和 genre 是必需的参数", 400)
             return
-        
+
         # 获取基础提示词（支持自定义）
         yield await tracker.preparing("准备AI提示词...")
         template = await PromptService.get_template("WORLD_BUILDING", user_id, db)
@@ -85,36 +86,36 @@ async def world_building_generator(
             genre=genre or "通用类型",
             description=description or "暂无简介"
         )
-        
+
         # 设置用户信息以启用MCP
         if user_id:
             user_ai_service.user_id = user_id
             user_ai_service.db_session = db
-        
+
         # ===== 流式生成世界观（带重试机制） =====
         MAX_WORLD_RETRIES = 3  # 最多重试3次
         world_retry_count = 0
         world_generation_success = False
         world_data = {}
         estimated_total = 1000
-        
+
         while world_retry_count < MAX_WORLD_RETRIES and not world_generation_success:
             try:
                 # 重试时重置生成进度
                 if world_retry_count > 0:
                     tracker.reset_generating_progress()
-                
+
                 yield await tracker.generating(
                     current_chars=0,
                     estimated_total=estimated_total,
                     retry_count=world_retry_count,
                     max_retries=MAX_WORLD_RETRIES
                 )
-                
+
                 # 流式生成世界观
                 accumulated_text = ""
                 chunk_count = 0
-                
+
                 async for chunk in user_ai_service.generate_text_stream(
                     prompt=base_prompt,
                     provider=provider,
@@ -123,10 +124,10 @@ async def world_building_generator(
                 ):
                     chunk_count += 1
                     accumulated_text += chunk
-                    
+
                     # 发送内容块
                     yield await tracker.generating_chunk(chunk)
-                    
+
                     # 定期更新进度
                     current_len = len(accumulated_text)
                     if chunk_count % 10 == 0:
@@ -136,11 +137,11 @@ async def world_building_generator(
                             retry_count=world_retry_count,
                             max_retries=MAX_WORLD_RETRIES
                         )
-                    
+
                     # 每20个块发送心跳
                     if chunk_count % 20 == 0:
                         yield await tracker.heartbeat()
-                
+
                 # 检查是否返回空响应
                 if not accumulated_text or not accumulated_text.strip():
                     logger.warning(f"⚠️ AI返回空世界观（尝试{world_retry_count+1}/{MAX_WORLD_RETRIES}）")
@@ -159,23 +160,23 @@ async def world_building_generator(
                         }
                         world_generation_success = True  # 标记为成功以继续流程
                         break
-                
+
                 # 解析结果 - 使用统一的JSON清洗方法
                 yield await tracker.parsing("解析世界观数据...")
-                
+
                 try:
                     logger.info(f"🔍 开始清洗JSON，原始长度: {len(accumulated_text)}")
                     logger.info(f"   原始内容预览: {accumulated_text[:300]}...")
-                    
+
                     # ✅ 使用 AIService 的统一清洗方法
                     cleaned_text = user_ai_service._clean_json_response(accumulated_text)
                     logger.info(f"✅ JSON清洗完成，清洗后长度: {len(cleaned_text)}")
                     logger.info(f"   清洗后预览: {cleaned_text[:300]}...")
-                    
-                    world_data = json.loads(cleaned_text)
+
+                    world_data = loads_json(cleaned_text)
                     logger.info(f"✅ 世界观JSON解析成功（尝试{world_retry_count+1}/{MAX_WORLD_RETRIES}）")
                     world_generation_success = True  # 解析成功，标记完成
-                            
+
                 except json.JSONDecodeError as e:
                     logger.error(f"❌ 世界构建JSON解析失败（尝试{world_retry_count+1}/{MAX_WORLD_RETRIES}）: {e}")
                     logger.error(f"   原始内容长度: {len(accumulated_text)}")
@@ -193,7 +194,7 @@ async def world_building_generator(
                             "rules": "AI返回格式错误，请重试"
                         }
                         world_generation_success = True  # 标记为成功以继续流程
-                        
+
             except Exception as e:
                 logger.error(f"❌ 世界构建生成异常（尝试{world_retry_count+1}/{MAX_WORLD_RETRIES}）: {type(e).__name__}: {e}")
                 world_retry_count += 1
@@ -204,15 +205,15 @@ async def world_building_generator(
                     # 最后一次重试仍失败，抛出异常
                     logger.error(f"   accumulated_text 长度: {len(accumulated_text) if 'accumulated_text' in locals() else 'N/A'}")
                     raise
-        
+
         # 保存到数据库
         yield await tracker.saving("保存世界观到数据库...")
-        
+
         # 确保user_id存在
         if not user_id:
             yield await SSEResponse.send_error("用户ID缺失，无法创建项目", 401)
             return
-        
+
         project = Project(
             user_id=user_id,  # 添加user_id字段
             title=title,
@@ -235,7 +236,7 @@ async def world_building_generator(
         db.add(project)
         await db.commit()
         await db.refresh(project)
-        
+
         # 自动设置默认写作风格为第一个全局预设风格
         try:
             result = await db.execute(
@@ -245,7 +246,7 @@ async def world_building_generator(
                 ).limit(1)
             )
             first_style = result.scalar_one_or_none()
-            
+
             if first_style:
                 default_style = ProjectDefaultStyle(
                     project_id=project.id,
@@ -258,17 +259,17 @@ async def world_building_generator(
                 logger.warning(f"未找到order_index=1的全局预设风格，项目 {project.id} 未设置默认风格")
         except Exception as e:
             logger.warning(f"设置默认写作风格失败: {e}，不影响项目创建")
-        
+
         # 更新向导步骤状态为1（世界观已完成）
         # wizard_step: 0=未开始, 1=世界观已完成, 2=职业体系已完成, 3=角色已完成, 4=大纲已完成
         project.wizard_step = 1
         await db.commit()
-        
+
         # ===== 世界观生成完成 =====
         db_committed = True
-        
+
         yield await tracker.complete()
-        
+
         # 发送世界观结果
         yield await tracker.result({
             "project_id": project.id,
@@ -277,12 +278,12 @@ async def world_building_generator(
             "atmosphere": world_data.get("atmosphere"),
             "rules": world_data.get("rules")
         })
-        
+
         # 发送世界观完成信号
         yield await tracker.done()
-        
+
         logger.info(f"✅ 世界观生成完成，项目ID: {project.id}")
-        
+
     except GeneratorExit:
         # SSE连接断开，回滚未提交的事务
         logger.warning("世界构建生成器被提前关闭")
@@ -312,7 +313,7 @@ async def generate_world_building_stream(
     # 从中间件注入user_id到data中
     if hasattr(request.state, 'user_id'):
         data['user_id'] = request.state.user_id
-    
+
     return create_sse_response(world_building_generator(data, db, user_ai_service))
 
 
@@ -325,20 +326,20 @@ async def career_system_generator(
     db_committed = False
     # 初始化标准进度追踪器
     tracker = WizardProgressTracker("职业体系")
-    
+
     try:
         yield await tracker.start()
-        
+
         # 提取参数
         project_id = data.get("project_id")
         provider = data.get("provider")
         model = data.get("model")
         user_id = data.get("user_id")
-        
+
         if not project_id:
             yield await tracker.error("project_id 是必需的参数", 400)
             return
-        
+
         # 获取项目信息
         yield await tracker.loading("加载项目信息...")
         project = await get_owned_project(db, project_id, user_id)
@@ -362,12 +363,12 @@ async def career_system_generator(
             yield await tracker.result(policy_decision.to_response())
             yield await tracker.done()
             return
-        
+
         # 设置用户信息以启用MCP
         if user_id:
             user_ai_service.user_id = user_id
             user_ai_service.db_session = db
-        
+
         # 获取世界观数据
         world_data = {
             "time_period": project.world_time_period or "未设定",
@@ -375,7 +376,7 @@ async def career_system_generator(
             "atmosphere": project.world_atmosphere or "未设定",
             "rules": project.world_rules or "未设定"
         }
-        
+
         # 获取职业生成提示词模板（支持用户自定义）
         yield await tracker.preparing("准备AI提示词...")
         template = await PromptService.get_template("CAREER_SYSTEM_GENERATION", user_id, db)
@@ -390,29 +391,29 @@ async def career_system_generator(
             atmosphere=world_data.get('atmosphere', '未设定'),
             rules=world_data.get('rules', '未设定')
         )
-        
+
         estimated_total = 5000
         MAX_CAREER_RETRIES = 3  # 最多重试3次
         career_retry_count = 0
         career_generation_success = False
-        
+
         while career_retry_count < MAX_CAREER_RETRIES and not career_generation_success:
             try:
                 # 重试时重置生成进度
                 if career_retry_count > 0:
                     tracker.reset_generating_progress()
-                
+
                 yield await tracker.generating(
                     current_chars=0,
                     estimated_total=estimated_total,
                     retry_count=career_retry_count,
                     max_retries=MAX_CAREER_RETRIES
                 )
-                
+
                 # 使用流式生成职业体系
                 career_response = ""
                 chunk_count = 0
-                
+
                 async for chunk in user_ai_service.generate_text_stream(
                     prompt=career_prompt,
                     provider=provider,
@@ -420,10 +421,10 @@ async def career_system_generator(
                 ):
                     chunk_count += 1
                     career_response += chunk
-                    
+
                     # 发送内容块
                     yield await tracker.generating_chunk(chunk)
-                    
+
                     # 定期更新进度
                     current_len = len(career_response)
                     if chunk_count % 10 == 0:
@@ -433,11 +434,11 @@ async def career_system_generator(
                             retry_count=career_retry_count,
                             max_retries=MAX_CAREER_RETRIES
                         )
-                    
+
                     # 每20个块发送心跳
                     if chunk_count % 20 == 0:
                         yield await tracker.heartbeat()
-                
+
                 if not career_response or not career_response.strip():
                     logger.warning(f"⚠️ AI返回空职业体系（尝试{career_retry_count+1}/{MAX_CAREER_RETRIES}）")
                     career_retry_count += 1
@@ -447,17 +448,17 @@ async def career_system_generator(
                     else:
                         yield await tracker.error("职业体系生成失败（AI多次返回为空）")
                         return
-                
+
                 yield await tracker.parsing("解析职业体系数据...")
-                
+
                 # 清洗并解析JSON
                 try:
                     cleaned_response = user_ai_service._clean_json_response(career_response)
-                    career_data = json.loads(cleaned_response)
+                    career_data = loads_json(cleaned_response)
                     logger.info(f"✅ 职业体系JSON解析成功（尝试{career_retry_count+1}/{MAX_CAREER_RETRIES}）")
-                    
+
                     yield await tracker.saving("保存职业数据...")
-                    
+
                     # 保存主职业
                     main_careers_created = []
                     created_career_ids = []
@@ -466,7 +467,7 @@ async def career_system_generator(
                             stages_json = json.dumps(career_info.get("stages", []), ensure_ascii=False)
                             attribute_bonuses = career_info.get("attribute_bonuses")
                             attribute_bonuses_json = json.dumps(attribute_bonuses, ensure_ascii=False) if attribute_bonuses else None
-                            
+
                             career = Career(
                                 project_id=project.id,
                                 name=career_info.get("name", f"未命名主职业{idx+1}"),
@@ -489,7 +490,7 @@ async def career_system_generator(
                         except Exception as e:
                             logger.error(f"  ❌ 创建主职业失败：{str(e)}")
                             continue
-                    
+
                     # 保存副职业
                     sub_careers_created = []
                     for idx, career_info in enumerate(career_data.get("sub_careers", [])):
@@ -497,7 +498,7 @@ async def career_system_generator(
                             stages_json = json.dumps(career_info.get("stages", []), ensure_ascii=False)
                             attribute_bonuses = career_info.get("attribute_bonuses")
                             attribute_bonuses_json = json.dumps(attribute_bonuses, ensure_ascii=False) if attribute_bonuses else None
-                            
+
                             career = Career(
                                 project_id=project.id,
                                 name=career_info.get("name", f"未命名副职业{idx+1}"),
@@ -520,7 +521,7 @@ async def career_system_generator(
                         except Exception as e:
                             logger.error(f"  ❌ 创建副职业失败：{str(e)}")
                             continue
-                    
+
                     # 更新向导步骤状态为2（职业体系已完成）
                     # wizard_step: 0=未开始, 1=世界观已完成, 2=职业体系已完成, 3=角色已完成, 4=大纲已完成
                     project.wizard_step = 2
@@ -533,16 +534,16 @@ async def career_system_generator(
                             "sub_careers_created": sub_careers_created,
                         },
                     )
-                    
+
                     await db.commit()
                     db_committed = True
-                    
+
                     # 标记成功
                     career_generation_success = True
                     logger.info(f"🎉 职业体系生成完成：主职业{len(main_careers_created)}个，副职业{len(sub_careers_created)}个")
-                    
+
                     yield await tracker.complete()
-                    
+
                     # 发送结果
                     yield await tracker.result({
                         "project_id": project.id,
@@ -551,9 +552,9 @@ async def career_system_generator(
                         "main_careers": main_careers_created,
                         "sub_careers": sub_careers_created
                     })
-                    
+
                     yield await tracker.done()
-                    
+
                 except json.JSONDecodeError as e:
                     logger.error(f"❌ 职业体系JSON解析失败（尝试{career_retry_count+1}/{MAX_CAREER_RETRIES}）: {e}")
                     career_retry_count += 1
@@ -572,7 +573,7 @@ async def career_system_generator(
                     else:
                         yield await tracker.error("职业体系保存失败（已达最大重试次数）")
                         return
-            
+
             except Exception as e:
                 logger.error(f"❌ 职业体系生成异常（尝试{career_retry_count+1}/{MAX_CAREER_RETRIES}）: {e}")
                 career_retry_count += 1
@@ -582,7 +583,7 @@ async def career_system_generator(
                 else:
                     yield await tracker.error(f"职业体系生成失败: {str(e)}")
                     return
-        
+
     except GeneratorExit:
         logger.warning("职业体系生成器被提前关闭")
         if not db_committed and db.in_transaction():
@@ -611,7 +612,7 @@ async def generate_career_system_stream(
     if hasattr(request.state, 'user_id'):
         data['user_id'] = request.state.user_id
     data['is_admin'] = bool(getattr(request.state, 'is_admin', False))
-    
+
     return create_sse_response(career_system_generator(data, db, user_ai_service))
 
 
@@ -624,10 +625,10 @@ async def characters_generator(
     db_committed = False
     # 初始化标准进度追踪器
     tracker = WizardProgressTracker("角色")
-    
+
     try:
         yield await tracker.start()
-        
+
         project_id = data.get("project_id")
         count = data.get("count", 5)
         world_context = data.get("world_context")
@@ -638,7 +639,7 @@ async def characters_generator(
         model = data.get("model")
         enable_mcp = data.get("enable_mcp", True)  # 默认启用MCP
         user_id = data.get("user_id")  # 从中间件注入
-        
+
         # 验证项目
         yield await tracker.loading("验证项目...", 0.3)
         project = await get_owned_project(db, project_id, user_id)
@@ -662,31 +663,31 @@ async def characters_generator(
             yield await tracker.result(policy_decision.to_response())
             yield await tracker.done()
             return
-        
+
         project.wizard_step = 2
-        
+
         world_context = world_context or {
             "time_period": project.world_time_period or "未设定",
             "location": project.world_location or "未设定",
             "atmosphere": project.world_atmosphere or "未设定",
             "rules": project.world_rules or "未设定"
         }
-        
+
         # 设置用户信息以启用MCP
         if user_id:
             user_ai_service.user_id = user_id
             user_ai_service.db_session = db
-        
+
         # 获取项目的职业列表，用于角色职业分配
         yield await tracker.loading("加载职业体系...", 0.8)
         career_result = await db.execute(
             select(Career).where(Career.project_id == project_id).order_by(Career.type, Career.id)
         )
         careers = career_result.scalars().all()
-        
+
         main_careers = [c for c in careers if c.type == "main"]
         sub_careers = [c for c in careers if c.type == "sub"]
-        
+
         # 构建职业上下文
         careers_context = ""
         if main_careers or sub_careers:
@@ -699,7 +700,7 @@ async def characters_generator(
                 careers_context += "\n副职业：\n"
                 for career in sub_careers:
                     careers_context += f"- {career.name}: {career.description or '暂无描述'}\n"
-            
+
             careers_context += "\n请为每个角色分配职业：\n"
             careers_context += "- 每个角色必须有1个主职业（从上述主职业中选择）\n"
             careers_context += "- 每个角色可以有0-2个副职业（从上述副职业中选择，可选）\n"
@@ -710,36 +711,36 @@ async def characters_generator(
             logger.info(f"✅ 加载了{len(main_careers)}个主职业和{len(sub_careers)}个副职业")
         else:
             logger.warning("⚠️ 项目没有职业体系，跳过职业分配")
-        
+
         # 优化的分批策略:每批生成5个,平衡效率和成功率
         BATCH_SIZE = 5  # 每批生成5个角色
         MAX_RETRIES = 3  # 每批最多重试3次
         all_characters = []
         total_batches = (count + BATCH_SIZE - 1) // BATCH_SIZE
-        
+
         for batch_idx in range(total_batches):
             # 精确计算当前批次应该生成的数量
             remaining = count - len(all_characters)
             current_batch_size = min(BATCH_SIZE, remaining)
-            
+
             # 如果已经达到目标数量,直接退出
             if current_batch_size <= 0:
                 logger.info(f"已生成{len(all_characters)}个角色,达到目标数量{count}")
                 break
-            
+
             batch_progress = 15 + (batch_idx * 60 // total_batches)
-            
+
             # 重试逻辑
             retry_count = 0
             batch_success = False
             batch_error_message = ""
-            
+
             while retry_count < MAX_RETRIES and not batch_success:
                 try:
                     # 重试时重置生成进度
                     if retry_count > 0:
                         tracker.reset_generating_progress()
-                    
+
                     yield await tracker.generating(
                         current_chars=0,
                         estimated_total=BATCH_SIZE * 800,
@@ -747,7 +748,7 @@ async def characters_generator(
                         retry_count=retry_count,
                         max_retries=MAX_RETRIES
                     )
-                    
+
                     # 构建批次要求 - 包含已生成角色信息保持连贯
                     existing_chars_context = ""
                     if all_characters:
@@ -755,7 +756,7 @@ async def characters_generator(
                         for char in all_characters:
                             existing_chars_context += f"- {char.get('name')}: {char.get('role_type', '未知')}, {char.get('personality', '暂无')[:50]}...\n"
                         existing_chars_context += "\n请确保新角色与已有角色形成合理的关系网络和互动。\n"
-                    
+
                     # 构建精确的批次要求,明确告诉AI要生成的数量
                     if batch_idx == 0:
                         if current_batch_size == 1:
@@ -768,7 +769,7 @@ async def characters_generator(
                             batch_requirements += "\n可以包含组织或反派(antagonist)"
                         else:
                             batch_requirements += "\n主要是配角(supporting)和反派(antagonist)"
-                    
+
                     # 获取自定义提示词模板
                     template = await PromptService.get_template("CHARACTERS_BATCH_GENERATION", user_id, db)
                     # 构建基础提示词
@@ -783,15 +784,15 @@ async def characters_generator(
                         genre=genre or project.genre or "",
                         requirements=batch_requirements + careers_context  # 添加职业上下文
                     )
-                    
+
                     prompt = base_prompt
-                    
+
                     # 流式生成（带字数统计）
                     accumulated_text = ""
                     chunk_count = 0
-                    
+
                     estimated_total = BATCH_SIZE * 800
-                    
+
                     async for chunk in user_ai_service.generate_text_stream(
                         prompt=prompt,
                         provider=provider,
@@ -800,10 +801,10 @@ async def characters_generator(
                     ):
                         chunk_count += 1
                         accumulated_text += chunk
-                        
+
                         # 发送内容块
                         yield await tracker.generating_chunk(chunk)
-                        
+
                         # 定期更新进度
                         current_len = len(accumulated_text)
                         if chunk_count % 10 == 0:
@@ -814,22 +815,22 @@ async def characters_generator(
                                 retry_count=retry_count,
                                 max_retries=MAX_RETRIES
                             )
-                        
+
                         # 每20个块发送心跳
                         if chunk_count % 20 == 0:
                             yield await tracker.heartbeat()
-                    
+
                     # 解析批次结果 - 使用统一的JSON清洗方法
                     cleaned_text = user_ai_service._clean_json_response(accumulated_text)
-                    characters_data = json.loads(cleaned_text)
+                    characters_data = loads_json(cleaned_text)
                     if not isinstance(characters_data, list):
                         characters_data = [characters_data]
-                    
+
                     # 严格验证生成数量是否精确匹配
                     if len(characters_data) != current_batch_size:
                         error_msg = f"批次{batch_idx+1}生成数量不正确: 期望{current_batch_size}个, 实际{len(characters_data)}个"
                         logger.error(error_msg)
-                        
+
                         # 如果还有重试机会，继续重试
                         if retry_count < MAX_RETRIES - 1:
                             retry_count += 1
@@ -839,11 +840,11 @@ async def characters_generator(
                             # 最后一次重试仍失败，直接返回错误
                             yield await tracker.error(error_msg)
                             return
-                    
+
                     all_characters.extend(characters_data)
                     batch_success = True
                     logger.info(f"批次{batch_idx+1}成功添加{len(characters_data)}个角色,当前总数{len(all_characters)}/{count}")
-                    
+
                 except json.JSONDecodeError as e:
                     logger.error(f"批次{batch_idx+1}解析失败(尝试{retry_count+1}/{MAX_RETRIES}): {e}")
                     batch_error_message = f"JSON解析失败: {str(e)}"
@@ -856,7 +857,7 @@ async def characters_generator(
                     retry_count += 1
                     if retry_count < MAX_RETRIES:
                         yield await tracker.retry(retry_count, MAX_RETRIES, "生成异常")
-            
+
             # 检查批次是否成功
             if not batch_success:
                 error_msg = f"批次{batch_idx+1}在{MAX_RETRIES}次重试后仍然失败"
@@ -865,21 +866,21 @@ async def characters_generator(
                 logger.error(error_msg)
                 yield await tracker.error(error_msg)
                 return
-        
+
         # 保存到数据库 - 分阶段处理以保证一致性
         yield await tracker.parsing("验证角色数据...")
-        
+
         # 预处理：构建本批次所有实体的名称集合
         valid_entity_names = set()
         valid_organization_names = set()
-        
+
         for char_data in all_characters:
             entity_name = char_data.get("name", "")
             if entity_name:
                 valid_entity_names.add(entity_name)
                 if char_data.get("is_organization", False):
                     valid_organization_names.add(entity_name)
-        
+
         # 清理幻觉引用
         cleaned_count = 0
         for char_data in all_characters:
@@ -895,7 +896,7 @@ async def characters_generator(
                         cleaned_count += 1
                         logger.debug(f"  🧹 清理无效关系引用：{char_data.get('name')} -> {target_name}")
                 char_data["relationships_array"] = valid_rels
-            
+
             # 清理组织成员关系中的无效引用
             if "organization_memberships" in char_data and isinstance(char_data["organization_memberships"], list):
                 original_orgs = char_data["organization_memberships"]
@@ -908,18 +909,18 @@ async def characters_generator(
                         cleaned_count += 1
                         logger.debug(f"  🧹 清理无效组织引用：{char_data.get('name')} -> {org_name}")
                 char_data["organization_memberships"] = valid_orgs
-        
+
         if cleaned_count > 0:
             logger.info(f"✨ 清理了{cleaned_count}个AI幻觉引用")
             yield await tracker.parsing(f"已清理{cleaned_count}个无效引用", 0.7)
-        
+
         yield await tracker.saving("保存角色到数据库...")
-        
+
         # 第一阶段：创建所有 Character / OrganizationEntity 记录
         created_characters = []
         created_organizations: list[tuple[OrganizationEntity, Organization, dict[str, Any]]] = []
         character_name_to_obj = {}  # 名称到对象的映射，用于后续关系创建
-        
+
         for char_data in all_characters:
             # 从relationships_array提取文本描述以保持向后兼容
             relationships_text = ""
@@ -938,7 +939,7 @@ async def characters_generator(
                 relationships_text = json.dumps(char_data.get("relationships"), ensure_ascii=False)
             elif isinstance(char_data.get("relationships"), str):
                 relationships_text = char_data.get("relationships")
-            
+
             is_org_payload = bool(char_data.get("is_organization", False))
             if is_org_payload:
                 entity, bridge = await create_organization_entity_from_payload(
@@ -950,7 +951,7 @@ async def characters_generator(
                 )
                 created_organizations.append((entity, bridge, char_data))
                 continue
-            
+
             character = Character(
                 project_id=project_id,
                 name=char_data.get("name", "未命名角色"),
@@ -965,28 +966,28 @@ async def characters_generator(
             )
             db.add(character)
             created_characters.append((character, char_data))
-        
+
         await db.flush()  # 获取所有角色的ID
-        
+
         # 第二阶段：为角色分配职业并创建CharacterCareer关联
         if main_careers or sub_careers:
             yield await tracker.saving("分配角色职业...", 0.3)
             careers_assigned = 0
-            
+
             # 构建职业名称到对象的映射
             career_name_to_obj = {c.name: c for c in careers}
-            
+
             for character, char_data in created_characters:
                 try:
                     career_assignment = char_data.get("career_assignment", {})
-                    
+
                     # 分配主职业
                     main_career_name = career_assignment.get("main_career")
                     main_career_stage = career_assignment.get("main_stage", 1)
-                    
+
                     if main_career_name and main_career_name in career_name_to_obj:
                         main_career = career_name_to_obj[main_career_name]
-                        
+
                         # 创建CharacterCareer关联
                         char_career = CharacterCareer(
                             character_id=character.id,
@@ -996,28 +997,28 @@ async def characters_generator(
                             stage_progress=0
                         )
                         db.add(char_career)
-                        
+
                         # 更新Character冗余字段
                         character.main_career_id = main_career.id
                         character.main_career_stage = char_career.current_stage
-                        
+
                         careers_assigned += 1
                         logger.info(f"  ✅ 分配主职业：{character.name} -> {main_career.name} (阶段{char_career.current_stage})")
                     else:
                         if main_career_name:
                             logger.warning(f"  ⚠️ 主职业不存在：{character.name} -> {main_career_name}")
-                    
+
                     # 分配副职业
                     sub_career_assignments = career_assignment.get("sub_careers", [])
                     sub_career_list = []
-                    
+
                     for sub_assign in sub_career_assignments[:2]:  # 最多2个副职业
                         sub_career_name = sub_assign.get("career")
                         sub_career_stage = sub_assign.get("stage", 1)
-                        
+
                         if sub_career_name and sub_career_name in career_name_to_obj:
                             sub_career = career_name_to_obj[sub_career_name]
-                            
+
                             # 创建CharacterCareer关联
                             char_career = CharacterCareer(
                                 character_id=character.id,
@@ -1027,62 +1028,62 @@ async def characters_generator(
                                 stage_progress=0
                             )
                             db.add(char_career)
-                            
+
                             # 添加到副职业列表
                             sub_career_list.append({
                                 "career_id": sub_career.id,
                                 "stage": char_career.current_stage
                             })
-                            
+
                             careers_assigned += 1
                             logger.info(f"  ✅ 分配副职业：{character.name} -> {sub_career.name} (阶段{char_career.current_stage})")
                         else:
                             if sub_career_name:
                                 logger.warning(f"  ⚠️ 副职业不存在：{character.name} -> {sub_career_name}")
-                    
+
                     # 更新Character冗余字段
                     if sub_career_list:
                         character.sub_careers = json.dumps(sub_career_list, ensure_ascii=False)
-                    
+
                 except Exception as e:
                     logger.warning(f"  ❌ 分配职业失败：{character.name} - {str(e)}")
                     continue
-            
+
             await db.flush()
             logger.info(f"💼 职业分配完成：共分配{careers_assigned}个职业")
             yield await tracker.saving(f"已分配{careers_assigned}个职业", 0.4)
-        
+
         # 刷新并建立名称映射
         for character, _ in created_characters:
             await db.refresh(character)
             character_name_to_obj[character.name] = character
             logger.info(f"向导创建角色：{character.name} (ID: {character.id})")
-        
+
         # 第三阶段：建立组织名称映射
         yield await tracker.saving("准备组织记录...", 0.5)
         organization_name_to_obj: dict[str, tuple[OrganizationEntity, Organization]] = {}
-        
+
         for entity, bridge, _ in created_organizations:
             organization_name_to_obj[entity.name] = (entity, bridge)
             logger.info(f"向导创建组织记录：{entity.name}")
-        
+
         await db.flush()  # 确保Organization记录有ID
-        
+
         # 刷新角色以获取ID
         for character, _ in created_characters:
             await db.refresh(character)
-        
+
         # 第四阶段：创建角色间的关系
         yield await tracker.saving("创建角色关系...", 0.7)
         relationships_created = 0
-        
+
         for character, char_data in created_characters:
             # 跳过组织实体的角色关系处理（组织通过成员关系关联）
             # 处理relationships数组
             relationships_data = char_data.get("relationships_array", [])
             if not relationships_data and isinstance(char_data.get("relationships"), list):
                 relationships_data = char_data.get("relationships")
-            
+
             if relationships_data and isinstance(relationships_data, list):
                 for rel in relationships_data:
                     try:
@@ -1090,10 +1091,10 @@ async def characters_generator(
                         if not target_name:
                             logger.debug(f"  ⚠️  {character.name}的关系缺少target_character_name，跳过")
                             continue
-                        
+
                         # 使用名称映射快速查找
                         target_char = character_name_to_obj.get(target_name)
-                        
+
                         if target_char:
                             # 避免创建重复关系
                             merge_service = RelationshipMergeService(db)
@@ -1134,11 +1135,11 @@ async def characters_generator(
                     except Exception as e:
                         logger.warning(f"  ❌ 向导创建关系失败：{character.name} - {str(e)}")
                         continue
-            
+
         # 第五阶段：创建组织成员关系
         yield await tracker.saving("创建组织成员关系...", 0.9)
         members_created = 0
-        
+
         for character, char_data in created_characters:
             # 跳过组织实体本身
             # 处理组织成员关系
@@ -1150,10 +1151,10 @@ async def characters_generator(
                         if not org_name:
                             logger.debug(f"  ⚠️  {character.name}的组织成员关系缺少organization_name，跳过")
                             continue
-                        
+
                         # 使用映射快速查找组织
                         org_pair = organization_name_to_obj.get(org_name)
-                        
+
                         if org_pair:
                             org_entity, org_bridge = org_pair
                             # 检查是否已存在成员关系
@@ -1166,7 +1167,7 @@ async def characters_generator(
                             if existing_member.scalar_one_or_none():
                                 logger.debug(f"  ℹ️  成员关系已存在：{character.name} -> {org_name}")
                                 continue
-                            
+
                             # 创建成员关系
                             await add_organization_member(
                                 db=db,
@@ -1180,10 +1181,10 @@ async def characters_generator(
                                 status=membership.get("status", "active"),
                                 source="ai",
                             )
-                            
+
                             # 更新组织成员计数
                             org_entity.member_count = (org_entity.member_count or 0) + 1
-                            
+
                             members_created += 1
                             logger.info(f"  ✅ 向导添加成员：{character.name} -> {org_name} ({membership.get('position')})")
                         else:
@@ -1192,13 +1193,13 @@ async def characters_generator(
                     except Exception as e:
                         logger.warning(f"  ❌ 向导添加组织成员失败：{character.name} - {str(e)}")
                         continue
-        
+
         logger.info(f"📊 向导数据统计：")
         logger.info(f"  - 创建角色/组织：{len(created_characters) + len(created_organizations)} 个")
         logger.info(f"  - 创建组织详情：{len(organization_name_to_obj)} 个")
         logger.info(f"  - 创建角色关系：{relationships_created} 条")
         logger.info(f"  - 创建组织成员：{members_created} 条")
-        
+
         # 更新项目的角色数量和向导步骤状态为3（角色已完成）
         # wizard_step: 0=未开始, 1=世界观已完成, 2=职业体系已完成, 3=角色已完成, 4=大纲已完成
         project.character_count = len(created_characters)
@@ -1210,15 +1211,15 @@ async def characters_generator(
             [character.id for character, _ in created_characters] + [entity.id for entity, _, _ in created_organizations],
             extra_payload={"generated_count": len(created_characters) + len(created_organizations)},
         )
-        
+
         await db.commit()
         db_committed = True
-        
+
         # 重新提取character对象
         created_characters = [char for char, _ in created_characters]
-        
+
         yield await tracker.complete()
-        
+
         # 发送结果
         yield await tracker.result({
             "message": f"成功生成{len(created_characters) + len(created_organizations)}个角色/组织（分{total_batches}批完成）",
@@ -1266,9 +1267,9 @@ async def characters_generator(
                 } for entity, _, _ in created_organizations
             ]
         })
-        
+
         yield await tracker.done()
-        
+
     except GeneratorExit:
         logger.warning("角色生成器被提前关闭")
         if not db_committed and db.in_transaction():
@@ -1297,7 +1298,7 @@ async def generate_characters_stream(
     if hasattr(request.state, 'user_id'):
         data['user_id'] = request.state.user_id
     data['is_admin'] = bool(getattr(request.state, 'is_admin', False))
-    
+
     return create_sse_response(characters_generator(data, db, user_ai_service))
 
 
@@ -1310,10 +1311,10 @@ async def outline_generator(
     db_committed = False
     # 初始化标准进度追踪器
     tracker = WizardProgressTracker("大纲")
-    
+
     try:
         yield await tracker.start()
-        
+
         project_id = data.get("project_id")
         # 向导固定生成3个大纲节点（不展开）
         outline_count = data.get("chapter_count", 3)
@@ -1324,7 +1325,7 @@ async def outline_generator(
         model = data.get("model")
         enable_mcp = data.get("enable_mcp", True)  # 默认启用MCP
         user_id = data.get("user_id")  # 从中间件注入
-        
+
         # 获取项目信息
         yield await tracker.loading("加载项目信息...", 0.3)
         project = await get_owned_project(db, project_id, user_id)
@@ -1336,7 +1337,7 @@ async def outline_generator(
         if user_id:
             user_ai_service.user_id = user_id
             user_ai_service.db_session = db
-        
+
         # 获取角色信息
         yield await tracker.loading("加载角色信息...", 0.8)
         result = await db.execute(
@@ -1345,7 +1346,7 @@ async def outline_generator(
         characters = result.scalars().all()
         orgs_result = await db.execute(select(OrganizationEntity).where(OrganizationEntity.project_id == project_id))
         organizations = orgs_result.scalars().all()
-        
+
         character_lines = [
             f"- {char.name} (角色, {char.role_type}): {char.personality[:100] if char.personality else '暂无描述'}"
             for char in characters
@@ -1355,17 +1356,17 @@ async def outline_generator(
             for org in organizations
         )
         characters_info = "\n".join(character_lines)
-        
+
         # 准备提示词
         yield await tracker.preparing(f"准备生成{outline_count}个大纲节点...")
-        
+
         outline_requirements = f"{requirements}\n\n【重要说明】这是小说的开局部分，请生成{outline_count}个大纲节点，重点关注：\n"
         outline_requirements += "1. 引入主要角色和世界观设定\n"
         outline_requirements += "2. 建立主线冲突和故事钩子\n"
         outline_requirements += "3. 展开初期情节，为后续发展埋下伏笔\n"
         outline_requirements += "4. 不要试图完结故事，这只是开始部分\n"
         outline_requirements += "5. 不要在JSON字符串值中使用中文引号（""''），请使用【】或《》标记\n"
-        
+
         # 获取自定义提示词模板
         template = await PromptService.get_template("OUTLINE_CREATE", user_id, db)
         outline_prompt = PromptService.format_prompt(
@@ -1384,14 +1385,14 @@ async def outline_generator(
             mcp_references="",
             requirements=outline_requirements
         )
-        
+
         # 流式生成大纲
         estimated_total = 1000
         accumulated_text = ""
         chunk_count = 0
-        
+
         yield await tracker.generating(current_chars=0, estimated_total=estimated_total)
-        
+
         async for chunk in user_ai_service.generate_text_stream(
             prompt=outline_prompt,
             provider=provider,
@@ -1399,10 +1400,10 @@ async def outline_generator(
         ):
             chunk_count += 1
             accumulated_text += chunk
-            
+
             # 发送内容块
             yield await tracker.generating_chunk(chunk)
-            
+
             # 定期更新进度
             current_len = len(accumulated_text)
             if chunk_count % 10 == 0:
@@ -1410,24 +1411,24 @@ async def outline_generator(
                     current_chars=current_len,
                     estimated_total=estimated_total
                 )
-            
+
             # 每20个块发送心跳
             if chunk_count % 20 == 0:
                 yield await tracker.heartbeat()
-        
+
         # 解析大纲结果 - 使用统一的JSON清洗方法
         yield await tracker.parsing("解析大纲数据...")
-        
+
         try:
             cleaned_text = user_ai_service._clean_json_response(accumulated_text)
-            outline_data = json.loads(cleaned_text)
+            outline_data = loads_json(cleaned_text)
             if not isinstance(outline_data, list):
                 outline_data = [outline_data]
         except json.JSONDecodeError as e:
             logger.error(f"大纲JSON解析失败: {e}")
             yield await tracker.error("大纲生成失败，请重试")
             return
-        
+
         # 保存大纲到数据库
         yield await tracker.saving("保存大纲到数据库...")
         created_outlines = []
@@ -1441,18 +1442,18 @@ async def outline_generator(
             )
             db.add(outline)
             created_outlines.append(outline)
-        
+
         await db.flush()  # 获取大纲ID
         for outline in created_outlines:
             await db.refresh(outline)
-        
+
         logger.info(f"✅ 成功创建{len(created_outlines)}个大纲节点")
-        
+
         # 🎭 角色校验：检查大纲structure中的characters是否存在对应角色
         yield await tracker.saving("🎭 校验角色信息...", 0.5)
         try:
             from app.services.auto_character_service import get_auto_character_service
-            
+
             auto_char_service = get_auto_character_service(user_ai_service)
             char_check_result = await auto_char_service.check_and_create_missing_characters(
                 project_id=project_id,
@@ -1471,12 +1472,12 @@ async def outline_generator(
                 )
         except Exception as e:
             logger.error(f"⚠️ 向导大纲角色校验失败（不影响主流程）: {e}")
-        
+
         # 🏛️ 组织校验：检查大纲structure中的characters（type=organization）是否存在对应组织
         yield await tracker.saving("🏛️ 校验组织信息...", 0.55)
         try:
             from app.services.auto_organization_service import get_auto_organization_service
-            
+
             auto_org_service = get_auto_organization_service(user_ai_service)
             org_check_result = await auto_org_service.check_and_create_missing_organizations(
                 project_id=project_id,
@@ -1495,13 +1496,13 @@ async def outline_generator(
                 )
         except Exception as e:
             logger.error(f"⚠️ 向导大纲组织校验失败（不影响主流程）: {e}")
-        
+
         # 根据项目的大纲模式决定是否自动创建章节
         created_chapters = []
         if project.outline_mode == 'one-to-one':
             # 一对一模式：自动为每个大纲创建对应的章节
             yield await tracker.saving("一对一模式：自动创建章节...", 0.7)
-            
+
             for outline in created_outlines:
                 chapter = Chapter(
                     project_id=project_id,
@@ -1513,18 +1514,18 @@ async def outline_generator(
                 )
                 db.add(chapter)
                 created_chapters.append(chapter)
-            
+
             await db.flush()
             for chapter in created_chapters:
                 await db.refresh(chapter)
-            
+
             logger.info(f"✅ 一对一模式：自动创建了{len(created_chapters)}个章节")
             yield await tracker.saving(f"已自动创建{len(created_chapters)}个章节", 0.9)
         else:
             # 一对多模式：跳过自动创建，用户可手动展开
             yield await tracker.saving("细化模式：跳过自动创建章节", 0.9)
             logger.info(f"📝 细化模式：跳过章节创建，用户可在大纲页面手动展开")
-        
+
         # 更新项目信息
         # wizard_step: 0=未开始, 1=世界观已完成, 2=职业体系已完成, 3=角色已完成, 4=大纲已完成
         project.chapter_count = len(created_chapters)  # 记录实际创建的章节数
@@ -1533,15 +1534,15 @@ async def outline_generator(
         project.status = "writing"
         project.wizard_status = "completed"
         project.wizard_step = 4
-        
+
         await db.commit()
         db_committed = True
-        
+
         logger.info(f"📊 向导大纲生成完成：")
         logger.info(f"  - 创建大纲节点：{len(created_outlines)} 个")
         logger.info(f"  - 创建章节：{len(created_chapters)} 个")
         logger.info(f"  - 大纲模式：{project.outline_mode}")
-        
+
         # 构建结果消息
         if project.outline_mode == 'one-to-one':
             result_message = f"成功生成{len(created_outlines)}个大纲节点并自动创建{len(created_chapters)}个章节（传统模式）"
@@ -1549,9 +1550,9 @@ async def outline_generator(
         else:
             result_message = f"成功生成{len(created_outlines)}个大纲节点（细化模式，可在大纲页面手动展开）"
             result_note = "可在大纲页面展开为多个章节"
-        
+
         yield await tracker.complete()
-        
+
         # 发送结果
         yield await tracker.result({
             "message": result_message,
@@ -1576,9 +1577,9 @@ async def outline_generator(
                 } for chapter in created_chapters
             ] if created_chapters else []
         })
-        
+
         yield await tracker.done()
-        
+
     except GeneratorExit:
         logger.warning("大纲生成器被提前关闭")
         if not db_committed and db.in_transaction():
@@ -1619,10 +1620,10 @@ async def world_building_regenerate_generator(
     db_committed = False
     # 初始化标准进度追踪器
     tracker = WizardProgressTracker("世界观")
-    
+
     try:
         yield await tracker.start("开始重新生成世界观...")
-        
+
         # 提取参数
         provider = data.get("provider")
         model = data.get("model")
@@ -1635,7 +1636,7 @@ async def world_building_regenerate_generator(
         if not project:
             yield await tracker.error("项目不存在或无权访问", 404)
             return
-        
+
         # 获取基础提示词（支持自定义）
         yield await tracker.preparing("准备AI提示词...")
         template = await PromptService.get_template("WORLD_BUILDING", user_id, db)
@@ -1646,25 +1647,25 @@ async def world_building_regenerate_generator(
             genre=project.genre or "通用",
             description=project.description or "暂无简介"
         )
-        
+
         # 设置用户信息以启用MCP
         if user_id:
             user_ai_service.user_id = user_id
             user_ai_service.db_session = db
-        
+
         # ===== 流式生成世界观（带重试机制） =====
         MAX_WORLD_RETRIES = 3  # 最多重试3次
         world_retry_count = 0
         world_generation_success = False
         world_data = {}
         estimated_total = 1000
-        
+
         while world_retry_count < MAX_WORLD_RETRIES and not world_generation_success:
             try:
                 # 重试时重置生成进度
                 if world_retry_count > 0:
                     tracker.reset_generating_progress()
-                
+
                 yield await tracker.generating(
                     current_chars=0,
                     estimated_total=estimated_total,
@@ -1672,11 +1673,11 @@ async def world_building_regenerate_generator(
                     retry_count=world_retry_count,
                     max_retries=MAX_WORLD_RETRIES
                 )
-                
+
                 # 流式生成世界观
                 accumulated_text = ""
                 chunk_count = 0
-                
+
                 async for chunk in user_ai_service.generate_text_stream(
                     prompt=base_prompt,
                     provider=provider,
@@ -1685,9 +1686,9 @@ async def world_building_regenerate_generator(
                 ):
                     chunk_count += 1
                     accumulated_text += chunk
-                    
+
                     yield await tracker.generating_chunk(chunk)
-                    
+
                     # 定期更新进度
                     current_len = len(accumulated_text)
                     if chunk_count % 10 == 0:
@@ -1698,10 +1699,10 @@ async def world_building_regenerate_generator(
                             retry_count=world_retry_count,
                             max_retries=MAX_WORLD_RETRIES
                         )
-                    
+
                     if chunk_count % 20 == 0:
                         yield await tracker.heartbeat()
-                
+
                 # 检查是否返回空响应
                 if not accumulated_text or not accumulated_text.strip():
                     logger.warning(f"⚠️ AI返回空世界观（尝试{world_retry_count+1}/{MAX_WORLD_RETRIES}）")
@@ -1720,19 +1721,19 @@ async def world_building_regenerate_generator(
                         }
                         world_generation_success = True
                         break
-                
+
                 # 解析结果 - 使用统一的JSON清洗方法
                 yield await tracker.parsing("解析AI返回结果...")
-                
+
                 try:
                     logger.info(f"🔍 开始清洗JSON，原始长度: {len(accumulated_text)}")
                     cleaned_text = user_ai_service._clean_json_response(accumulated_text)
                     logger.info(f"✅ JSON清洗完成，清洗后长度: {len(cleaned_text)}")
-                    
-                    world_data = json.loads(cleaned_text)
+
+                    world_data = loads_json(cleaned_text)
                     logger.info(f"✅ 世界观重新生成JSON解析成功（尝试{world_retry_count+1}/{MAX_WORLD_RETRIES}）")
                     world_generation_success = True
-                            
+
                 except json.JSONDecodeError as e:
                     logger.error(f"❌ 世界构建JSON解析失败（尝试{world_retry_count+1}/{MAX_WORLD_RETRIES}）: {e}")
                     logger.error(f"   原始内容长度: {len(accumulated_text)}")
@@ -1750,7 +1751,7 @@ async def world_building_regenerate_generator(
                             "rules": "AI返回格式错误，请重试"
                         }
                         world_generation_success = True
-                        
+
             except Exception as e:
                 logger.error(f"❌ 世界观重新生成异常（尝试{world_retry_count+1}/{MAX_WORLD_RETRIES}）: {type(e).__name__}: {e}")
                 world_retry_count += 1
@@ -1761,12 +1762,12 @@ async def world_building_regenerate_generator(
                     # 最后一次重试仍失败，抛出异常
                     logger.error(f"   accumulated_text 长度: {len(accumulated_text) if 'accumulated_text' in locals() else 'N/A'}")
                     raise
-        
+
         # 不保存到数据库，仅返回生成结果供用户预览
         yield await tracker.saving("生成完成，等待用户确认...", 0.5)
-        
+
         yield await tracker.complete()
-        
+
         # 发送最终结果（不包含project_id，表示未保存）
         yield await tracker.result({
             "time_period": world_data.get("time_period"),
@@ -1774,9 +1775,9 @@ async def world_building_regenerate_generator(
             "atmosphere": world_data.get("atmosphere"),
             "rules": world_data.get("rules")
         })
-        
+
         yield await tracker.done()
-        
+
     except GeneratorExit:
         logger.warning("世界观重新生成器被提前关闭")
         if not db_committed and db.in_transaction():

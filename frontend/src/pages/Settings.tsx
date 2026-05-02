@@ -175,11 +175,13 @@ function SettingsPage() {
   const [presets, setPresets] = useState<APIKeyPreset[]>([]);
   const [presetsLoading, setPresetsLoading] = useState(false);
   const [activePresetId, setActivePresetId] = useState<string | undefined>();
+  const [chapterAnalysisPresetId, setChapterAnalysisPresetId] = useState<string | undefined>();
+  const [savingChapterAnalysisPreset, setSavingChapterAnalysisPreset] = useState(false);
   const [editingPreset, setEditingPreset] = useState<APIKeyPreset | null>(null);
   const [isPresetModalVisible, setIsPresetModalVisible] = useState(false);
   const [testingPresetId, setTestingPresetId] = useState<string | null>(null);
   const [presetForm] = Form.useForm();
-  
+
   // 预设编辑窗口的模型列表状态（独立于当前配置的模型列表）
   const [presetModelOptions, setPresetModelOptions] = useState<Array<{ value: string; label: string; description: string }>>([]);
   const [fetchingPresetModels, setFetchingPresetModels] = useState(false);
@@ -282,7 +284,7 @@ function SettingsPage() {
       // 检查是否与 MCP 缓存的配置不一致
       const verifiedConfigStr = localStorage.getItem('mcp_verified_config');
       let configChanged = false;
-      
+
       if (verifiedConfigStr) {
         try {
           const verifiedConfig = JSON.parse(verifiedConfigStr);
@@ -294,22 +296,22 @@ function SettingsPage() {
           console.error('Failed to parse verified config:', e);
         }
       }
-      
+
       await settingsApi.saveSettings(values);
       message.success('设置已保存');
       setHasSettings(true);
       setIsDefaultSettings(false);
-      
+
       // 保存后清除测试结果，因为配置可能已变更
       setTestResult(null);
       setShowTestResult(false);
-      
+
       // 手动保存配置后，同步刷新预设激活状态。
       // 后端会在配置与激活预设不一致时自动取消激活，这里统一拉取最新状态，
       // 确保设置界面与预设列表联动一致。
       const previousActivePresetId = activePresetId;
       await loadPresets();
-      
+
       if (previousActivePresetId) {
         const latestPresets = await settingsApi.getPresets();
         const stillActive = latestPresets.active_preset_id === previousActivePresetId;
@@ -318,23 +320,23 @@ function SettingsPage() {
           message.info('配置已更改，预设激活状态已取消');
         }
       }
-      
+
       // 如果配置发生变化，需要处理 MCP 插件
       if (configChanged) {
         // 清除 MCP 验证缓存
         localStorage.removeItem('mcp_verified_config');
-        
+
         // 检查并禁用所有 MCP 插件
         try {
           const plugins = await mcpPluginApi.getPlugins();
           const activePlugins = plugins.filter(p => p.enabled);
-          
+
           if (activePlugins.length > 0) {
             // 禁用所有插件
             message.loading({ content: '正在禁用 MCP 插件...', key: 'disable_mcp' });
             await Promise.all(activePlugins.map(p => mcpPluginApi.togglePlugin(p.id, false)));
             message.success({ content: '已禁用所有 MCP 插件', key: 'disable_mcp' });
-            
+
             // 显示提示弹窗
             modal.warning({
               title: (
@@ -716,6 +718,7 @@ function SettingsPage() {
       const response = await settingsApi.getPresets();
       setPresets(response.presets);
       setActivePresetId(response.active_preset_id);
+      setChapterAnalysisPresetId(response.chapter_analysis_preset_id);
     } catch (error) {
       message.error('加载预设失败');
       console.error(error);
@@ -728,7 +731,7 @@ function SettingsPage() {
     // 重置预设模型列表状态
     setPresetModelOptions([]);
     setPresetModelsFetched(false);
-    
+
     if (preset) {
       setEditingPreset(preset);
       presetForm.setFieldsValue({
@@ -873,6 +876,23 @@ function SettingsPage() {
     }
   };
 
+  const handleChapterAnalysisPresetChange = async (presetId?: string) => {
+    setSavingChapterAnalysisPreset(true);
+    try {
+      const normalizedPresetId = presetId || undefined;
+      await settingsApi.setChapterAnalysisPresetSelection(normalizedPresetId);
+      setChapterAnalysisPresetId(normalizedPresetId);
+      message.success(normalizedPresetId ? '已设置章节内容分析专用API配置' : '章节内容分析已恢复使用默认API配置');
+      loadPresets();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (error: any) {
+      message.error(error.response?.data?.detail || '设置章节内容分析API配置失败');
+      console.error(error);
+    } finally {
+      setSavingChapterAnalysisPreset(false);
+    }
+  };
+
   const handlePresetDelete = async (presetId: string) => {
     try {
       await settingsApi.deletePreset(presetId);
@@ -889,26 +909,26 @@ function SettingsPage() {
     try {
       // 获取预设配置用于比较
       const preset = presets.find(p => p.id === presetId);
-      
+
       await settingsApi.activatePreset(presetId);
       message.success(`已激活预设: ${presetName}`);
-      
+
       // 激活预设后清除当前配置Tab的测试结果
       setTestResult(null);
       setShowTestResult(false);
-      
+
       // 清除模型列表缓存，因为API配置可能已变更
       setModelOptions([]);
       setModelsFetched(false);
-      
+
       loadPresets();
       loadSettings(); // 重新加载当前配置
-      
+
       // 检查是否与 MCP 缓存的配置不一致
       if (preset) {
         const verifiedConfigStr = localStorage.getItem('mcp_verified_config');
         let configChanged = false;
-        
+
         if (verifiedConfigStr) {
           try {
             const verifiedConfig = JSON.parse(verifiedConfigStr);
@@ -924,22 +944,22 @@ function SettingsPage() {
           // 没有缓存的配置，如果有启用的插件也需要处理
           configChanged = true;
         }
-        
+
         if (configChanged) {
           // 清除 MCP 验证缓存
           localStorage.removeItem('mcp_verified_config');
-          
+
           // 检查并禁用所有 MCP 插件
           try {
             const plugins = await mcpPluginApi.getPlugins();
             const activePlugins = plugins.filter(p => p.enabled);
-            
+
             if (activePlugins.length > 0) {
               // 禁用所有插件
               message.loading({ content: '正在禁用 MCP 插件...', key: 'disable_mcp' });
               await Promise.all(activePlugins.map(p => mcpPluginApi.togglePlugin(p.id, false)));
               message.success({ content: '已禁用所有 MCP 插件', key: 'disable_mcp' });
-              
+
               // 显示提示弹窗
               modal.warning({
                 title: (
@@ -1252,6 +1272,38 @@ function SettingsPage() {
           </Space>
         </div>
 
+        <Card size="small" style={{ background: token.colorFillAlter, borderColor: token.colorBorderSecondary }}>
+          <Space direction="vertical" size={8} style={{ width: '100%' }}>
+            <Space wrap align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
+              <Space direction="vertical" size={2}>
+                <Text strong>章节内容分析 API 配置</Text>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  指定章节内容分析使用的预设；未选择时使用默认的文本模型配置。
+                </Text>
+              </Space>
+              <Select
+                allowClear
+                placeholder="默认API配置"
+                value={chapterAnalysisPresetId}
+                loading={savingChapterAnalysisPreset}
+                disabled={presetsLoading || savingChapterAnalysisPreset}
+                style={{ minWidth: isMobile ? '100%' : 280 }}
+                onChange={(value) => handleChapterAnalysisPresetChange(value)}
+                options={presets.map((preset) => ({
+                  value: preset.id,
+                  label: `${preset.name} (${preset.config.llm_model})`,
+                }))}
+              />
+            </Space>
+            <Alert
+              showIcon
+              type="info"
+              message={chapterAnalysisPresetId ? '章节内容分析将优先使用所选预设。' : '当前未指定章节内容分析预设，将使用默认API配置。'}
+              style={{ padding: '6px 10px' }}
+            />
+          </Space>
+        </Card>
+
         {presets.length === 0 ? (
           <Empty
             description="暂无预设配置"
@@ -1332,6 +1384,7 @@ function SettingsPage() {
                       <Space>
                         <span style={{ fontWeight: 'bold' }}>{preset.name}</span>
                         {isActive && <Tag color="success">激活中</Tag>}
+                        {preset.id === chapterAnalysisPresetId && <Tag color="processing">章节分析</Tag>}
                       </Space>
                     }
                     description={
