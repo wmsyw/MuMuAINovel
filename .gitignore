@@ -134,3 +134,5 @@ AGENTS.md
 backend/.instance_id
 .omc/
 test.json
+# Added by code-review-graph
+.code-review-graph/
