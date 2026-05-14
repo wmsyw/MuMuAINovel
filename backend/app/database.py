@@ -23,9 +23,9 @@ from app.models import (
     ExtractionRun, ExtractionCandidate, EntityAlias, EntityProvenance,
     RelationshipTimelineEvent, WorldSettingResult,
     StoryMemory, PlotAnalysis, AnalysisTask, BatchGenerationTask,
-    RegenerationTask, Career, CharacterCareer, Goldfinger, GoldfingerHistoryEvent,
+RegenerationTask, Career, CharacterCareer, Goldfinger, GoldfingerHistoryEvent,
     User, MCPPlugin, PromptTemplate,
-    BackgroundTask
+    BackgroundTask, Announcement
 )
 
 # 引擎缓存：每个用户一个引擎

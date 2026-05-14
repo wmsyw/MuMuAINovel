@@ -281,6 +281,10 @@ function SettingsPage() {
 
     setLoading(true);
     try {
+      const normalizedValues: SettingsUpdate = {
+        ...values,
+        api_key: builtInKeyProviders.includes(values.api_provider || '') ? '' : values.api_key,
+      };
       // 检查是否与 MCP 缓存的配置不一致
       const verifiedConfigStr = localStorage.getItem('mcp_verified_config');
       let configChanged = false;
@@ -289,15 +293,14 @@ function SettingsPage() {
         try {
           const verifiedConfig = JSON.parse(verifiedConfigStr);
           configChanged =
-            verifiedConfig.provider !== values.api_provider ||
-            verifiedConfig.baseUrl !== values.api_base_url ||
-            verifiedConfig.model !== values.llm_model;
+            verifiedConfig.provider !== normalizedValues.api_provider ||
+            verifiedConfig.baseUrl !== normalizedValues.api_base_url ||
+            verifiedConfig.model !== normalizedValues.llm_model;
         } catch (e) {
           console.error('Failed to parse verified config:', e);
         }
       }
-
-      await settingsApi.saveSettings(values);
+await settingsApi.saveSettings(normalizedValues);
       message.success('设置已保存');
       setHasSettings(true);
       setIsDefaultSettings(false);
@@ -437,6 +440,11 @@ function SettingsPage() {
 
   const mumuTextDefaultUrl = 'https://api.mumuverse.space/v1';
   const mumuRegisterUrl = 'https://api.mumuverse.space/register?aff=4NN8';
+  const xiaomiMimoDefaultUrl = 'https://token-plan-cn.xiaomimimo.com/v1';
+  const builtInKeyProviders = ['xiaomi_mimo'];
+  const xiaomiMimoDefaultModels = [
+    { value: 'mimo-v2.5', label: 'mimo-v2.5', description: 'Xiaomi MiMo 官方内置推荐模型' },
+  ];
   const mumuCoverBaseUrlOptions = [
     { value: 'https://api.mumuverse.space/v1beta', label: 'https://api.mumuverse.space/v1beta', defaultModel: 'gemini-3.1-flash-image-preview' },
     { value: 'https://api.mumuverse.space/v1', label: 'https://api.mumuverse.space/v1', defaultModel: 'gpt-image-1.5' },
@@ -455,6 +463,13 @@ function SettingsPage() {
       label: 'MuMuのAPI',
       defaultUrl: mumuTextDefaultUrl,
       defaultModel: 'gemini-3-flash-preview'
+    },
+    {
+      value: 'xiaomi_mimo',
+      label: 'Xiaomi MiMo（内置）',
+      defaultUrl: xiaomiMimoDefaultUrl,
+      defaultModel: xiaomiMimoDefaultModels[0].value,
+      builtInKey: true,
     },
     { value: 'openai', label: 'OpenAI Compatible', defaultUrl: 'https://api.openai.com/v1' },
     { value: 'anthropic', label: 'Anthropic Claude', defaultUrl: 'https://api.anthropic.com' },
@@ -509,7 +524,11 @@ function SettingsPage() {
         nextValues.api_key = '';
         nextValues.llm_model = provider.defaultModel || 'gemini-3-flash-preview';
       }
-      nextValues.default_reasoning_intensity = DEFAULT_REASONING_INTENSITY;
+nextValues.default_reasoning_intensity = DEFAULT_REASONING_INTENSITY;
+      if (builtInKeyProviders.includes(provider.value)) {
+        nextValues.api_key = '';
+        nextValues.llm_model = provider.defaultModel || xiaomiMimoDefaultModels[0].value;
+      }
       form.setFieldsValue(nextValues);
     }
     // 清空模型列表，需要重新获取
@@ -599,7 +618,9 @@ function SettingsPage() {
     const apiBaseUrl = form.getFieldValue('api_base_url');
     const provider = form.getFieldValue('api_provider');
 
-    if (!apiKey || !apiBaseUrl) {
+    const isBuiltInKeyProvider = builtInKeyProviders.includes(provider);
+
+    if ((!apiKey && !isBuiltInKeyProvider) || !apiBaseUrl) {
       if (!silent) {
         message.warning('请先填写 API 密钥和 API 地址');
       }
@@ -609,7 +630,7 @@ function SettingsPage() {
     setFetchingModels(true);
     try {
       const response = await settingsApi.getAvailableModels({
-        api_key: apiKey,
+        api_key: isBuiltInKeyProvider ? '' : apiKey,
         api_base_url: apiBaseUrl,
         provider: provider || 'openai'
       });
@@ -648,7 +669,9 @@ function SettingsPage() {
     const maxTokens = form.getFieldValue('max_tokens');
     const defaultReasoningIntensity = form.getFieldValue('default_reasoning_intensity') as ReasoningIntensity | undefined;
 
-    if (!apiKey || !apiBaseUrl || !provider || !modelName) {
+    const isBuiltInKeyProvider = builtInKeyProviders.includes(provider);
+
+    if ((!apiKey && !isBuiltInKeyProvider) || !apiBaseUrl || !provider || !modelName) {
       message.warning('请先填写完整的配置信息');
       return;
     }
@@ -676,7 +699,7 @@ function SettingsPage() {
 
     try {
       const result = await settingsApi.testApiConnection({
-        api_key: apiKey,
+        api_key: isBuiltInKeyProvider ? '' : apiKey,
         api_base_url: apiBaseUrl,
         provider: provider,
         llm_model: modelName,
@@ -770,7 +793,9 @@ function SettingsPage() {
     const apiBaseUrl = presetForm.getFieldValue('api_base_url');
     const provider = presetForm.getFieldValue('api_provider');
 
-    if (!apiKey || !apiBaseUrl) {
+    const isBuiltInKeyProvider = builtInKeyProviders.includes(provider);
+
+    if ((!apiKey && !isBuiltInKeyProvider) || !apiBaseUrl) {
       if (!silent) {
         message.warning('请先填写 API 密钥和 API 地址');
       }
@@ -780,7 +805,7 @@ function SettingsPage() {
     setFetchingPresetModels(true);
     try {
       const response = await settingsApi.getAvailableModels({
-        api_key: apiKey,
+        api_key: isBuiltInKeyProvider ? '' : apiKey,
         api_base_url: apiBaseUrl,
         provider: provider || 'openai'
       });
@@ -822,7 +847,11 @@ function SettingsPage() {
         nextValues.api_key = '';
         nextValues.llm_model = provider.defaultModel || 'gemini-3-flash-preview';
       }
-      nextValues.default_reasoning_intensity = DEFAULT_REASONING_INTENSITY;
+nextValues.default_reasoning_intensity = DEFAULT_REASONING_INTENSITY;
+      if (builtInKeyProviders.includes(provider.value)) {
+        nextValues.api_key = '';
+        nextValues.llm_model = provider.defaultModel || xiaomiMimoDefaultModels[0].value;
+      }
       presetForm.setFieldsValue(nextValues);
     }
     // 清空模型列表，需要重新获取
@@ -833,14 +862,15 @@ function SettingsPage() {
   const handlePresetSave = async () => {
     try {
       const values = await presetForm.validateFields();
-      const reasoningError = validateReasoningSelection(values, presetForm);
+const reasoningError = validateReasoningSelection(values, presetForm);
       if (reasoningError) {
         message.error(reasoningError);
         return;
       }
+      const isBuiltInKeyProvider = builtInKeyProviders.includes(values.api_provider);
       const config: APIKeyPresetConfig = {
         api_provider: values.api_provider,
-        api_key: values.api_key,
+        api_key: isBuiltInKeyProvider ? '' : values.api_key,
         api_base_url: values.api_base_url,
         llm_model: values.llm_model,
         temperature: values.temperature,
@@ -1580,6 +1610,16 @@ function SettingsPage() {
                             />
                           )}
 
+                          {selectedProvider === 'xiaomi_mimo' && (
+                            <Alert
+                              type="info"
+                              showIcon
+                              message="Xiaomi MiMo 内置适配器"
+                              description="使用 OpenAI 兼容格式与内置服务地址。真实 Key 仅由后端环境变量提供，前端和数据库不会保存该 Key。"
+                              style={{ marginBottom: 16 }}
+                            />
+                          )}
+
                           <Form.Item
                             label={
                               <Space size={4}>
@@ -1591,12 +1631,13 @@ function SettingsPage() {
                               </Space>
                             }
                             name="api_key"
-                            rules={[{ required: true, message: '请输入API密钥' }]}
+                            rules={builtInKeyProviders.includes(selectedProvider) ? [] : [{ required: true, message: '请输入API密钥' }]}
                           >
                             <Input.Password
                               size={isMobile ? 'middle' : 'large'}
-                              placeholder="sk-..."
+                              placeholder={builtInKeyProviders.includes(selectedProvider) ? '使用后端内置密钥' : 'sk-...'}
                               autoComplete="new-password"
+                              disabled={builtInKeyProviders.includes(selectedProvider)}
                             />
                           </Form.Item>
 
@@ -1711,7 +1752,12 @@ function SettingsPage() {
                                 ) : undefined
                               }
                               options={(() => {
-                                const opts = modelOptions.map(model => ({
+                                const providerDefaultModels = selectedProvider === 'xiaomi_mimo' ? xiaomiMimoDefaultModels : [];
+                                const combinedModels = [
+                                  ...providerDefaultModels,
+                                  ...modelOptions.filter(model => !providerDefaultModels.some(item => item.value === model.value)),
+                                ];
+                                const opts = combinedModels.map(model => ({
                                   value: model.value,
                                   label: model.label,
                                   description: model.description
@@ -2258,6 +2304,7 @@ function SettingsPage() {
                 >
                   <Select placeholder="选择提供商" onChange={handlePresetProviderChange}>
                     <Select.Option value="mumu">MuMuのAPI</Select.Option>
+                    <Select.Option value="xiaomi_mimo">Xiaomi MiMo（内置）</Select.Option>
                     <Select.Option value="openai">OpenAI</Select.Option>
                     <Select.Option value="gemini">Google Gemini</Select.Option>
                   </Select>
@@ -2286,6 +2333,16 @@ function SettingsPage() {
                     style={{ marginBottom: 16 }}
                   />
                 )}
+
+                {selectedPresetProvider === 'xiaomi_mimo' && (
+                  <Alert
+                    type="info"
+                    showIcon
+                    message="Xiaomi MiMo 内置适配器"
+                    description="使用后端内置 Key 和 OpenAI 兼容接口地址，预设中不会保存真实 Key。"
+                    style={{ marginBottom: 16 }}
+                  />
+                )}
               </Col>
             </Row>
 
@@ -2304,10 +2361,13 @@ function SettingsPage() {
                 <Form.Item
                   name="api_key"
                   label="API Key"
-                  rules={[{ required: true, message: '请输入API Key' }]}
+                  rules={builtInKeyProviders.includes(selectedPresetProvider) ? [] : [{ required: true, message: '请输入API Key' }]}
                   style={{ marginBottom: 16 }}
                 >
-                  <Input.Password placeholder="sk-..." />
+                  <Input.Password
+                    placeholder={builtInKeyProviders.includes(selectedPresetProvider) ? '使用后端内置密钥（不会暴露）' : 'sk-...'}
+                    disabled={builtInKeyProviders.includes(selectedPresetProvider)}
+                  />
                 </Form.Item>
               </Col>
               <Col xs={24} sm={12}>
@@ -2411,7 +2471,12 @@ function SettingsPage() {
                       </div>
                     }
                     options={(() => {
-                      const opts = presetModelOptions.map(model => ({
+                      const providerDefaultModels = selectedPresetProvider === 'xiaomi_mimo' ? xiaomiMimoDefaultModels : [];
+                      const combinedModels = [
+                        ...providerDefaultModels,
+                        ...presetModelOptions.filter(model => !providerDefaultModels.some(item => item.value === model.value)),
+                      ];
+                      const opts = combinedModels.map(model => ({
                         value: model.value,
                         label: model.label,
                         description: model.description
