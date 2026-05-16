@@ -30,6 +30,67 @@ router = APIRouter(prefix="/wizard-stream", tags=["项目创建向导(流式)"])
 logger = get_logger(__name__)
 
 
+STORY_BIBLE_CONTEXT_FIELD_LABELS: dict[str, str] = {
+    "core_idea": "核心创意",
+    "story_promise": "故事承诺",
+    "target_genre": "目标类型",
+    "world_rules": "世界规则",
+    "core_conflict": "核心冲突",
+    "protagonist_profile": "主角画像",
+    "antagonistic_force": "对抗力量",
+    "golden_finger": "金手指/特殊优势",
+    "opening_hook": "开篇钩子",
+    "tone_and_style": "语气风格",
+    "foreshadowing_seeds": "伏笔种子",
+    "constraints": "写作约束",
+}
+
+
+def _format_context_value(value: Any) -> str:
+    if value is None:
+        return "无"
+    if isinstance(value, list):
+        return "、".join(str(item) for item in value if item is not None) or "无"
+    if isinstance(value, dict):
+        return json.dumps(value, ensure_ascii=False)
+    return str(value)
+
+
+def build_inspiration_context_prompt(data: Dict[str, Any]) -> str:
+    """Build optional inspiration/story-bible prompt context without persisting it."""
+    context = data.get("inspiration_context")
+    if not isinstance(context, dict):
+        return ""
+
+    story_bible = context.get("story_bible_draft")
+    if not isinstance(story_bible, dict):
+        return ""
+
+    lines = [
+        "",
+        "【灵感模式故事圣经草稿】",
+        "以下内容仅作为本次向导生成的补充提示上下文，不代表已写入项目规范数据；请优先保持与基础项目字段一致。",
+    ]
+
+    initial_idea = context.get("initial_idea")
+    if initial_idea:
+        lines.append(f"原始创意：{_format_context_value(initial_idea)}")
+
+    confirmed_fields = context.get("confirmed_fields")
+    if isinstance(confirmed_fields, dict) and confirmed_fields:
+        lines.append(f"已确认字段：{json.dumps(confirmed_fields, ensure_ascii=False)}")
+
+    direction_card = context.get("direction_card")
+    if isinstance(direction_card, dict) and direction_card:
+        lines.append(f"故事方向卡：{json.dumps(direction_card, ensure_ascii=False)}")
+
+    for field, label in STORY_BIBLE_CONTEXT_FIELD_LABELS.items():
+        if field in story_bible:
+            lines.append(f"{label}：{_format_context_value(story_bible.get(field))}")
+
+    return "\n".join(lines)
+
+
 async def get_owned_project(db: AsyncSession, project_id: str, user_id: str | None) -> Project | None:
     if not project_id or not user_id:
         return None
@@ -86,6 +147,9 @@ async def world_building_generator(
             genre=genre or "通用类型",
             description=description or "暂无简介"
         )
+        inspiration_context_prompt = build_inspiration_context_prompt(data)
+        if inspiration_context_prompt:
+            base_prompt = f"{base_prompt}\n{inspiration_context_prompt}"
 
         # 设置用户信息以启用MCP
         if user_id:
@@ -1385,6 +1449,9 @@ async def outline_generator(
             mcp_references="",
             requirements=outline_requirements
         )
+        inspiration_context_prompt = build_inspiration_context_prompt(data)
+        if inspiration_context_prompt:
+            outline_prompt = f"{outline_prompt}\n{inspiration_context_prompt}"
 
         # 流式生成大纲
         estimated_total = 1000

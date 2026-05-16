@@ -2,6 +2,7 @@ import axios from 'axios';
 import { message } from 'antd';
 import { ssePost } from '../utils/sseClient';
 import type { SSEClientOptions } from '../utils/sseClient';
+import { isInspirationStep } from '../types';
 import type {
   User,
   AuthUrlResponse,
@@ -100,6 +101,22 @@ import type {
   GoldfingerImportResult,
   GoldfingerListResponse,
   GoldfingerUpdate,
+  InspirationEvaluateRequest,
+  InspirationGenerationContext,
+  InspirationGenerateCardsRequest,
+  InspirationGenerateCardsResponse,
+  InspirationGenerateStoryBibleRequest,
+  InspirationGenerateStoryBibleResponse,
+  InspirationMergeCardsRequest,
+  InspirationMergeCardsResponse,
+  InspirationOptionsRequest,
+  InspirationOptionsResponse,
+  InspirationQuickGenerateRequest,
+  InspirationQuickGenerateResponse,
+  InspirationRefineOptionsRequest,
+  InspirationRepairRequest,
+  InspirationRepairResult,
+  InspirationQualityReport,
   Relationship,
   RelationshipCreate,
   RelationshipGraphData,
@@ -1201,54 +1218,49 @@ export const polishApi = {
   polishBatch: (texts: string[]) =>
     api.post<unknown, { polished_texts: string[] }>('/polish/batch', { texts }),
 };
+
+function assertSupportedInspirationStep(step: string): void {
+  if (!isInspirationStep(step)) {
+    throw new Error(`不支持的灵感步骤: ${step}`);
+  }
+}
+
 export const inspirationApi = {
   // 生成选项建议
-  generateOptions: (data: {
-    step: 'title' | 'description' | 'theme' | 'genre';
-    context: {
-      title?: string;
-      description?: string;
-      theme?: string;
-    };
-  }) =>
-    api.post<unknown, {
-      prompt?: string;
-      options: string[];
-      error?: string;
-    }>('/inspiration/generate-options', data),
+  generateOptions: (data: InspirationOptionsRequest) => {
+    assertSupportedInspirationStep(data.step);
+    return api.post<unknown, InspirationOptionsResponse>('/inspiration/generate-options', data);
+  },
 
   // 基于用户反馈重新生成选项（新增）
-  refineOptions: (data: {
-    step: 'title' | 'description' | 'theme' | 'genre';
-    context: {
-      initial_idea?: string;
-      title?: string;
-      description?: string;
-      theme?: string;
-    };
-    feedback: string;
-    previous_options?: string[];
-  }) =>
-    api.post<unknown, {
-      prompt?: string;
-      options: string[];
-      error?: string;
-    }>('/inspiration/refine-options', data),
+  refineOptions: (data: InspirationRefineOptionsRequest) => {
+    assertSupportedInspirationStep(data.step);
+    return api.post<unknown, InspirationOptionsResponse>('/inspiration/refine-options', data);
+  },
 
   // 智能补全缺失信息
-  quickGenerate: (data: {
-    title?: string;
-    description?: string;
-    theme?: string;
-    genre?: string | string[];
-  }) =>
-    api.post<unknown, {
-      title: string;
-      description: string;
-      theme: string;
-      genre: string[];
-      narrative_perspective: string;
-    }>('/inspiration/quick-generate', data),
+  quickGenerate: (data: InspirationQuickGenerateRequest) =>
+    api.post<unknown, InspirationQuickGenerateResponse>('/inspiration/quick-generate', data),
+
+  // 生成故事方向卡片
+  generateCards: (data: InspirationGenerateCardsRequest) =>
+    api.post<unknown, InspirationGenerateCardsResponse>('/inspiration/generate-cards', data),
+
+  // 合并两个故事方向卡片
+  mergeCards: (data: InspirationMergeCardsRequest) =>
+    api.post<unknown, InspirationMergeCardsResponse>('/inspiration/merge-cards', data),
+
+  // 生成故事圣经草稿
+  generateStoryBible: (data: InspirationGenerateStoryBibleRequest) =>
+    api.post<unknown, InspirationGenerateStoryBibleResponse>('/inspiration/generate-story-bible', data),
+
+  // 评估灵感质量
+  evaluate: (data: InspirationEvaluateRequest) =>
+    api.post<unknown, InspirationQualityReport>('/inspiration/evaluate', data),
+
+  // 一次性修复灵感草稿
+  repair: (data: InspirationRepairRequest) =>
+    api.post<unknown, InspirationRepairResult>('/inspiration/repair', data),
 };
 
 export default api;
@@ -1266,6 +1278,7 @@ export const wizardStreamApi = {
       chapter_count?: number;
       character_count?: number;
       outline_mode?: 'one-to-one' | 'one-to-many';  // 添加大纲模式参数
+      inspiration_context?: InspirationGenerationContext;
       provider?: string;
       model?: string;
     },
@@ -1320,6 +1333,7 @@ export const wizardStreamApi = {
       narrative_perspective: string;
       target_words?: number;
       requirements?: string;
+      inspiration_context?: InspirationGenerationContext;
       provider?: string;
       model?: string;
     },

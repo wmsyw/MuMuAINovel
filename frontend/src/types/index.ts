@@ -270,6 +270,197 @@ export interface ProjectWizardRequest {
   };
 }
 
+// ==================== 灵感模式共享契约 ====================
+
+export const INSPIRATION_STEPS = [
+  'title',
+  'description',
+  'theme',
+  'genre',
+  'world_setting',
+  'core_conflict',
+  'protagonist',
+  'golden_finger',
+  'auto',
+] as const;
+
+export type InspirationStep = typeof INSPIRATION_STEPS[number];
+
+export function isInspirationStep(step: string): step is InspirationStep {
+  return (INSPIRATION_STEPS as readonly string[]).includes(step);
+}
+
+export interface InspirationOptionsContext {
+  initial_idea?: string;
+  title?: string;
+  description?: string;
+  theme?: string;
+  genre?: string | string[];
+  world_setting?: string;
+  core_conflict?: string;
+  protagonist?: string;
+  golden_finger?: string | null;
+  [key: string]: unknown;
+}
+
+export interface InspirationOptionsRequest {
+  step: InspirationStep;
+  context: InspirationOptionsContext;
+}
+
+export interface InspirationRefineOptionsRequest extends InspirationOptionsRequest {
+  feedback: string;
+  previous_options?: string[];
+}
+
+export interface InspirationOptionsResponse {
+  prompt?: string;
+  options: string[];
+  error?: string;
+}
+
+export interface InspirationQuickGenerateRequest {
+  title?: string;
+  description?: string;
+  theme?: string;
+  genre?: string | string[];
+}
+
+export interface InspirationQuickGenerateResponse {
+  title?: string;
+  description?: string;
+  theme?: string;
+  genre?: string[];
+  narrative_perspective?: string;
+  error?: string;
+}
+
+export interface InspirationDirectionCard {
+  id: string;
+  title: string;
+  hook: string;
+  genre: string[];
+  world_setting: string;
+  core_conflict: string;
+  protagonist: string;
+  golden_finger?: string | null;
+  opening_hook: string;
+  selling_points: string[];
+  risks: string[];
+}
+
+export interface InspirationStoryBibleDraft {
+  core_idea: string;
+  story_promise: string;
+  target_genre: string[];
+  world_rules: string[];
+  core_conflict: string;
+  protagonist_profile: string;
+  antagonistic_force: string;
+  golden_finger?: string | null;
+  opening_hook: string;
+  tone_and_style: string;
+  foreshadowing_seeds: string[];
+  constraints: string[];
+}
+
+export interface InspirationGenerationContext {
+  source: 'inspiration_story_bible';
+  initial_idea?: string;
+  confirmed_fields?: InspirationOptionsContext;
+  direction_card?: InspirationDirectionCard | null;
+  story_bible_draft: InspirationStoryBibleDraft;
+}
+
+export type InspirationQualityDimension =
+  | 'novelty'
+  | 'writability'
+  | 'commercial_hook'
+  | 'consistency'
+  | 'long_form_potential';
+
+export interface InspirationQualityIssue {
+  id: string;
+  dimension?: InspirationQualityDimension;
+  severity?: 'info' | 'warning' | 'error';
+  message: string;
+  suggestion?: string;
+}
+
+export interface InspirationQualityReport {
+  overall_score: number;
+  dimensions: Record<InspirationQualityDimension, number>;
+  issues: InspirationQualityIssue[];
+  repair_suggestions: string[];
+  warnings: string[];
+}
+
+export interface InspirationRepairResult {
+  repaired: boolean;
+  draft: InspirationStoryBibleDraft | InspirationDirectionCard;
+  remaining_issues: InspirationQualityIssue[];
+  warnings: string[];
+}
+
+export interface InspirationGenerateCardsRequest {
+  idea: string;
+  context?: InspirationOptionsContext;
+  card_count?: number;
+}
+
+export interface InspirationGenerateCardsResponse {
+  prompt?: string;
+  cards: InspirationDirectionCard[];
+  warnings: string[];
+  error?: string;
+}
+
+export interface InspirationMergeCardsRequest {
+  cards: [InspirationDirectionCard, InspirationDirectionCard];
+  primary_card_id?: string;
+  instructions?: string;
+}
+
+export interface InspirationMergeCardsResponse {
+  card: InspirationDirectionCard;
+  warnings: string[];
+  error?: string;
+}
+
+export interface InspirationGenerateStoryBibleRequest {
+  idea?: string;
+  direction_card?: InspirationDirectionCard;
+  confirmed_fields?: InspirationOptionsContext;
+  user_edits?: Partial<InspirationStoryBibleDraft>;
+  constraints?: string[];
+}
+
+export interface InspirationGenerateStoryBibleResponse {
+  story_bible_draft: InspirationStoryBibleDraft;
+  warnings: string[];
+  error?: string;
+}
+
+export interface InspirationEvaluateRequest {
+  direction_card?: InspirationDirectionCard;
+  story_bible_draft?: InspirationStoryBibleDraft;
+  context?: InspirationOptionsContext;
+}
+
+export interface InspirationRepairRequest {
+  draft: InspirationStoryBibleDraft | InspirationDirectionCard;
+  issues?: InspirationQualityIssue[];
+  issue_ids?: string[];
+  instructions?: string;
+}
+
+export const DIRECTION_CARD_LABELS: Record<string, string> = {
+  title: '推荐书名', hook: '一句话卖点', genre: '类型标签',
+  world_setting: '世界规则', core_conflict: '核心冲突',
+  protagonist: '主角原型', golden_finger: '金手指/特殊优势',
+  opening_hook: '开篇钩子', selling_points: '预期爽点', risks: '风险提示',
+};
+
 export interface WorldBuildingResponse {
   project_id: string;
   time_period: string;

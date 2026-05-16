@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, Button, Space, Typography, message, Progress, theme } from 'antd';
 import { CheckCircleOutlined, LoadingOutlined } from '@ant-design/icons';
 import { wizardStreamApi } from '../../services/api';
-import type { ApiError } from '../../types';
+import type { ApiError, InspirationGenerationContext } from '../../types';
 
 const { Title, Paragraph, Text } = Typography;
 
@@ -17,6 +17,7 @@ export interface GenerationConfig {
   chapter_count: number;
   character_count: number;
   outline_mode?: 'one-to-one' | 'one-to-many';  // 大纲章节模式
+  inspiration_context?: InspirationGenerationContext;
 }
 
 interface AIProjectGeneratorProps {
@@ -43,6 +44,31 @@ interface WorldBuildingResult {
   location: string;
   atmosphere: string;
   rules: string;
+}
+
+function buildWorldBuildingRequest(data: GenerationConfig, genre: string) {
+  return {
+    title: data.title,
+    description: data.description,
+    theme: data.theme,
+    genre,
+    narrative_perspective: data.narrative_perspective,
+    target_words: data.target_words,
+    chapter_count: data.chapter_count,
+    character_count: data.character_count,
+    outline_mode: data.outline_mode || 'one-to-many',
+    ...(data.inspiration_context ? { inspiration_context: data.inspiration_context } : {}),
+  };
+}
+
+function buildOutlineRequest(data: GenerationConfig, projectId: string) {
+  return {
+    project_id: projectId,
+    chapter_count: data.chapter_count,
+    narrative_perspective: data.narrative_perspective,
+    target_words: data.target_words,
+    ...(data.inspiration_context ? { inspiration_context: data.inspiration_context } : {}),
+  };
 }
 
 export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
@@ -196,17 +222,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
     const genreString = Array.isArray(data.genre) ? data.genre.join('、') : data.genre;
 
     const worldResult = await wizardStreamApi.generateWorldBuildingStream(
-      {
-        title: data.title,
-        description: data.description,
-        theme: data.theme,
-        genre: genreString,
-        narrative_perspective: data.narrative_perspective,
-        target_words: data.target_words,
-        chapter_count: data.chapter_count,
-        character_count: data.character_count,
-        outline_mode: data.outline_mode || 'one-to-many',  // 传递大纲模式
-      },
+      buildWorldBuildingRequest(data, genreString),
       {
         onProgress: (msg, prog) => {
           // 直接使用后端返回的进度值
@@ -322,12 +338,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
     setProgressMessage('正在生成大纲...');
 
     await wizardStreamApi.generateCompleteOutlineStream(
-      {
-        project_id: pid,
-        chapter_count: data.chapter_count,
-        narrative_perspective: data.narrative_perspective,
-        target_words: data.target_words,
-      },
+      buildOutlineRequest(data, pid),
       {
         onProgress: (msg, prog) => {
           // 直接使用后端返回的进度值
@@ -381,17 +392,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
       setProgressMessage('正在生成世界观...');
 
       const worldResult = await wizardStreamApi.generateWorldBuildingStream(
-        {
-          title: data.title,
-          description: data.description,
-          theme: data.theme,
-          genre: genreString,
-          narrative_perspective: data.narrative_perspective,
-          target_words: data.target_words,
-          chapter_count: data.chapter_count,
-          character_count: data.character_count,
-          outline_mode: data.outline_mode || 'one-to-many',  // 传递大纲模式
-        },
+        buildWorldBuildingRequest(data, genreString),
         {
           onProgress: (msg, prog) => {
             // 直接使用后端返回的进度值
@@ -500,12 +501,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
       setProgressMessage('正在生成大纲...');
 
       await wizardStreamApi.generateCompleteOutlineStream(
-        {
-          project_id: createdProjectId,
-          chapter_count: data.chapter_count,
-          narrative_perspective: data.narrative_perspective,
-          target_words: data.target_words,
-        },
+        buildOutlineRequest(data, createdProjectId),
         {
           onProgress: (msg, prog) => {
             // 直接使用后端返回的进度值
@@ -595,17 +591,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
     const genreString = Array.isArray(generationData.genre) ? generationData.genre.join('、') : generationData.genre;
 
     const worldResult = await wizardStreamApi.generateWorldBuildingStream(
-      {
-        title: generationData.title,
-        description: generationData.description,
-        theme: generationData.theme,
-        genre: genreString,
-        narrative_perspective: generationData.narrative_perspective,
-        target_words: generationData.target_words,
-        chapter_count: generationData.chapter_count,
-        character_count: generationData.character_count,
-        outline_mode: generationData.outline_mode || 'one-to-many',  // 传递大纲模式
-      },
+      buildWorldBuildingRequest(generationData, genreString),
       {
         onProgress: (msg, prog) => {
           // 直接使用后端返回的进度值
@@ -764,12 +750,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
     setProgressMessage('重新生成大纲...');
 
     await wizardStreamApi.generateCompleteOutlineStream(
-      {
-        project_id: pid,
-        chapter_count: generationData.chapter_count,
-        narrative_perspective: generationData.narrative_perspective,
-        target_words: generationData.target_words,
-      },
+      buildOutlineRequest(generationData, pid),
       {
         onProgress: (msg, prog) => {
           // 直接使用后端返回的进度值
@@ -904,12 +885,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
     setProgressMessage('正在生成大纲...');
 
     await wizardStreamApi.generateCompleteOutlineStream(
-      {
-        project_id: pid,
-        chapter_count: generationData.chapter_count,
-        narrative_perspective: generationData.narrative_perspective,
-        target_words: generationData.target_words,
-      },
+      buildOutlineRequest(generationData, pid),
       {
         onProgress: (msg, prog) => {
           // 直接使用后端返回的进度值

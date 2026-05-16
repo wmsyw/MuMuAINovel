@@ -1,15 +1,30 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, Input, Button, Space, Typography, message, Spin, Modal, theme } from 'antd';
+import { Alert, Card, Input, Button, Space, Typography, message, Spin, Modal, theme, Checkbox, Tag } from 'antd';
 import { SendOutlined, ArrowLeftOutlined, ReloadOutlined } from '@ant-design/icons';
 import { inspirationApi, projectApi } from '../services/api';
 import { AIProjectGenerator, type GenerationConfig } from '../components/generation/AIProjectGenerator';
-import type { Project, ProjectCreate } from '../types';
+import { DIRECTION_CARD_LABELS, isInspirationStep } from '../types';
+import type { InspirationDirectionCard, InspirationGenerationContext, InspirationOptionsContext, InspirationQualityReport, InspirationStep, InspirationStoryBibleDraft, Project, ProjectCreate } from '../types';
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
 
-type Step = 'idea' | 'title' | 'description' | 'theme' | 'genre' | 'perspective' | 'outline_mode' | 'confirm' | 'generating' | 'complete';
+type Step = 'idea' | 'direction_cards' | 'title' | 'description' | 'theme' | 'genre' | 'world_setting' | 'core_conflict' | 'protagonist' | 'golden_finger' | 'perspective' | 'outline_mode' | 'confirm' | 'generating' | 'complete';
+
+const NO_GOLDEN_FINGER_OPTION = '无特殊金手指，仅保留普通优势';
+
+const stepLabels: Record<InspirationStep, string> = {
+  title: '书名',
+  description: '简介',
+  theme: '主题',
+  genre: '类型',
+  world_setting: '世界规则',
+  core_conflict: '核心冲突',
+  protagonist: '主角原型',
+  golden_finger: '金手指/特殊优势',
+  auto: '自动补全',
+};
 
 interface Message {
   type: 'ai' | 'user';
@@ -18,7 +33,7 @@ interface Message {
   isMultiSelect?: boolean;
   optionsDisabled?: boolean; // 标记选项是否已禁用
   canRefine?: boolean; // 是否可以优化（用于支持多轮对话）
-  step?: Step; // 当前步骤（用于反馈）
+  step?: InspirationStep; // 当前AI步骤（用于反馈）
 }
 
 interface WizardData {
@@ -26,6 +41,10 @@ interface WizardData {
   description: string;
   theme: string;
   genre: string[];
+  world_setting?: string;
+  core_conflict?: string;
+  protagonist?: string;
+  golden_finger?: string | null;
   narrative_perspective: string;
   outline_mode: 'one-to-one' | 'one-to-many';
 }
@@ -38,9 +57,14 @@ interface InspirationDraftRecord {
   description: string;
   theme: string;
   genre: string[];
+  world_setting?: string;
+  core_conflict?: string;
+  protagonist?: string;
+  golden_finger?: string | null;
   narrative_perspective: string;
   outline_mode: 'one-to-one' | 'one-to-many';
   initial_idea: string;
+  story_bible_draft?: InspirationStoryBibleDraft;
   created_at: string;
   status: 'draft';
 }
@@ -57,9 +81,15 @@ interface CacheData {
   wizardData: Partial<WizardData>;
   initialIdea: string;
   selectedOptions: string[];
+  directionCards?: InspirationDirectionCard[];
+  selectedDirectionCardIds?: string[];
+  activeDirectionCard?: InspirationDirectionCard | null;
+  storyBibleDraft?: InspirationStoryBibleDraft;
+  storyBibleQualityReport?: InspirationQualityReport | null;
+  storyBibleQualityError?: string | null;
   lastFailedRequest: {
-    step: 'title' | 'description' | 'theme' | 'genre';
-    context: Partial<WizardData>;
+    step: InspirationStep;
+    context: InspirationOptionsContext;
   } | null;
   timestamp: number;
 }
@@ -70,23 +100,37 @@ const INSPIRATION_DRAFTS_KEY = 'inspiration_saved_drafts';
 // 缓存有效期：24小时
 const CACHE_EXPIRY = 24 * 60 * 60 * 1000;
 
-function normalizeWizardData(data: WizardData, initialIdea: string): InspirationDraftRecord {
-  return {
+function normalizeWizardData(
+  data: WizardData,
+  initialIdea: string,
+  storyBibleDraft?: InspirationStoryBibleDraft,
+): InspirationDraftRecord {
+  const draft: InspirationDraftRecord = {
     id: `inspiration-${Date.now()}`,
     title: data.title,
     description: data.description,
     theme: data.theme,
     genre: data.genre,
+    world_setting: data.world_setting,
+    core_conflict: data.core_conflict,
+    protagonist: data.protagonist,
+    golden_finger: data.golden_finger,
     narrative_perspective: data.narrative_perspective,
     outline_mode: data.outline_mode,
     initial_idea: initialIdea,
     created_at: new Date().toISOString(),
     status: 'draft',
   };
+
+  if (storyBibleDraft) {
+    draft.story_bible_draft = storyBibleDraft;
+  }
+
+  return draft;
 }
 
 function buildProjectDraftPayload(data: WizardData): ProjectCreate {
-  return {
+  const payload: ProjectCreate = {
     title: data.title,
     description: data.description,
     theme: data.theme,
@@ -94,6 +138,227 @@ function buildProjectDraftPayload(data: WizardData): ProjectCreate {
     target_words: 100000,
     outline_mode: data.outline_mode,
   };
+
+  if (data.world_setting) {
+    payload.world_rules = data.world_setting;
+  }
+
+  return payload;
+}
+
+type InspirationGenerationConfig = GenerationConfig & {
+  world_setting?: string;
+  core_conflict?: string;
+  protagonist?: string;
+  golden_finger?: string;
+};
+
+function buildInspirationGenerationContext(
+  data: WizardData,
+  initialIdea: string,
+  storyBibleDraft?: InspirationStoryBibleDraft,
+  activeDirectionCard?: InspirationDirectionCard | null,
+): InspirationGenerationContext | undefined {
+  if (!storyBibleDraft) {
+    return undefined;
+  }
+
+  return {
+    source: 'inspiration_story_bible',
+    initial_idea: initialIdea || undefined,
+    confirmed_fields: buildOptionsContext(data, initialIdea),
+    direction_card: activeDirectionCard || undefined,
+    story_bible_draft: storyBibleDraft,
+  };
+}
+
+function buildGenerationConfig(
+  data: WizardData,
+  initialIdea: string = '',
+  storyBibleDraft?: InspirationStoryBibleDraft,
+  activeDirectionCard?: InspirationDirectionCard | null,
+): InspirationGenerationConfig {
+  const config: InspirationGenerationConfig = {
+    title: data.title,
+    description: data.description,
+    theme: data.theme,
+    genre: data.genre,
+    narrative_perspective: data.narrative_perspective,
+    target_words: 100000,
+    chapter_count: 3,
+    character_count: 5,
+    outline_mode: data.outline_mode || 'one-to-many',
+  };
+
+  if (data.world_setting) {
+    config.world_setting = data.world_setting;
+  }
+  if (data.core_conflict) {
+    config.core_conflict = data.core_conflict;
+  }
+  if (data.protagonist) {
+    config.protagonist = data.protagonist;
+  }
+  if (data.golden_finger) {
+    config.golden_finger = data.golden_finger;
+  }
+
+  const inspirationContext = buildInspirationGenerationContext(data, initialIdea, storyBibleDraft, activeDirectionCard);
+  if (inspirationContext) {
+    config.inspiration_context = inspirationContext;
+  }
+
+  return config;
+}
+
+const generatedOptionSteps = [
+  'description',
+  'theme',
+  'genre',
+  'world_setting',
+  'core_conflict',
+  'protagonist',
+  'golden_finger',
+] as const;
+
+type GeneratedOptionStep = typeof generatedOptionSteps[number];
+
+const DIRECTION_CARD_COUNT = 3;
+
+const storyBibleFieldOrder = [
+  'core_idea',
+  'story_promise',
+  'target_genre',
+  'world_rules',
+  'core_conflict',
+  'protagonist_profile',
+  'antagonistic_force',
+  'golden_finger',
+  'opening_hook',
+  'tone_and_style',
+  'foreshadowing_seeds',
+  'constraints',
+] as const satisfies readonly (keyof InspirationStoryBibleDraft)[];
+
+type StoryBibleField = typeof storyBibleFieldOrder[number];
+
+const storyBibleFieldLabels: Record<StoryBibleField, string> = {
+  core_idea: '核心创意',
+  story_promise: '故事承诺',
+  target_genre: '目标类型',
+  world_rules: '世界规则',
+  core_conflict: '核心冲突',
+  protagonist_profile: '主角画像',
+  antagonistic_force: '对抗力量',
+  golden_finger: '金手指/特殊优势',
+  opening_hook: '开篇钩子',
+  tone_and_style: '语气风格',
+  foreshadowing_seeds: '伏笔种子',
+  constraints: '写作约束',
+};
+
+const storyBibleListFields = new Set<StoryBibleField>([
+  'target_genre',
+  'world_rules',
+  'foreshadowing_seeds',
+  'constraints',
+]);
+
+const directionCardFieldOrder = [
+  'hook',
+  'title',
+  'genre',
+  'world_setting',
+  'core_conflict',
+  'protagonist',
+  'golden_finger',
+  'opening_hook',
+  'selling_points',
+  'risks',
+] as const;
+
+function formatDirectionCardValue(value: string | string[] | null | undefined): string {
+  if (Array.isArray(value)) {
+    return value.join('、');
+  }
+
+  if (!value) {
+    return '无';
+  }
+
+  return value;
+}
+
+function storyBibleFieldToText(draft: InspirationStoryBibleDraft, field: StoryBibleField): string {
+  const value = draft[field];
+  if (Array.isArray(value)) {
+    return value.join('\n');
+  }
+  return value ?? '';
+}
+
+function storyBibleTextToValue(field: StoryBibleField, value: string): string | string[] | null {
+  if (storyBibleListFields.has(field)) {
+    return value.split('\n').map(item => item.trim()).filter(Boolean);
+  }
+  if (field === 'golden_finger') {
+    return value.trim() || null;
+  }
+  return value;
+}
+
+function isStoryBibleDraft(draft: InspirationStoryBibleDraft | InspirationDirectionCard): draft is InspirationStoryBibleDraft {
+  return 'core_idea' in draft && 'story_promise' in draft;
+}
+
+function formatQualityDimensionLabel(dimension: keyof InspirationQualityReport['dimensions']): string {
+  const labels: Record<keyof InspirationQualityReport['dimensions'], string> = {
+    novelty: '新颖度',
+    writability: '可写性',
+    commercial_hook: '商业爽点',
+    consistency: '一致性',
+    long_form_potential: '长篇支撑度',
+  };
+  return labels[dimension] || dimension;
+}
+
+function directionCardToWizardData(card: InspirationDirectionCard): Partial<WizardData> {
+  return {
+    title: card.title,
+    description: card.hook,
+    theme: card.core_conflict,
+    genre: card.genre,
+    world_setting: card.world_setting,
+    core_conflict: card.core_conflict,
+    protagonist: card.protagonist,
+    golden_finger: card.golden_finger || null,
+  };
+}
+
+function isGeneratedOptionStep(step: Step): step is GeneratedOptionStep {
+  return (generatedOptionSteps as readonly Step[]).includes(step);
+}
+
+function buildOptionsContext(data: Partial<WizardData>, initialIdea: string): InspirationOptionsContext {
+  return {
+    initial_idea: initialIdea,
+    title: data.title,
+    description: data.description,
+    theme: data.theme,
+    genre: data.genre,
+    world_setting: data.world_setting,
+    core_conflict: data.core_conflict,
+    protagonist: data.protagonist,
+    golden_finger: data.golden_finger,
+  };
+}
+
+function withGoldenFingerNoneOption(step: InspirationStep, options?: string[]): string[] {
+  if (step !== 'golden_finger') {
+    return options || [];
+  }
+
+  return Array.from(new Set([...(options || []), NO_GOLDEN_FINGER_OPTION]));
 }
 
 function saveInspirationDraftToStorage(draft: InspirationDraftRecord, storage: Storage = localStorage): void {
@@ -107,9 +372,10 @@ async function runInspirationDraftAction(
   data: WizardData,
   initialIdea: string,
   clients: InspirationDraftActionClients,
+  storyBibleDraft?: InspirationStoryBibleDraft,
 ): Promise<InspirationDraftRecord | Project> {
   if (action === 'save_inspiration') {
-    const draft = normalizeWizardData(data, initialIdea);
+    const draft = normalizeWizardData(data, initialIdea, storyBibleDraft);
     clients.saveInspiration(draft);
     return draft;
   }
@@ -154,6 +420,15 @@ const InspirationImpl: React.FC = () => {
   const [draftActionLoading, setDraftActionLoading] = useState<InspirationDraftAction | null>(null);
   const [createdDraftProjectId, setCreatedDraftProjectId] = useState<string | null>(null);
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
+  const [directionCards, setDirectionCards] = useState<InspirationDirectionCard[]>([]);
+  const [selectedDirectionCardIds, setSelectedDirectionCardIds] = useState<string[]>([]);
+  const [activeDirectionCard, setActiveDirectionCard] = useState<InspirationDirectionCard | null>(null);
+  const [storyBibleDraft, setStoryBibleDraft] = useState<InspirationStoryBibleDraft | undefined>(undefined);
+  const [storyBibleGenerating, setStoryBibleGenerating] = useState(false);
+  const [storyBibleQualityLoading, setStoryBibleQualityLoading] = useState(false);
+  const [storyBibleRepairing, setStoryBibleRepairing] = useState(false);
+  const [storyBibleQualityReport, setStoryBibleQualityReport] = useState<InspirationQualityReport | null>(null);
+  const [storyBibleQualityError, setStoryBibleQualityError] = useState<string | null>(null);
 
   // 收集的数据
   const [wizardData, setWizardData] = useState<Partial<WizardData>>({});
@@ -166,7 +441,7 @@ const InspirationImpl: React.FC = () => {
   const [refining, setRefining] = useState(false); // 正在优化选项
 
   // 生成配置
-  const [generationConfig, setGenerationConfig] = useState<GenerationConfig | null>(null);
+  const [generationConfig, setGenerationConfig] = useState<InspirationGenerationConfig | null>(null);
 
   // Modal hook
   const [modal, contextHolder] = Modal.useModal();
@@ -174,11 +449,12 @@ const InspirationImpl: React.FC = () => {
   // 滚动容器引用
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const submitInFlightRef = useRef(false);
 
   // 记录上次失败的请求参数，用于重试
   const [lastFailedRequest, setLastFailedRequest] = useState<{
-    step: 'title' | 'description' | 'theme' | 'genre';
-    context: Partial<WizardData>;
+    step: InspirationStep;
+    context: InspirationOptionsContext;
   } | null>(null);
 
   // 标记是否已经加载缓存
@@ -215,6 +491,12 @@ const InspirationImpl: React.FC = () => {
         wizardData,
         initialIdea,
         selectedOptions,
+        directionCards,
+        selectedDirectionCardIds,
+        activeDirectionCard,
+        storyBibleDraft,
+        storyBibleQualityReport,
+        storyBibleQualityError,
         lastFailedRequest,
         timestamp: Date.now()
       };
@@ -224,7 +506,7 @@ const InspirationImpl: React.FC = () => {
     } catch (error) {
       console.error('保存缓存失败:', error);
     }
-  }, [currentStep, messages, wizardData, initialIdea, selectedOptions, lastFailedRequest]);
+  }, [currentStep, messages, wizardData, initialIdea, selectedOptions, directionCards, selectedDirectionCardIds, activeDirectionCard, storyBibleDraft, storyBibleQualityReport, storyBibleQualityError, lastFailedRequest]);
 
   // 从缓存恢复
   const restoreFromCache = useCallback((): boolean => {
@@ -255,6 +537,12 @@ const InspirationImpl: React.FC = () => {
       setWizardData(cacheData.wizardData);
       setInitialIdea(cacheData.initialIdea);
       setSelectedOptions(cacheData.selectedOptions);
+      setDirectionCards(cacheData.directionCards || []);
+      setSelectedDirectionCardIds(cacheData.selectedDirectionCardIds || []);
+      setActiveDirectionCard(cacheData.activeDirectionCard || null);
+      setStoryBibleDraft(cacheData.storyBibleDraft);
+      setStoryBibleQualityReport(cacheData.storyBibleQualityReport || null);
+      setStoryBibleQualityError(cacheData.storyBibleQualityError || null);
       // 恢复失败请求信息，确保"重新生成"按钮可用
       if (cacheData.lastFailedRequest) {
         setLastFailedRequest(cacheData.lastFailedRequest);
@@ -290,7 +578,7 @@ const InspirationImpl: React.FC = () => {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [messages, currentStep, wizardData, initialIdea, selectedOptions, lastFailedRequest, cacheLoaded, saveToCache]);
+  }, [messages, currentStep, wizardData, initialIdea, selectedOptions, directionCards, selectedDirectionCardIds, activeDirectionCard, storyBibleDraft, storyBibleQualityReport, storyBibleQualityError, lastFailedRequest, cacheLoaded, saveToCache]);
 
   // 自动滚动到底部
   const scrollToBottom = () => {
@@ -338,8 +626,10 @@ const InspirationImpl: React.FC = () => {
       const aiMessage: Message = {
         type: 'ai',
         content: response.prompt || '请选择一个选项，或者输入你自己的：',
-        options: response.options || [],
-        isMultiSelect: lastFailedRequest.step === 'genre'
+        options: withGoldenFingerNoneOption(lastFailedRequest.step, response.options),
+        isMultiSelect: lastFailedRequest.step === 'genre',
+        canRefine: true,
+        step: lastFailedRequest.step,
       };
       setMessages(prev => [...prev, aiMessage]);
       setLastFailedRequest(null);
@@ -388,15 +678,14 @@ const InspirationImpl: React.FC = () => {
       };
       setMessages(prev => [...prev, feedbackMessage]);
 
-      const step = targetMessage.step as 'title' | 'description' | 'theme' | 'genre';
+      const step = targetMessage.step as InspirationStep;
+      if (!isInspirationStep(step)) {
+        message.error('当前步骤不支持重新生成');
+        return;
+      }
       
       // 构建上下文
-      const context: Partial<WizardData> & { initial_idea?: string } = {
-        initial_idea: initialIdea,
-        title: wizardData.title,
-        description: wizardData.description,
-        theme: wizardData.theme,
-      };
+      const context = buildOptionsContext(wizardData, initialIdea);
 
       // 调用refine接口
       const response = await inspirationApi.refineOptions({
@@ -414,8 +703,8 @@ const InspirationImpl: React.FC = () => {
       // 添加新的AI消息
       const aiMessage: Message = {
         type: 'ai',
-        content: response.prompt || `根据您的反馈，我重新生成了一些${step === 'title' ? '书名' : step === 'description' ? '简介' : step === 'theme' ? '主题' : '类型'}选项：`,
-        options: response.options || [],
+        content: response.prompt || `根据您的反馈，我重新生成了一些${stepLabels[step]}选项：`,
+        options: withGoldenFingerNoneOption(step, response.options),
         isMultiSelect: step === 'genre',
         canRefine: true,
         step: step,
@@ -434,13 +723,333 @@ const InspirationImpl: React.FC = () => {
   };
 
   // 步骤顺序
-  const stepOrder: Step[] = ['idea', 'title', 'description', 'theme', 'genre', 'perspective', 'outline_mode', 'confirm'];
+  const stepOrder: Step[] = ['idea', 'title', 'description', 'theme', 'genre', 'world_setting', 'core_conflict', 'protagonist', 'golden_finger', 'perspective', 'outline_mode', 'confirm'];
+
+  const requestDirectionCards = async (idea: string) => {
+    const response = await inspirationApi.generateCards({
+      idea,
+      card_count: DIRECTION_CARD_COUNT,
+      context: {
+        initial_idea: idea,
+        description: idea,
+      },
+    });
+
+      if (response.error || !response.cards || response.cards.length === 0) {
+        setDirectionCards([]);
+        setSelectedDirectionCardIds([]);
+        setActiveDirectionCard(null);
+      const errorMessage: Message = {
+        type: 'ai',
+        content: response.error
+          ? `生成故事方向时出错：${response.error}\n\n你可以使用经典逐步生成继续。`
+          : '暂时没有生成可用的故事方向，你可以使用经典逐步生成继续。',
+      };
+      setMessages(prev => [...prev, errorMessage]);
+      setCurrentStep('direction_cards');
+      return;
+    }
+
+    setDirectionCards(response.cards);
+    setSelectedDirectionCardIds([]);
+    setActiveDirectionCard(null);
+    const aiMessage: Message = {
+      type: 'ai',
+      content: response.prompt || '我先为你生成了三张故事方向卡。可以选择一个继续深化，也可以合并两个方向，或切换到经典逐步生成。',
+    };
+    setMessages(prev => [...prev, aiMessage]);
+    setCurrentStep('direction_cards');
+    setLastFailedRequest(null);
+  };
+
+  const startClassicFlow = async () => {
+    if (!initialIdea.trim()) {
+      message.warning('请先输入初始创意');
+      return;
+    }
+
+    const userMessage: Message = {
+      type: 'user',
+      content: '使用经典逐步生成',
+    };
+    setMessages(prev => [...prev, userMessage]);
+    setLoading(true);
+    setActiveDirectionCard(null);
+
+    const requestData = {
+      step: 'title' as const,
+      context: {
+        initial_idea: initialIdea,
+        description: initialIdea,
+      }
+    };
+
+    try {
+      const response = await inspirationApi.generateOptions(requestData);
+
+      if (response.error || !response.options || response.options.length < 3) {
+        const errorMessage: Message = {
+          type: 'ai',
+          content: response.error
+            ? `生成书名时出错：${response.error}\n\n你可以选择：`
+            : `生成的选项格式不正确（至少需要3个有效选项）\n\n你可以选择：`,
+          options: response.options && response.options.length > 0 ? response.options : ['重新生成', '我自己输入书名']
+        };
+        setMessages(prev => [...prev, errorMessage]);
+        setLastFailedRequest(requestData);
+        return;
+      }
+
+      const aiMessage: Message = {
+        type: 'ai',
+        content: response.prompt || '请选择一个书名，或者输入你自己的：',
+        options: response.options,
+        canRefine: true,
+        step: 'title'
+      };
+      setMessages(prev => [...prev, aiMessage]);
+      setCurrentStep('title');
+      setLastFailedRequest(null);
+    } catch (error: unknown) {
+      console.error('经典逐步生成启动失败:', error);
+      const errMsg = error instanceof Error ? error.message : '生成失败，请重试';
+      const axiosError = error as { response?: { data?: { detail?: string } } };
+      message.error(axiosError.response?.data?.detail || errMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const continueWithDirectionCard = (card: InspirationDirectionCard) => {
+    const updatedData = {
+      ...wizardData,
+      ...directionCardToWizardData(card),
+    };
+    setWizardData(updatedData);
+    setActiveDirectionCard(card);
+    setStoryBibleDraft(undefined);
+    setStoryBibleQualityReport(null);
+    setStoryBibleQualityError(null);
+
+    const userMessage: Message = {
+      type: 'user',
+      content: `继续深化此方向：${card.title}`,
+    };
+    const aiMessage: Message = {
+      type: 'ai',
+      content: '已将方向卡的书名、类型、世界规则、核心冲突、主角原型与金手指写入后续上下文。接下来，请选择小说的叙事视角：',
+      options: ['第一人称', '第三人称', '全知视角']
+    };
+    setMessages(prev => [...prev, userMessage, aiMessage]);
+    setCurrentStep('perspective');
+    setSelectedDirectionCardIds([]);
+  };
+
+  const handleToggleDirectionCard = (cardId: string) => {
+    setSelectedDirectionCardIds(prev => {
+      if (prev.includes(cardId)) {
+        return prev.filter(id => id !== cardId);
+      }
+      return [...prev, cardId];
+    });
+  };
+
+  const handleRegenerateDirectionCards = async () => {
+    if (!initialIdea.trim()) {
+      message.warning('缺少原始创意，无法重新生成方向');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await requestDirectionCards(initialIdea);
+      message.success('已重新生成一批方向');
+    } catch (error: unknown) {
+      console.error('重新生成方向卡失败:', error);
+      const errMsg = error instanceof Error ? error.message : '重新生成失败，请重试';
+      const axiosError = error as { response?: { data?: { detail?: string } } };
+      message.error(axiosError.response?.data?.detail || errMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMergeDirectionCards = async () => {
+    const selectedCards = selectedDirectionCardIds
+      .map(id => directionCards.find(card => card.id === id))
+      .filter((card): card is InspirationDirectionCard => Boolean(card));
+
+    if (selectedCards.length !== 2) {
+      message.warning('请选择且仅选择两个方向进行合并');
+      return;
+    }
+
+    const [primaryCard, secondaryCard] = selectedCards;
+    if (!primaryCard || !secondaryCard) {
+      message.warning('请选择且仅选择两个方向进行合并');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const cardsToMerge: [InspirationDirectionCard, InspirationDirectionCard] = [primaryCard, secondaryCard];
+      const response = await inspirationApi.mergeCards({
+        cards: cardsToMerge,
+        primary_card_id: primaryCard.id,
+      });
+
+      if (response.error || !response.card) {
+        message.error(response.error || '合并方向失败，请重试');
+        return;
+      }
+
+      setDirectionCards([response.card]);
+      setSelectedDirectionCardIds([response.card.id]);
+      setActiveDirectionCard(response.card);
+      const aiMessage: Message = {
+        type: 'ai',
+        content: `已合并为新的故事方向「${response.card.title}」。你可以继续深化此方向，或重新生成一批方向。`,
+      };
+      setMessages(prev => [...prev, aiMessage]);
+      message.success('方向已合并');
+    } catch (error: unknown) {
+      console.error('合并方向卡失败:', error);
+      const errMsg = error instanceof Error ? error.message : '合并失败，请重试';
+      const axiosError = error as { response?: { data?: { detail?: string } } };
+      message.error(axiosError.response?.data?.detail || errMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateStoryBibleField = (field: StoryBibleField, value: string) => {
+    setStoryBibleDraft(prev => {
+      if (!prev) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        [field]: storyBibleTextToValue(field, value),
+      } as InspirationStoryBibleDraft;
+    });
+  };
+
+  const handleGenerateStoryBible = async () => {
+    const data = wizardData as Partial<WizardData>;
+    if (!initialIdea.trim() && !data.description && !activeDirectionCard) {
+      message.warning('缺少原始创意或故事方向，无法生成故事圣经草稿');
+      return;
+    }
+
+    setStoryBibleGenerating(true);
+    setStoryBibleQualityReport(null);
+    setStoryBibleQualityError(null);
+
+    try {
+      const response = await inspirationApi.generateStoryBible({
+        idea: initialIdea,
+        direction_card: activeDirectionCard || undefined,
+        confirmed_fields: buildOptionsContext(data, initialIdea),
+        user_edits: storyBibleDraft,
+        constraints: storyBibleDraft?.constraints || [],
+      });
+
+      if (response.error || !response.story_bible_draft) {
+        message.error(response.error || '生成故事圣经草稿失败，请重试');
+        return;
+      }
+
+      const draft = response.story_bible_draft;
+      setStoryBibleDraft(draft);
+      message.success('故事圣经草稿已生成');
+
+      setStoryBibleQualityLoading(true);
+      try {
+        const report = await inspirationApi.evaluate({
+          story_bible_draft: draft,
+          context: buildOptionsContext(data, initialIdea),
+        });
+        setStoryBibleQualityReport(report);
+      } catch (error: unknown) {
+        console.error('故事圣经质量评估失败:', error);
+        const errMsg = error instanceof Error ? error.message : '质量评估失败，请稍后重试';
+        const axiosError = error as { response?: { data?: { detail?: string | { message?: string } } } };
+        const detail = axiosError.response?.data?.detail;
+        setStoryBibleQualityError(typeof detail === 'string' ? detail : detail?.message || errMsg);
+        message.warning('故事圣经已生成，但质量评估失败');
+      } finally {
+        setStoryBibleQualityLoading(false);
+      }
+    } catch (error: unknown) {
+      console.error('生成故事圣经草稿失败:', error);
+      const errMsg = error instanceof Error ? error.message : '生成故事圣经草稿失败，请重试';
+      const axiosError = error as { response?: { data?: { detail?: string } } };
+      message.error(axiosError.response?.data?.detail || errMsg);
+    } finally {
+      setStoryBibleGenerating(false);
+    }
+  };
+
+  const handleRepairStoryBible = async () => {
+    if (!storyBibleDraft) {
+      message.warning('请先生成故事圣经草稿');
+      return;
+    }
+
+    if (storyBibleRepairing) {
+      return;
+    }
+
+    const issues = storyBibleQualityReport?.issues || [];
+    setStoryBibleRepairing(true);
+    setStoryBibleQualityError(null);
+
+    try {
+      const result = await inspirationApi.repair({
+        draft: storyBibleDraft,
+        issues,
+        issue_ids: issues.map(issue => issue.id),
+        instructions: '只执行一次针对当前质量报告的修复；保留用户确认的故事方向、核心前提和未被问题命中的字段。',
+      });
+
+      if (result.repaired && isStoryBibleDraft(result.draft)) {
+        setStoryBibleDraft(result.draft);
+        message.success('故事圣经已完成一次修复');
+      } else {
+        message.warning(result.warnings?.[0] || '本次修复未能完成，已保留原草稿');
+      }
+
+      if (storyBibleQualityReport) {
+        setStoryBibleQualityReport({
+          ...storyBibleQualityReport,
+          issues: result.remaining_issues || [],
+          warnings: [...(storyBibleQualityReport.warnings || []), ...(result.warnings || [])],
+        });
+      }
+    } catch (error: unknown) {
+      console.error('故事圣经修复失败:', error);
+      const errMsg = error instanceof Error ? error.message : '修复失败，请稍后重试';
+      const axiosError = error as { response?: { data?: { detail?: string | { message?: string } } } };
+      const detail = axiosError.response?.data?.detail;
+      setStoryBibleQualityError(typeof detail === 'string' ? detail : detail?.message || errMsg);
+      message.error('故事圣经修复失败，请重试');
+    } finally {
+      setStoryBibleRepairing(false);
+    }
+  };
 
   const handleSendMessage = async () => {
+    if (submitInFlightRef.current || loading || draftActionLoading) {
+      return;
+    }
+
     if (!inputValue.trim()) {
       message.warning('请输入内容');
       return;
     }
+
+    submitInFlightRef.current = true;
 
     const userMessage: Message = {
       type: 'user',
@@ -455,40 +1064,7 @@ const InspirationImpl: React.FC = () => {
     try {
       if (currentStep === 'idea') {
         setInitialIdea(userInput);
-
-        const requestData = {
-          step: 'title' as const,
-          context: {
-            initial_idea: userInput,
-            description: userInput
-          }
-        };
-
-        const response = await inspirationApi.generateOptions(requestData);
-
-        if (response.error || !response.options || response.options.length < 3) {
-          const errorMessage: Message = {
-            type: 'ai',
-            content: response.error
-              ? `生成书名时出错：${response.error}\n\n你可以选择：`
-              : `生成的选项格式不正确（至少需要3个有效选项）\n\n你可以选择：`,
-            options: response.options && response.options.length > 0 ? response.options : ['重新生成', '我自己输入书名']
-          };
-          setMessages(prev => [...prev, errorMessage]);
-          setLastFailedRequest(requestData);
-          return;
-        }
-
-        const aiMessage: Message = {
-          type: 'ai',
-          content: response.prompt || '请选择一个书名，或者输入你自己的：',
-          options: response.options,
-          canRefine: true,
-          step: 'title'
-        };
-        setMessages(prev => [...prev, aiMessage]);
-        setCurrentStep('title');
-        setLastFailedRequest(null);
+        await requestDirectionCards(userInput);
       } else {
         await handleCustomInput(userInput);
       }
@@ -498,6 +1074,7 @@ const InspirationImpl: React.FC = () => {
       const axiosError = error as { response?: { data?: { detail?: string } } };
       message.error(axiosError.response?.data?.detail || errMsg);
     } finally {
+      submitInFlightRef.current = false;
       setLoading(false);
     }
   };
@@ -582,6 +1159,12 @@ const InspirationImpl: React.FC = () => {
 
       // 显示摘要
       const modeText = modeValue === 'one-to-one' ? '一对一模式' : '一对多模式';
+      const hiddenStepSummaryLines = [
+        updatedData.world_setting ? `🌍 世界规则：${updatedData.world_setting}` : null,
+        updatedData.core_conflict ? `⚔️ 核心冲突：${updatedData.core_conflict}` : null,
+        updatedData.protagonist ? `👤 主角原型：${updatedData.protagonist}` : null,
+        updatedData.golden_finger ? `✨ 金手指：${updatedData.golden_finger}` : null,
+      ].filter(Boolean).join('\n');
       const summary = `
 太棒了！你的小说设定已完成，请确认：
 
@@ -589,7 +1172,7 @@ const InspirationImpl: React.FC = () => {
 📝 简介：${updatedData.description}
 🎯 主题：${updatedData.theme}
 🏷️ 类型：${updatedData.genre.join('、')}
-👁️ 视角：${updatedData.narrative_perspective}
+${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：${updatedData.narrative_perspective}
 📋 大纲模式：${modeText}
 
 请选择下一步操作：
@@ -598,7 +1181,7 @@ const InspirationImpl: React.FC = () => {
       const aiMessage: Message = {
         type: 'ai',
         content: summary,
-        options: ['保存灵感草稿', '创建项目草稿', '开始完整项目生成', '重新开始']
+        options: ['生成故事圣经草稿', '保存灵感草稿', '创建项目草稿', '开始完整项目生成', '重新开始']
       };
       setMessages(prev => [...prev, aiMessage]);
       setCurrentStep('confirm');
@@ -606,6 +1189,22 @@ const InspirationImpl: React.FC = () => {
     }
 
     if (currentStep === 'confirm') {
+      if (option === '生成故事圣经草稿') {
+        const userMessage: Message = {
+          type: 'user',
+          content: '生成故事圣经草稿',
+        };
+        setMessages(prev => [...prev, userMessage]);
+        await handleGenerateStoryBible();
+        const aiMessage: Message = {
+          type: 'ai',
+          content: '故事圣经草稿处理完成。你可以在上方继续编辑草稿，或选择保存灵感草稿、创建项目草稿、开始完整项目生成。',
+          options: ['保存灵感草稿', '创建项目草稿', '开始完整项目生成', '重新开始'],
+        };
+        setMessages(prev => [...prev, aiMessage]);
+        return;
+      }
+
       if (option === '保存灵感草稿') {
         const userMessage: Message = {
           type: 'user',
@@ -619,7 +1218,7 @@ const InspirationImpl: React.FC = () => {
           const draft = await runInspirationDraftAction('save_inspiration', data, initialIdea, {
             saveInspiration: saveInspirationDraftToStorage,
             createProjectDraft: projectApi.createProject,
-          }) as InspirationDraftRecord;
+          }, storyBibleDraft) as InspirationDraftRecord;
           const aiMessage: Message = {
             type: 'ai',
             content: `已保存为灵感草稿「${draft.title}」。这不会创建角色、组织、职业或改写世界观；你仍可以选择创建项目草稿或进入完整生成流程。`,
@@ -694,17 +1293,7 @@ const InspirationImpl: React.FC = () => {
 
         // 开始生成项目
         const data = wizardData as WizardData;
-        const config: GenerationConfig = {
-          title: data.title,
-          description: data.description,
-          theme: data.theme,
-          genre: data.genre,
-          narrative_perspective: data.narrative_perspective,
-          target_words: 100000,
-          chapter_count: 3,
-          character_count: 5,
-          outline_mode: data.outline_mode,
-        };
+        const config = buildGenerationConfig(data, initialIdea, storyBibleDraft, activeDirectionCard);
         setGenerationConfig(config);
         setCurrentStep('generating');
         return;
@@ -729,6 +1318,14 @@ const InspirationImpl: React.FC = () => {
         updatedData.description = option;
       } else if (currentStep === 'theme') {
         updatedData.theme = option;
+      } else if (currentStep === 'world_setting') {
+        updatedData.world_setting = option;
+      } else if (currentStep === 'core_conflict') {
+        updatedData.core_conflict = option;
+      } else if (currentStep === 'protagonist') {
+        updatedData.protagonist = option;
+      } else if (currentStep === 'golden_finger') {
+        updatedData.golden_finger = option === NO_GOLDEN_FINGER_OPTION ? null : option;
       }
       setWizardData(updatedData);
 
@@ -756,6 +1353,14 @@ const InspirationImpl: React.FC = () => {
         updatedData.theme = input;
       } else if (currentStep === 'genre') {
         updatedData.genre = [input];
+      } else if (currentStep === 'world_setting') {
+        updatedData.world_setting = input;
+      } else if (currentStep === 'core_conflict') {
+        updatedData.core_conflict = input;
+      } else if (currentStep === 'protagonist') {
+        updatedData.protagonist = input;
+      } else if (currentStep === 'golden_finger') {
+        updatedData.golden_finger = input === NO_GOLDEN_FINGER_OPTION ? null : input;
       } else if (currentStep === 'perspective') {
         updatedData.narrative_perspective = input;
         setWizardData(updatedData);
@@ -826,13 +1431,7 @@ const InspirationImpl: React.FC = () => {
 
     setLoading(true);
     try {
-      const aiMessage: Message = {
-        type: 'ai',
-        content: '很好！接下来，请选择小说的叙事视角：',
-        options: ['第一人称', '第三人称', '全知视角']
-      };
-      setMessages(prev => [...prev, aiMessage]);
-      setCurrentStep('perspective');
+      await generateNextStep(updatedData);
     } finally {
       setLoading(false);
     }
@@ -843,7 +1442,7 @@ const InspirationImpl: React.FC = () => {
     const nextStep = stepOrder[currentIndex + 1];
 
     if (nextStep === 'perspective') {
-      // genre 步骤完成后，进入 perspective
+      // 金手指步骤完成后，进入 perspective
       const aiMessage: Message = {
         type: 'ai',
         content: '很好！接下来，请选择小说的叙事视角：',
@@ -851,94 +1450,21 @@ const InspirationImpl: React.FC = () => {
       };
       setMessages(prev => [...prev, aiMessage]);
       setCurrentStep('perspective');
-    } else if (nextStep === 'description') {
+    } else if (isGeneratedOptionStep(nextStep)) {
       const requestData = {
-        step: 'description' as const,
-        context: {
-          initial_idea: initialIdea,
-          title: data.title
-        }
+        step: nextStep,
+        context: buildOptionsContext(data, initialIdea)
       };
       const response = await inspirationApi.generateOptions(requestData);
+      const options = withGoldenFingerNoneOption(nextStep, response.options);
 
-      if (response.error || !response.options || response.options.length < 3) {
+      if (response.error || options.length < 3) {
         const errorMessage: Message = {
           type: 'ai',
           content: response.error
-            ? `生成简介时出错：${response.error}\n\n你可以选择：`
+            ? `生成${stepLabels[nextStep]}时出错：${response.error}\n\n你可以选择：`
             : `生成的选项格式不正确（至少需要3个有效选项）\n\n你可以选择：`,
-          options: response.options && response.options.length > 0 ? response.options : ['重新生成', '我自己输入']
-        };
-        setMessages(prev => [...prev, errorMessage]);
-        setLastFailedRequest(requestData);
-        return;
-      }
-
-      const aiMessage: Message = {
-        type: 'ai',
-        content: response.prompt || '请选择一个简介，或者输入你自己的：',
-        options: response.options,
-        canRefine: true,
-        step: 'description'
-      };
-      setMessages(prev => [...prev, aiMessage]);
-      setCurrentStep('description');
-      setLastFailedRequest(null);
-
-    } else if (nextStep === 'theme') {
-      const requestData = {
-        step: 'theme' as const,
-        context: {
-          initial_idea: initialIdea,
-          title: data.title,
-          description: data.description
-        }
-      };
-      const response = await inspirationApi.generateOptions(requestData);
-
-      if (response.error || !response.options || response.options.length < 3) {
-        const errorMessage: Message = {
-          type: 'ai',
-          content: response.error
-            ? `生成主题时出错：${response.error}\n\n你可以选择：`
-            : `生成的选项格式不正确（至少需要3个有效选项）\n\n你可以选择：`,
-          options: response.options && response.options.length > 0 ? response.options : ['重新生成', '我自己输入']
-        };
-        setMessages(prev => [...prev, errorMessage]);
-        setLastFailedRequest(requestData);
-        return;
-      }
-
-      const aiMessage: Message = {
-        type: 'ai',
-        content: response.prompt || '请选择一个主题，或者输入你自己的：',
-        options: response.options,
-        canRefine: true,
-        step: 'theme'
-      };
-      setMessages(prev => [...prev, aiMessage]);
-      setCurrentStep('theme');
-      setLastFailedRequest(null);
-
-    } else if (nextStep === 'genre') {
-      const requestData = {
-        step: 'genre' as const,
-        context: {
-          initial_idea: initialIdea,
-          title: data.title,
-          description: data.description,
-          theme: data.theme
-        }
-      };
-      const response = await inspirationApi.generateOptions(requestData);
-
-      if (response.error || !response.options || response.options.length < 3) {
-        const errorMessage: Message = {
-          type: 'ai',
-          content: response.error
-            ? `生成类型时出错：${response.error}\n\n你可以选择：`
-            : `生成的选项格式不正确（至少需要3个有效选项）\n\n你可以选择：`,
-          options: response.options && response.options.length > 0 ? response.options : ['重新生成', '我自己输入'],
+          options: options.length > 0 ? options : ['重新生成', '我自己输入'],
           isMultiSelect: false
         };
         setMessages(prev => [...prev, errorMessage]);
@@ -948,14 +1474,14 @@ const InspirationImpl: React.FC = () => {
 
       const aiMessage: Message = {
         type: 'ai',
-        content: response.prompt || '请选择类型标签（可多选）：',
-        options: response.options,
-        isMultiSelect: true,
+        content: response.prompt || (nextStep === 'genre' ? '请选择类型标签（可多选）：' : `请选择一个${stepLabels[nextStep]}，或者输入你自己的：`),
+        options,
+        isMultiSelect: nextStep === 'genre',
         canRefine: true,
-        step: 'genre'
+        step: nextStep
       };
       setMessages(prev => [...prev, aiMessage]);
-      setCurrentStep('genre');
+      setCurrentStep(nextStep);
       setLastFailedRequest(null);
     }
   };
@@ -974,6 +1500,14 @@ const InspirationImpl: React.FC = () => {
     setWizardData({});
     setInitialIdea('');
     setSelectedOptions([]);
+    setDirectionCards([]);
+    setSelectedDirectionCardIds([]);
+    setActiveDirectionCard(null);
+    setStoryBibleDraft(undefined);
+    setStoryBibleGenerating(false);
+    setStoryBibleQualityLoading(false);
+    setStoryBibleQualityReport(null);
+    setStoryBibleQualityError(null);
     setCreatedDraftProjectId(null);
     setLoading(false);
   };
@@ -998,9 +1532,271 @@ const InspirationImpl: React.FC = () => {
     handleRestart();
   };
 
+  const renderDirectionCards = () => {
+    if (currentStep !== 'direction_cards') {
+      return null;
+    }
+
+    return (
+      <Card
+        style={{
+          marginBottom: 16,
+          borderColor: token.colorPrimaryBorder,
+          boxShadow: `0 6px 18px color-mix(in srgb, ${token.colorTextBase} 12%, transparent)`,
+        }}
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+          <Space direction="vertical" size={4} style={{ width: '100%' }}>
+            <Title level={4} style={{ margin: 0 }}>故事方向</Title>
+            <Text type="secondary">默认先比较三张方向卡；选中两个时，先点选的方向会作为合并主方向。</Text>
+          </Space>
+
+          {directionCards.length > 0 ? (
+            <Space direction="vertical" style={{ width: '100%' }} size="middle">
+              {directionCards.map((card) => {
+                const selected = selectedDirectionCardIds.includes(card.id);
+
+                return (
+                  <Card
+                    key={card.id}
+                    hoverable={!loading}
+                    onClick={() => !loading && handleToggleDirectionCard(card.id)}
+                    style={{
+                      cursor: loading ? 'not-allowed' : 'pointer',
+                      border: selected ? `2px solid ${token.colorPrimary}` : `1px solid ${token.colorBorder}`,
+                      background: selected ? token.colorPrimaryBg : token.colorBgContainer,
+                      opacity: loading ? 0.7 : 1,
+                      transition: 'all 0.3s ease',
+                    }}
+                    styles={{ body: { padding: 16 } }}
+                  >
+                    <Space direction="vertical" style={{ width: '100%' }} size="small">
+                      <Space style={{ width: '100%', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <Space align="start">
+                          <Checkbox
+                            checked={selected}
+                            disabled={loading}
+                            onClick={(event) => event.stopPropagation()}
+                            onChange={() => handleToggleDirectionCard(card.id)}
+                          />
+                          <Space direction="vertical" size={2}>
+                            <Text strong>{DIRECTION_CARD_LABELS.title}：{card.title}</Text>
+                            <Text type="secondary">{DIRECTION_CARD_LABELS.hook}：{card.hook}</Text>
+                          </Space>
+                        </Space>
+                        {selected && (
+                          <Tag color="processing">第 {selectedDirectionCardIds.indexOf(card.id) + 1} 选择</Tag>
+                        )}
+                      </Space>
+
+                      <Space direction="vertical" size={6} style={{ width: '100%' }}>
+                        {directionCardFieldOrder.map(field => {
+                          if (field === 'title' || field === 'hook') {
+                            return null;
+                          }
+
+                          return (
+                            <div key={field} style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
+                              <Text strong style={{ minWidth: 108, color: token.colorTextSecondary }}>
+                                {DIRECTION_CARD_LABELS[field]}
+                              </Text>
+                              <Text>{formatDirectionCardValue(card[field])}</Text>
+                            </div>
+                          );
+                        })}
+                      </Space>
+
+                      <Button
+                        type="primary"
+                        block
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          continueWithDirectionCard(card);
+                        }}
+                        disabled={loading}
+                      >
+                        继续深化此方向
+                      </Button>
+                    </Space>
+                  </Card>
+                );
+              })}
+            </Space>
+          ) : (
+            <Text type="secondary">暂无可用方向卡。</Text>
+          )}
+
+          <Space wrap style={{ width: '100%', justifyContent: 'space-between' }}>
+            <Space wrap>
+              <Button onClick={handleRegenerateDirectionCards} loading={loading}>
+                重新生成一批方向
+              </Button>
+              <Button onClick={handleMergeDirectionCards} loading={loading}>
+                合并方向
+              </Button>
+            </Space>
+            <Button type="link" onClick={startClassicFlow} disabled={loading}>
+              使用经典逐步生成
+            </Button>
+          </Space>
+        </Space>
+      </Card>
+    );
+  };
+
+  const renderStoryBiblePanel = () => {
+    if (currentStep !== 'confirm') {
+      return null;
+    }
+
+    const panelShadow = `0 6px 18px color-mix(in srgb, ${token.colorTextBase} 12%, transparent)`;
+
+    return (
+      <Card
+        title="故事圣经草稿"
+        style={{
+          marginBottom: token.marginMD,
+          borderColor: storyBibleDraft ? token.colorPrimaryBorder : token.colorBorder,
+          boxShadow: panelShadow,
+        }}
+        extra={(
+          <Button
+            type={storyBibleDraft ? 'default' : 'primary'}
+            onClick={handleGenerateStoryBible}
+            loading={storyBibleGenerating}
+            disabled={Boolean(draftActionLoading)}
+          >
+            {storyBibleDraft ? '重新生成故事圣经草稿' : '生成故事圣经草稿'}
+          </Button>
+        )}
+      >
+        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <Text type="secondary">
+            草稿只保存在本地灵感草稿中；创建项目草稿仍只写入基础安全字段，不会自动创建角色、世界观或伏笔记录。
+          </Text>
+
+          {!storyBibleDraft ? (
+            <Alert
+              type="info"
+              showIcon
+              message="尚未生成故事圣经草稿"
+              description="旧草稿和经典流程可以继续使用。需要时点击“生成故事圣经草稿”整理核心设定，并自动获取质量评估。"
+            />
+          ) : (
+            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(0, 1fr))',
+                  gap: token.marginMD,
+                }}
+              >
+                {storyBibleFieldOrder.map(field => (
+                  <div
+                    key={field}
+                    style={{
+                      gridColumn: storyBibleListFields.has(field) || field === 'core_idea' || field === 'story_promise'
+                        ? '1 / -1'
+                        : undefined,
+                    }}
+                  >
+                    <Space direction="vertical" size={token.marginXXS} style={{ width: '100%' }}>
+                      <Text strong>{storyBibleFieldLabels[field]}</Text>
+                      <TextArea
+                        aria-label={storyBibleFieldLabels[field]}
+                        value={storyBibleFieldToText(storyBibleDraft, field)}
+                        onChange={(event) => updateStoryBibleField(field, event.target.value)}
+                        autoSize={{ minRows: storyBibleListFields.has(field) ? 3 : 2, maxRows: 6 }}
+                        placeholder={storyBibleListFields.has(field) ? '每行一条' : `填写${storyBibleFieldLabels[field]}`}
+                      />
+                    </Space>
+                  </div>
+                ))}
+              </div>
+
+              {storyBibleQualityLoading && (
+                <Alert type="info" showIcon message="正在自动评估故事圣经质量..." />
+              )}
+
+              {storyBibleQualityError && (
+                <Alert
+                  type="warning"
+                  showIcon
+                  message="质量评估暂未完成"
+                  description={storyBibleQualityError}
+                />
+              )}
+
+              {storyBibleQualityReport && (
+                <Card
+                  size="small"
+                  title={`质量评估：${storyBibleQualityReport.overall_score} 分`}
+                  extra={(
+                    <Button
+                      size="small"
+                      onClick={handleRepairStoryBible}
+                      loading={storyBibleRepairing}
+                      disabled={storyBibleGenerating || storyBibleQualityLoading}
+                    >
+                      一键修复
+                    </Button>
+                  )}
+                  style={{ background: token.colorBgLayout }}
+                >
+                  <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                    <Space wrap>
+                      {Object.entries(storyBibleQualityReport.dimensions).map(([dimension, score]) => (
+                        <Tag key={dimension} color="processing">
+                          {formatQualityDimensionLabel(dimension as keyof InspirationQualityReport['dimensions'])}：{score}
+                        </Tag>
+                      ))}
+                    </Space>
+
+                    {storyBibleQualityReport.issues.length > 0 && (
+                      <Space direction="vertical" size={token.marginXXS} style={{ width: '100%' }}>
+                        <Text strong>问题与建议</Text>
+                        {storyBibleQualityReport.issues.map(issue => (
+                          <Alert
+                            key={issue.id}
+                            type={issue.severity === 'error' ? 'error' : issue.severity === 'info' ? 'info' : 'warning'}
+                            showIcon
+                            message={issue.message}
+                            description={issue.suggestion}
+                          />
+                        ))}
+                      </Space>
+                    )}
+
+                    {storyBibleQualityReport.repair_suggestions.length > 0 && (
+                      <Text type="secondary">
+                        修复建议：{storyBibleQualityReport.repair_suggestions.join('；')}
+                      </Text>
+                    )}
+
+                    {storyBibleQualityReport.warnings.length > 0 && (
+                      <Alert
+                        type="warning"
+                        showIcon
+                        message="修复/评估提示"
+                        description={storyBibleQualityReport.warnings.join('；')}
+                      />
+                    )}
+                  </Space>
+                </Card>
+              )}
+            </Space>
+          )}
+        </Space>
+      </Card>
+    );
+  };
+
   // 渲染对话界面
   const renderChat = () => (
     <>
+      {renderDirectionCards()}
+      {renderStoryBiblePanel()}
+
       <Card
         ref={chatContainerRef}
         style={{
@@ -1183,6 +1979,8 @@ const InspirationImpl: React.FC = () => {
             placeholder={
               currentStep === 'idea'
                 ? '例如：我想写一本关于时间旅行的科幻小说...'
+                : currentStep === 'direction_cards'
+                  ? '请选择方向卡操作，或使用经典逐步生成...'
                 : '输入自定义内容，或点击上方选项卡片...'
             }
             autoSize={{ minRows: 2, maxRows: 4 }}
@@ -1192,13 +1990,14 @@ const InspirationImpl: React.FC = () => {
                 handleSendMessage();
               }
             }}
-            disabled={loading || Boolean(draftActionLoading)}
+            disabled={loading || Boolean(draftActionLoading) || currentStep === 'direction_cards'}
           />
           <Button
             type="primary"
             icon={<SendOutlined />}
             onClick={handleSendMessage}
             loading={loading || Boolean(draftActionLoading)}
+            disabled={currentStep === 'direction_cards'}
             style={{ height: 'auto' }}
           >
             发送
@@ -1335,8 +2134,10 @@ const InspirationImpl: React.FC = () => {
         margin: '0 auto',
         padding: isMobile ? '16px 12px' : '24px 24px',
       }}>
-        {(currentStep === 'idea' || currentStep === 'title' || currentStep === 'description' ||
-          currentStep === 'theme' || currentStep === 'genre' || currentStep === 'perspective' ||
+        {(currentStep === 'idea' || currentStep === 'direction_cards' || currentStep === 'title' || currentStep === 'description' ||
+          currentStep === 'theme' || currentStep === 'genre' || currentStep === 'world_setting' ||
+          currentStep === 'core_conflict' || currentStep === 'protagonist' || currentStep === 'golden_finger' ||
+          currentStep === 'perspective' ||
           currentStep === 'outline_mode' || currentStep === 'confirm') && renderChat()}
         {(currentStep === 'generating' || currentStep === 'complete') && generationConfig && (
           <AIProjectGenerator

@@ -339,7 +339,7 @@ def test_generation_policy_blocks_ordinary_entity_endpoints_without_canonical_ro
     before = (_count(session_factory, Character), _count(session_factory, OrganizationEntity), _count(session_factory, Career))
     character_stream = client.post("/api/characters/generate-stream", json={"project_id": PROJECT_ID, "name": "不应入库"})
     organization_stream = client.post("/api/organizations/generate-stream", json={"project_id": PROJECT_ID, "name": "不应入库组织"})
-    career_stream = client.get("/api/careers/generate-system", params={"project_id": PROJECT_ID})
+    career_stream = client.post("/api/careers/generate-system", json={"project_id": PROJECT_ID})
     after = (_count(session_factory, Character), _count(session_factory, OrganizationEntity), _count(session_factory, Career))
 
     assert before == after == (0, 0, 0)
