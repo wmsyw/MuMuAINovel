@@ -161,6 +161,34 @@ def test_supported_reasoning_intensity_maps_to_provider_payload() -> None:
         assert build_reasoning_config(provider=provider, model=model, intensity="auto").provider_payload == {}
 
 
+def test_deepseek_v4_reasoning_uses_chat_native_payload_and_compatibility_metadata() -> None:
+    auto_config = build_reasoning_config(provider="openai", model="custom-router/deepseek-v4-flash", intensity="auto")
+    assert auto_config.provider_payload == {}
+    assert auto_config.capability is not None
+    assert auto_config.capability.provider_native == "chat.thinking.reasoning_effort"
+    assert auto_config.capability.model_pattern == "*deepseek-v4*"
+    assert auto_config.capability.provider_compatibility == {"chat_tool_choice_required": "auto"}
+
+    assert build_reasoning_config(
+        provider="openai",
+        model="deepseek-v4-pro",
+        intensity="off",
+    ).provider_payload == {"thinking": {"type": "disabled"}}
+
+    for intensity in ("low", "medium", "high"):
+        assert build_reasoning_config(
+            provider="openai",
+            model="deepseek-v4-flash",
+            intensity=intensity,
+        ).provider_payload == {"thinking": {"type": "enabled"}, "reasoning_effort": "high"}
+
+    assert build_reasoning_config(
+        provider="openai",
+        model="deepseek-v4-flash",
+        intensity="maximum",
+    ).provider_payload == {"thinking": {"type": "enabled"}, "reasoning_effort": "max"}
+
+
 def test_unsupported_explicit_intensity_fails_preflight() -> None:
     # Direct registry preflight proves the rejection happens before any provider/client dispatch or network call.
     with pytest.raises(UnsupportedReasoningIntensityError, match="不支持推理强度 high"):

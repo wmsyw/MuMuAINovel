@@ -27,7 +27,7 @@ class CapturingOpenAIClient(OpenAIClient):
 
 
 class FakeStreamResponse:
-    def __init__(self, events: list[Dict[str, Any]]):
+    def __init__(self, events: list[Dict[str, Any] | str]):
         self.events = events
 
     async def __aenter__(self):
@@ -41,11 +41,14 @@ class FakeStreamResponse:
 
     async def aiter_lines(self):
         for event in self.events:
+            if isinstance(event, str):
+                yield f"data: {event}"
+                continue
             yield f"data: {json.dumps(event)}"
 
 
 class StreamingOpenAIClient(CapturingOpenAIClient):
-    def __init__(self, events: list[Dict[str, Any]]):
+    def __init__(self, events: list[Dict[str, Any] | str]):
         super().__init__()
         self.events = events
 
@@ -66,6 +69,17 @@ def collect_async(async_iterable):
         return [item async for item in async_iterable]
 
     return asyncio.run(_collect())
+
+
+def _sample_tool() -> Dict[str, Any]:
+    return {
+        "type": "function",
+        "function": {
+            "name": "lookup_story_fact",
+            "description": "Lookup story fact",
+            "parameters": {"type": "object", "$schema": "http://json-schema.org/draft-07/schema#"},
+        },
+    }
 
 
 def test_create_response_uses_responses_endpoint_and_normalizes_output() -> None:
@@ -185,6 +199,59 @@ def test_create_response_stream_normalizes_text_tool_usage_and_done_events() -> 
     assert chunks[5] == {"done": True, "finish_reason": "stop"}
 
 
+def test_deepseek_v4_chat_payload_merges_thinking_and_normalizes_required_tool_choice() -> None:
+    client = CapturingOpenAIClient(
+        {"choices": [{"message": {"content": "ok"}, "finish_reason": "stop"}], "usage": {"prompt_tokens": 1}}
+    )
+    reasoning_config = build_reasoning_config(provider="openai", model="custom-router/deepseek-v4-flash", intensity="high")
+    assert reasoning_config.capability is not None
+
+    result = asyncio.run(
+        client.chat_completion(
+            messages=[{"role": "user", "content": "问题"}],
+            model="custom-router/deepseek-v4-flash",
+            temperature=0.2,
+            max_tokens=256,
+            tools=[_sample_tool()],
+            tool_choice="required",
+            reasoning_payload=reasoning_config.provider_payload,
+            provider_compatibility=reasoning_config.capability.provider_compatibility,
+        )
+    )
+
+    assert result["content"] == "ok"
+    assert client.calls[0]["endpoint"] == "/chat/completions"
+    payload = client.calls[0]["payload"]
+    assert payload["thinking"] == {"type": "enabled"}
+    assert payload["reasoning_effort"] == "high"
+    assert payload["tool_choice"] == "auto"
+    assert payload["tools"] == [
+        {
+            "type": "function",
+            "function": {
+                "name": "lookup_story_fact",
+                "description": "Lookup story fact",
+                "parameters": {"type": "object"},
+            },
+        }
+    ]
+
+    plain_client = CapturingOpenAIClient(
+        {"choices": [{"message": {"content": "ok"}, "finish_reason": "stop"}], "usage": {"prompt_tokens": 1}}
+    )
+    _ = asyncio.run(
+        plain_client.chat_completion(
+            messages=[{"role": "user", "content": "问题"}],
+            model="deepseek-v4-flash",
+            temperature=0.2,
+            max_tokens=256,
+            tools=[_sample_tool()],
+            tool_choice="required",
+        )
+    )
+    assert plain_client.calls[0]["payload"]["tool_choice"] == "required"
+
+
 def test_openai_provider_routes_reasoning_path_to_responses_and_legacy_to_chat() -> None:
     responses_client = CapturingOpenAIClient(
         {"id": "resp_1", "status": "completed", "output": [{"type": "message", "content": [{"type": "output_text", "text": "响应"}]}]}
@@ -222,6 +289,75 @@ def test_openai_provider_routes_reasoning_path_to_responses_and_legacy_to_chat()
     assert response["content"] == "聊天"
     assert chat_client.calls[0]["endpoint"] == "/chat/completions"
     assert "input" not in chat_client.calls[0]["payload"]
+
+
+def test_openai_provider_streams_deepseek_v4_through_chat_completions_with_compatibility() -> None:
+    client = StreamingOpenAIClient(
+        [
+            {"choices": [{"delta": {"content": "深"}}]},
+            {"choices": [{"delta": {"content": "思"}}]},
+            "[DONE]",
+        ]
+    )
+    provider = OpenAIProvider(client)
+
+    chunks = collect_async(
+        provider.generate_stream(
+            prompt="问题",
+            model="deepseek-v4-flash",
+            temperature=0.4,
+            max_tokens=256,
+            tools=[_sample_tool()],
+            tool_choice="required",
+            reasoning_config=build_reasoning_config(
+                provider="openai",
+                model="custom-router/deepseek-v4-flash",
+                intensity="high",
+            ),
+        )
+    )
+
+    assert chunks == ["深", "思"]
+    assert client.calls[0]["endpoint"] == "/chat/completions"
+    assert client.calls[0]["stream"] is True
+    payload = client.calls[0]["payload"]
+    assert payload["thinking"] == {"type": "enabled"}
+    assert payload["reasoning_effort"] == "high"
+    assert payload["tool_choice"] == "auto"
+
+
+def test_generate_with_tools_keeps_responses_reasoning_on_responses_endpoint() -> None:
+    client = StreamingOpenAIClient(
+        [
+            {"type": "response.output_text.delta", "delta": "响"},
+            {
+                "type": "response.completed",
+                "response": {
+                    "id": "resp_recursive",
+                    "status": "completed",
+                    "usage": {"input_tokens": 2, "output_tokens": 1},
+                },
+            },
+        ]
+    )
+    provider = OpenAIProvider(client)
+
+    chunks = collect_async(
+        provider._generate_with_tools(
+            messages=[{"role": "user", "content": "问题"}],
+            model="gpt-5-preview",
+            temperature=0.4,
+            max_tokens=256,
+            tools=[_sample_tool()],
+            reasoning_config=build_reasoning_config(provider="openai", model="gpt-5-preview", intensity="high"),
+        )
+    )
+
+    assert chunks[0] == "响"
+    assert client.calls[0]["endpoint"] == "/responses"
+    assert client.calls[0]["stream"] is True
+    assert client.calls[0]["payload"]["reasoning"] == {"effort": "high"}
+    assert client.calls[0]["payload"]["tool_choice"] == "auto"
 
 
 def test_no_separate_openai_responses_client_class_exists() -> None:

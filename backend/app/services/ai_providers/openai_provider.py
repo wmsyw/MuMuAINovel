@@ -35,6 +35,11 @@ class OpenAIProvider(BaseAIProvider):
         # `off`/`none` remains compatible with the legacy Chat Completions path.
         return reasoning.get("effort") not in {None, "none", "off"}
 
+    def _provider_compatibility(self, reasoning_config: Optional[ReasoningConfig]) -> Optional[Dict[str, Any]]:
+        if not reasoning_config or not reasoning_config.capability:
+            return None
+        return reasoning_config.capability.provider_compatibility or None
+
     async def generate(
         self,
         prompt: str,
@@ -47,6 +52,8 @@ class OpenAIProvider(BaseAIProvider):
         reasoning_config: Optional[ReasoningConfig] = None,
     ) -> Dict[str, Any]:
         messages = self._build_messages(prompt, system_prompt)
+        reasoning_payload = reasoning_config.provider_payload if reasoning_config and reasoning_config.provider_payload else None
+        provider_compatibility = self._provider_compatibility(reasoning_config)
 
         if self._uses_responses_api(reasoning_config):
             return await self.client.create_response(
@@ -56,7 +63,7 @@ class OpenAIProvider(BaseAIProvider):
                 max_tokens=max_tokens,
                 tools=tools,
                 tool_choice=tool_choice,
-                reasoning_payload=reasoning_config.provider_payload if reasoning_config else None,
+                reasoning_payload=reasoning_payload,
             )
 
         return await self.client.chat_completion(
@@ -66,6 +73,8 @@ class OpenAIProvider(BaseAIProvider):
             max_tokens=max_tokens,
             tools=tools,
             tool_choice=tool_choice,
+            reasoning_payload=reasoning_payload,
+            provider_compatibility=provider_compatibility,
         )
 
     async def generate_stream(
@@ -82,6 +91,8 @@ class OpenAIProvider(BaseAIProvider):
     ) -> AsyncGenerator[str, None]:
         messages = self._build_messages(prompt, system_prompt)
         use_responses = self._uses_responses_api(reasoning_config)
+        reasoning_payload = reasoning_config.provider_payload if reasoning_config and reasoning_config.provider_payload else None
+        provider_compatibility = self._provider_compatibility(reasoning_config)
 
         # 如果有工具，使用真正的流式工具调用
         if tools:
@@ -90,16 +101,29 @@ class OpenAIProvider(BaseAIProvider):
             
             tool_calls_buffer = []
             
-            stream = self.client.create_response_stream if use_responses else self.client.chat_completion_stream
-            async for chunk in stream(
-                messages=messages,
-                model=model,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                tools=tools,
-                tool_choice=actual_tool_choice,
-                **({"reasoning_payload": reasoning_config.provider_payload} if use_responses and reasoning_config else {}),
-            ):
+            if use_responses:
+                stream_chunks = self.client.create_response_stream(
+                    messages=messages,
+                    model=model,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    tools=tools,
+                    tool_choice=actual_tool_choice,
+                    reasoning_payload=reasoning_payload,
+                )
+            else:
+                stream_chunks = self.client.chat_completion_stream(
+                    messages=messages,
+                    model=model,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    tools=tools,
+                    tool_choice=actual_tool_choice,
+                    reasoning_payload=reasoning_payload,
+                    provider_compatibility=provider_compatibility,
+                )
+
+            async for chunk in stream_chunks:
                 # 检查是否有工具调用
                 if chunk.get("tool_calls"):
                     tool_calls_buffer.extend(chunk["tool_calls"])
@@ -125,7 +149,7 @@ class OpenAIProvider(BaseAIProvider):
                         
                         # 递归调用生成最终结果
                         async for final_chunk in self._generate_with_tools(
-                            final_messages, model, temperature, max_tokens, tools, user_id
+                            final_messages, model, temperature, max_tokens, tools, user_id, reasoning_config
                         ):
                             yield final_chunk
                     if chunk.get("finish_reason"):
@@ -141,14 +165,25 @@ class OpenAIProvider(BaseAIProvider):
             return
         
         # 无工具时普通流式生成
-        stream = self.client.create_response_stream if use_responses else self.client.chat_completion_stream
-        async for chunk in stream(
-            messages=messages,
-            model=model,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            **({"reasoning_payload": reasoning_config.provider_payload} if use_responses and reasoning_config else {}),
-        ):
+        if use_responses:
+            stream_chunks = self.client.create_response_stream(
+                messages=messages,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                reasoning_payload=reasoning_payload,
+            )
+        else:
+            stream_chunks = self.client.chat_completion_stream(
+                messages=messages,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                reasoning_payload=reasoning_payload,
+                provider_compatibility=provider_compatibility,
+            )
+
+        async for chunk in stream_chunks:
             if isinstance(chunk, dict):
                 if chunk.get("usage"):
                     yield {"usage": chunk.get("usage")}
@@ -172,16 +207,33 @@ class OpenAIProvider(BaseAIProvider):
         max_tokens: int,
         tools: list,
         user_id: Optional[str] = None,
+        reasoning_config: Optional[ReasoningConfig] = None,
     ) -> AsyncGenerator[str, None]:
         """辅助方法：带工具的流式生成（无tool_choice，AI自由决定）"""
-        async for chunk in self.client.chat_completion_stream(
-            messages=messages,
-            model=model,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            tools=tools,
-            tool_choice="auto",
-        ):
+        reasoning_payload = reasoning_config.provider_payload if reasoning_config and reasoning_config.provider_payload else None
+        if self._uses_responses_api(reasoning_config):
+            stream_chunks = self.client.create_response_stream(
+                messages=messages,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                tools=tools,
+                tool_choice="auto",
+                reasoning_payload=reasoning_payload,
+            )
+        else:
+            stream_chunks = self.client.chat_completion_stream(
+                messages=messages,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                tools=tools,
+                tool_choice="auto",
+                reasoning_payload=reasoning_payload,
+                provider_compatibility=self._provider_compatibility(reasoning_config),
+            )
+
+        async for chunk in stream_chunks:
             if chunk.get("tool_calls"):
                 from app.mcp import mcp_client
                 actual_user_id = user_id or ""
@@ -195,7 +247,7 @@ class OpenAIProvider(BaseAIProvider):
                 messages.append({"role": "user", "content": f"{tool_context}\n\n请基于以上工具查询结果，给出完整详细的回答。"})
                 
                 async for final_chunk in self._generate_with_tools(
-                    messages, model, temperature, max_tokens, tools, user_id
+                    messages, model, temperature, max_tokens, tools, user_id, reasoning_config
                 ):
                     yield final_chunk
                 break

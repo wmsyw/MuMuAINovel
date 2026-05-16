@@ -49,6 +49,26 @@
       "notes": "Known non-reasoning GPT-4o family: explicit effort levels are rejected by registry preflight."
     },
     {
+      "provider": "openai",
+      "model_pattern": "*deepseek-v4*",
+      "supported_intensities": ["auto", "off", "low", "medium", "high", "maximum"],
+      "default_intensity": "auto",
+      "provider_native": "chat.thinking.reasoning_effort",
+      "provider_payload_mappings": {
+        "auto": {},
+        "off": {"thinking": {"type": "disabled"}},
+        "low": {"thinking": {"type": "enabled"}, "reasoning_effort": "high"},
+        "medium": {"thinking": {"type": "enabled"}, "reasoning_effort": "high"},
+        "high": {"thinking": {"type": "enabled"}, "reasoning_effort": "high"},
+        "maximum": {"thinking": {"type": "enabled"}, "reasoning_effort": "max"}
+      },
+      "provider_compatibility": {
+        "chat_tool_choice_required": "auto"
+      },
+      "last_verified_date": "2026-05-15",
+      "notes": "DeepSeek V4 OpenAI-compatible Chat Completions thinking controls. Auto omits vendor fields so gateways can use defaults; low/medium/high map to DeepSeek high and maximum maps to max."
+    },
+    {
       "provider": "anthropic",
       "model_pattern": "claude-3-7-sonnet*",
       "supported_intensities": ["auto", "low", "medium", "high", "maximum"],

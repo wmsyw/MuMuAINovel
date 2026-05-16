@@ -54,6 +54,20 @@ class OpenAIClient(BaseAIClient):
                 response_tools.append(tool)
         return response_tools
 
+    def _normalize_chat_tool_choice(
+        self,
+        tool_choice: Optional[str],
+        provider_compatibility: Optional[Dict[str, Any]],
+    ) -> Optional[str]:
+        if not tool_choice:
+            return None
+        if tool_choice == "required" and provider_compatibility:
+            replacement = provider_compatibility.get("chat_tool_choice_required")
+            if isinstance(replacement, str) and replacement:
+                logger.info(f"OpenAI兼容请求按模型能力配置将 tool_choice=required 调整为 {replacement}")
+                return replacement
+        return tool_choice
+
     def _build_payload(
         self,
         messages: list,
@@ -63,6 +77,8 @@ class OpenAIClient(BaseAIClient):
         tools: Optional[list] = None,
         tool_choice: Optional[str] = None,
         stream: bool = False,
+        reasoning_payload: Optional[Dict[str, Any]] = None,
+        provider_compatibility: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         payload = {
             "model": model,
@@ -72,11 +88,14 @@ class OpenAIClient(BaseAIClient):
         }
         if stream:
             payload["stream"] = True
+        if reasoning_payload:
+            payload.update(deepcopy(reasoning_payload))
         cleaned_tools = self._clean_chat_tools(tools)
         if cleaned_tools:
             payload["tools"] = cleaned_tools
-            if tool_choice:
-                payload["tool_choice"] = tool_choice
+            actual_tool_choice = self._normalize_chat_tool_choice(tool_choice, provider_compatibility)
+            if actual_tool_choice:
+                payload["tool_choice"] = actual_tool_choice
         return payload
 
     def _build_response_input(self, messages: list) -> List[Dict[str, Any]]:
@@ -201,8 +220,19 @@ class OpenAIClient(BaseAIClient):
         max_tokens: int,
         tools: Optional[list] = None,
         tool_choice: Optional[str] = None,
+        reasoning_payload: Optional[Dict[str, Any]] = None,
+        provider_compatibility: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        payload = self._build_payload(messages, model, temperature, max_tokens, tools, tool_choice)
+        payload = self._build_payload(
+            messages,
+            model,
+            temperature,
+            max_tokens,
+            tools,
+            tool_choice,
+            reasoning_payload=reasoning_payload,
+            provider_compatibility=provider_compatibility,
+        )
         
         logger.debug(f"📤 OpenAI 请求 payload: {json.dumps(payload, ensure_ascii=False, indent=2)}")
         
@@ -262,6 +292,8 @@ class OpenAIClient(BaseAIClient):
         max_tokens: int,
         tools: Optional[list] = None,
         tool_choice: Optional[str] = None,
+        reasoning_payload: Optional[Dict[str, Any]] = None,
+        provider_compatibility: Optional[Dict[str, Any]] = None,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         流式生成，支持工具调用
@@ -272,7 +304,17 @@ class OpenAIClient(BaseAIClient):
             - tool_calls: list - 工具调用列表（如果有）
             - done: bool - 是否结束
         """
-        payload = self._build_payload(messages, model, temperature, max_tokens, tools, tool_choice, stream=True)
+        payload = self._build_payload(
+            messages,
+            model,
+            temperature,
+            max_tokens,
+            tools,
+            tool_choice,
+            stream=True,
+            reasoning_payload=reasoning_payload,
+            provider_compatibility=provider_compatibility,
+        )
         
         tool_calls_buffer = {}  # 收集工具调用块
         

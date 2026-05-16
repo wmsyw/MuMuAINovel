@@ -41,6 +41,7 @@ class ReasoningCapability:
     default_intensity: ReasoningIntensity
     provider_native: str
     provider_payload_mappings: Dict[str, Dict[str, Any]]
+    provider_compatibility: Dict[str, Any]
     last_verified_date: str
     notes: str
 
@@ -53,6 +54,7 @@ class ReasoningCapability:
             "provider_metadata": {
                 "native_field": self.provider_native,
                 "payload_mappings": deepcopy(self.provider_payload_mappings),
+                "compatibility": deepcopy(self.provider_compatibility),
                 "read_only": True,
             },
             "last_verified_date": self.last_verified_date,
@@ -142,6 +144,7 @@ def _parse_capability(raw: Dict[str, Any], index: int) -> ReasoningCapability:
         default_intensity=default_intensity,
         provider_native=str(raw["provider_native"]),
         provider_payload_mappings=deepcopy(mappings),
+        provider_compatibility=deepcopy(raw.get("provider_compatibility") or {}),
         last_verified_date=str(raw["last_verified_date"]),
         notes=str(raw["notes"]),
     )
