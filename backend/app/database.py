@@ -25,7 +25,7 @@ from app.models import (
     StoryMemory, PlotAnalysis, AnalysisTask, BatchGenerationTask,
 RegenerationTask, Career, CharacterCareer, Goldfinger, GoldfingerHistoryEvent,
     User, MCPPlugin, PromptTemplate,
-    BackgroundTask, Announcement
+    BackgroundTask, Announcement, CreativeSession, CreativeSessionMessage, ProjectAsset
 )
 
 # 引擎缓存：每个用户一个引擎

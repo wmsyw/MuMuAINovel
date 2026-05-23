@@ -39,6 +39,12 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({ character, onEdit,
   const organizationPurpose = getOrganizationPurpose(character);
   const charStatus = character.status || 'active';
   const isInactive = charStatus !== 'active';
+  const writingFields = [
+    { label: '写作备注', value: character.writing_notes },
+    { label: '说话习惯', value: character.speech_patterns },
+    { label: '核心动机', value: character.motivations },
+    { label: '人物弧光', value: character.arc_summary },
+  ].filter((item) => item.value);
 
   const getStatusTag = () => {
     const statusConfig: Record<string, { color: string; label: string }> = {
@@ -144,6 +150,31 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({ character, onEdit,
                     >
                       {character.relationships}
                     </Text>
+                  </div>
+                )}
+                {writingFields.length > 0 && (
+                  <div
+                    style={{
+                      marginTop: 10,
+                      paddingTop: 10,
+                      borderTop: `1px dashed ${token.colorBorderSecondary}`,
+                    }}
+                  >
+                    <div style={{ marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Text type="secondary" style={{ fontSize: 12 }}>写作卡片</Text>
+                      <Tag color="blue">v{character.card_version || 1}</Tag>
+                    </div>
+                    {writingFields.map((item) => (
+                      <div key={item.label} style={{ marginBottom: 6, display: 'flex', alignItems: 'flex-start' }}>
+                        <Text type="secondary" style={{ flexShrink: 0 }}>{item.label}：</Text>
+                        <Text
+                          style={{ flex: 1, minWidth: 0 }}
+                          ellipsis={{ tooltip: item.value }}
+                        >
+                          {item.value}
+                        </Text>
+                      </div>
+                    ))}
                   </div>
                 )}
               </>

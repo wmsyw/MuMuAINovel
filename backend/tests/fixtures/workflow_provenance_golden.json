@@ -1,0 +1,115 @@
+{
+  "fixture_id": "novel_workflow_provenance_golden_v1",
+  "user": {
+    "user_id": "user-writer-001",
+    "username": "liang",
+    "display_name": "梁知夏",
+    "role": "author",
+    "provenance": {
+      "user_id": "user-writer-001"
+    }
+  },
+  "project": {
+    "project_id": "project-silver-lantern",
+    "user_id": "user-writer-001",
+    "title": "银灯纪行",
+    "provenance": {
+      "user_id": "user-writer-001",
+      "project_id": "project-silver-lantern"
+    }
+  },
+  "character": {
+    "character_id": "character-lin-qinglan",
+    "project_id": "project-silver-lantern",
+    "user_id": "user-writer-001",
+    "name": "林青岚",
+    "aliases": ["青岚", "阿岚"],
+    "archetype": "追索真相的抄书学徒",
+    "provenance": {
+      "user_id": "user-writer-001",
+      "project_id": "project-silver-lantern",
+      "source": "manual"
+    }
+  },
+  "lore_entry": {
+    "lore_entry_id": "lore-tide-bell",
+    "project_id": "project-silver-lantern",
+    "user_id": "user-writer-001",
+    "title": "潮汐钟",
+    "keywords": ["昼夜结界", "月潮", "城心"],
+    "content": "潮汐钟以月潮驱动霁月城的昼夜结界。",
+    "provenance": {
+      "user_id": "user-writer-001",
+      "project_id": "project-silver-lantern",
+      "source": "manual"
+    }
+  },
+  "prompt_layer": {
+    "prompt_layer_id": "prompt-layer-arc",
+    "project_id": "project-silver-lantern",
+    "user_id": "user-writer-001",
+    "layer_name": "章节提示层",
+    "content": "保持第一人称内心独白，避免全知旁白。",
+    "provenance": {
+      "user_id": "user-writer-001",
+      "project_id": "project-silver-lantern",
+      "source": "prompt_workshop"
+    }
+  },
+  "session_transcript": {
+    "session_id": "session-silver-draft",
+    "project_id": "project-silver-lantern",
+    "user_id": "user-writer-001",
+    "messages": [
+      {
+        "role": "user",
+        "content": "写一个雨夜开场。",
+        "provenance": {
+          "user_id": "user-writer-001",
+          "project_id": "project-silver-lantern",
+          "source": "author_input"
+        }
+      },
+      {
+        "role": "assistant",
+        "content": "雨水敲在青石板上，林青岚把披风拢紧。",
+        "provenance": {
+          "user_id": "user-writer-001",
+          "project_id": "project-silver-lantern",
+          "source": "assistant_draft"
+        }
+      }
+    ],
+    "provenance": {
+      "user_id": "user-writer-001",
+      "project_id": "project-silver-lantern",
+      "source": "creative_session"
+    }
+  },
+  "data_bank_item": {
+    "item_id": "databank-note-railway",
+    "project_id": "project-silver-lantern",
+    "user_id": "user-writer-001",
+    "title": "北港铁路时刻表",
+    "source_type": "txt_upload",
+    "excerpt": "北港铁路每日亥时停运。",
+    "provenance": {
+      "user_id": "user-writer-001",
+      "project_id": "project-silver-lantern",
+      "source": "file_upload"
+    }
+  },
+  "cross_user_authorization": {
+    "owner_user_id": "user-writer-001",
+    "intruder_user_id": "user-rival-002",
+    "project_id": "project-silver-lantern",
+    "resource_id": "databank-note-railway",
+    "resource_user_id": "user-writer-001",
+    "expected_status": "forbidden",
+    "provenance": {
+      "user_id": "user-writer-001",
+      "project_id": "project-silver-lantern",
+      "resource_user_id": "user-writer-001"
+    }
+  }
+}

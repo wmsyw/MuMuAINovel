@@ -56,6 +56,11 @@ interface CharacterFormValues extends LegacyOrganizationFormValues {
   location?: string;
   motto?: string;
   color?: string;
+  writing_notes?: string;
+  speech_patterns?: string;
+  motivations?: string;
+  arc_summary?: string;
+  card_version?: number;
 }
 
 type OrganizationGenerationValues = LegacyOrganizationFormValues & {
@@ -246,6 +251,11 @@ export default function Characters() {
         createData.personality = values.personality;
         createData.appearance = values.appearance;
         createData.background = values.background;
+        createData.writing_notes = values.writing_notes;
+        createData.speech_patterns = values.speech_patterns;
+        createData.motivations = values.motivations;
+        createData.arc_summary = values.arc_summary;
+        createData.card_version = values.card_version || 1;
         
         // 职业字段
         if (values.main_career_id) {
@@ -289,6 +299,7 @@ export default function Characters() {
 
     editForm.setFieldsValue({
       ...character,
+      card_version: character.card_version || 1,
       sub_career_data: subCareerData
     });
     setIsEditModalOpen(true);
@@ -1054,6 +1065,43 @@ export default function Characters() {
                 <TextArea rows={2} placeholder="描述角色的背景故事..." />
               </Form.Item>
 
+              <Divider style={{ margin: '8px 0' }}>
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>写作卡片</Typography.Text>
+              </Divider>
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item label="写作备注" name="writing_notes" style={{ marginBottom: 12 }}>
+                    <TextArea rows={2} placeholder="记录出场安排、伏笔或作者提示..." />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item label="说话习惯" name="speech_patterns" style={{ marginBottom: 12 }}>
+                    <TextArea rows={2} placeholder="记录口头禅、语气、措辞偏好..." />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item label="核心动机" name="motivations" style={{ marginBottom: 12 }}>
+                    <TextArea rows={2} placeholder="记录目标、欲望、恐惧或驱动力..." />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item label="人物弧光" name="arc_summary" style={{ marginBottom: 12 }}>
+                    <TextArea rows={2} placeholder="概括成长、转折和阶段性变化..." />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Form.Item
+                label="卡片版本"
+                name="card_version"
+                initialValue={1}
+                tooltip="原生JSON角色卡版本，需大于等于1"
+                style={{ marginBottom: 12 }}
+              >
+                <InputNumber min={1} precision={0} style={{ width: 160 }} />
+              </Form.Item>
+
               {/* 职业信息 */}
               {(mainCareers.length > 0 || subCareers.length > 0) && (
                 <>
@@ -1333,6 +1381,43 @@ export default function Characters() {
                 <TextArea rows={2} placeholder="描述角色的背景故事..." />
               </Form.Item>
 
+              <Divider style={{ margin: '8px 0' }}>
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>写作卡片（可选）</Typography.Text>
+              </Divider>
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item label="写作备注" name="writing_notes" style={{ marginBottom: 12 }}>
+                    <TextArea rows={2} placeholder="记录出场安排、伏笔或作者提示..." />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item label="说话习惯" name="speech_patterns" style={{ marginBottom: 12 }}>
+                    <TextArea rows={2} placeholder="记录口头禅、语气、措辞偏好..." />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item label="核心动机" name="motivations" style={{ marginBottom: 12 }}>
+                    <TextArea rows={2} placeholder="记录目标、欲望、恐惧或驱动力..." />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item label="人物弧光" name="arc_summary" style={{ marginBottom: 12 }}>
+                    <TextArea rows={2} placeholder="概括成长、转折和阶段性变化..." />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Form.Item
+                label="卡片版本"
+                name="card_version"
+                initialValue={1}
+                tooltip="原生JSON角色卡版本，需大于等于1"
+                style={{ marginBottom: 12 }}
+              >
+                <InputNumber min={1} precision={0} style={{ width: 160 }} />
+              </Form.Item>
+
               {/* 职业信息 - 折叠区域 */}
               {(mainCareers.length > 0 || subCareers.length > 0) && (
                 <>
@@ -1570,6 +1655,7 @@ export default function Characters() {
             <p style={{ marginBottom: 8 }}><strong>说明：</strong></p>
             <ul style={{ marginLeft: 20 }}>
               <li>支持导入.json格式的角色/组织文件</li>
+              <li>角色写作卡片字段会随原生JSON一并保留</li>
               <li>重复名称的角色/组织将被跳过</li>
               <li>职业信息如不存在将被忽略</li>
             </ul>

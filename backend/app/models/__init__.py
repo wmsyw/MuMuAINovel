@@ -1,4 +1,6 @@
 """数据模型导出"""
+# pyright: reportImplicitRelativeImport=false
+
 from app.models.project import Project
 from app.models.outline import Outline
 from app.models.chapter import Chapter
@@ -34,6 +36,13 @@ from app.models.foreshadow import Foreshadow
 from app.models.prompt_workshop import PromptWorkshopItem, PromptSubmission, PromptWorkshopLike
 from app.models.background_task import BackgroundTask
 from app.models.announcement import Announcement
+from app.models.creative_session import CreativeSession, CreativeSessionMessage
+from app.models.lorebook import LorebookEntry
+from app.models.data_bank import DataBankChunk, DataBankItem
+from app.models.quick_reply import QuickReply
+from app.models.voice_persona import VoicePersona
+from app.models.group_scene import GroupScene
+from app.models.project_asset import ProjectAsset
 
 __all__ = [
     "Project",
@@ -74,5 +83,14 @@ __all__ = [
     "PromptSubmission",
     "PromptWorkshopLike",
     "BackgroundTask",
-    "Announcement"
+    "Announcement",
+    "CreativeSession",
+    "CreativeSessionMessage",
+    "LorebookEntry",
+    "DataBankItem",
+    "DataBankChunk",
+    "QuickReply",
+    "VoicePersona",
+    "GroupScene",
+    "ProjectAsset",
 ]

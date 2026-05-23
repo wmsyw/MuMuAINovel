@@ -1,12 +1,21 @@
-# pyright: reportAny=false
+# pyright: reportAny=false, reportExplicitAny=false, reportMissingImports=false, reportImplicitRelativeImport=false, reportUnknownArgumentType=false, reportUnknownMemberType=false, reportUnknownParameterType=false, reportUnknownVariableType=false
 
-from .fixture_schema import REQUIRED_EXPECTED_CATEGORIES, load_golden_fixture
+import json
+
+from .fixture_schema import REQUIRED_EXPECTED_CATEGORIES, load_golden_fixture, load_workflow_fixture
 
 
 def test_golden_fixture_has_required_expected_sections() -> None:
     fixture = load_golden_fixture()
 
     assert REQUIRED_EXPECTED_CATEGORIES <= fixture["expected"].keys()
+
+
+def test_fixture_generation_is_deterministic() -> None:
+    first = _canonical_fixture_bytes()
+    second = _canonical_fixture_bytes()
+
+    assert first == second
 
 
 def test_fixture_covers_two_aliases_for_one_character() -> None:
@@ -79,3 +88,41 @@ def test_all_expected_assertions_have_matching_source_spans() -> None:
             source = assertion["source"]
             content = chapters[source["chapter"]]["content"]
             assert content[source["offset_start"]:source["offset_end"]] == assertion["evidence_text"]
+
+
+def test_workflow_fixture_covers_user_project_character_lore_prompt_session_and_databank() -> None:
+    fixture = load_workflow_fixture()
+
+    assert fixture["fixture_id"] == "novel_workflow_provenance_golden_v1"
+    assert fixture["user"]["display_name"] == "梁知夏"
+    assert fixture["project"]["title"] == "银灯纪行"
+    assert fixture["character"]["aliases"] == ["青岚", "阿岚"]
+    assert fixture["character"]["provenance"]["project_id"] == fixture["project"]["project_id"]
+    assert fixture["lore_entry"]["content"] == "潮汐钟以月潮驱动霁月城的昼夜结界。"
+    assert fixture["prompt_layer"]["content"].startswith("保持第一人称内心独白")
+    assert [message["role"] for message in fixture["session_transcript"]["messages"]] == ["user", "assistant"]
+    assert fixture["session_transcript"]["messages"][1]["content"] == "雨水敲在青石板上，林青岚把披风拢紧。"
+    assert fixture["data_bank_item"]["source_type"] == "txt_upload"
+
+
+def test_workflow_fixture_tracks_cross_user_authorization_provenance() -> None:
+    fixture = load_workflow_fixture()
+    authorization = fixture["cross_user_authorization"]
+
+    assert authorization["owner_user_id"] == fixture["user"]["user_id"]
+    assert authorization["intruder_user_id"] == "user-rival-002"
+    assert authorization["expected_status"] == "forbidden"
+    assert authorization["provenance"]["project_id"] == fixture["project"]["project_id"]
+    assert authorization["provenance"]["resource_user_id"] == fixture["user"]["user_id"]
+
+
+def _canonical_fixture_bytes() -> bytes:
+    return json.dumps(
+        {
+            "extraction": load_golden_fixture(),
+            "workflow": load_workflow_fixture(),
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")

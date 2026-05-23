@@ -1,6 +1,11 @@
 """提示词管理服务"""
 
+from __future__ import annotations
+
+# pyright: reportAny=false, reportExplicitAny=false, reportArgumentType=false, reportReturnType=false, reportMissingImports=false, reportImplicitRelativeImport=false, reportMissingTypeArgument=false, reportUnknownArgumentType=false, reportUnknownMemberType=false, reportUnknownParameterType=false, reportUnknownVariableType=false, reportMissingParameterType=false, reportUnannotatedClassAttribute=false, reportDeprecated=false, reportUnusedImport=false, reportUnusedParameter=false, reportUnusedVariable=false, reportUnnecessaryIsInstance=false, reportUnnecessaryComparison=false
+
 from typing import Dict, Any, Optional
+import hashlib
 import json
 
 
@@ -130,6 +135,35 @@ class WritingStyleManager:
 
 class PromptService:
     """提示词模板管理"""
+
+    PROMPT_ASSEMBLY_TRACE_VERSION = 1
+    PROMPT_ASSEMBLY_TRACE_SCHEMA = "prompt-assembly-trace/v1"
+    PROMPT_ASSEMBLY_BOUNDARY = "prompt_workshop"
+    PROMPT_ASSEMBLY_SOURCE_ORDER = {
+        "system_template": 10,
+        "chapter_context": 20,
+        "writing_style": 30,
+        "voice_persona": 35,
+        "workshop_item": 40,
+        "lorebook": 50,
+        "rag": 60,
+        "group_scene": 65,
+        "memory": 70,
+        "user_instruction": 80,
+        "generation_contract": 90,
+        "manual": 100,
+    }
+    FORBIDDEN_PROMPT_LAYER_SOURCE_TYPES = {
+        "script",
+        "marketplace",
+        "plugin",
+        "extension",
+        "remote_code",
+    }
+    VOICE_PERSONA_TRACE_VERSION = 1
+    VOICE_PERSONA_TRACE_SCHEMA = "voice-persona-prompt-trace/v1"
+    GROUP_SCENE_TRACE_VERSION = 1
+    GROUP_SCENE_TRACE_SCHEMA = "group-scene-prompt-trace/v1"
 
     NOVEL_COVER_PROMPT_TEMPLATE = """创作一幅高质量小说封面插图，适用于竖版书籍封面。
 
@@ -3269,6 +3303,702 @@ class PromptService:
             return template.format(**kwargs)
         except KeyError as e:
             raise ValueError(f"缺少必需的参数: {e}")
+
+    @staticmethod
+    def build_lorebook_activation_text(**sections: Any) -> str:
+        """Build a stable activation text blob for lorebook key matching.
+
+        This helper is intentionally formatting-only: it does not select entries or
+        mutate prompts, and identical keyword arguments produce byte-identical text.
+        """
+
+        labels = {
+            "project_title": "项目标题",
+            "genre": "类型",
+            "theme": "主题",
+            "chapter_title": "章节标题",
+            "chapter_outline": "章节大纲",
+            "recent_chapters_context": "最近章节规划",
+            "continuation_point": "衔接锚点",
+            "previous_chapter_summary": "上一章摘要",
+            "characters_info": "角色信息",
+            "user_input": "用户输入",
+        }
+        parts: list[str] = []
+        for key, value in sections.items():
+            text = str(value or "").strip()
+            if not text:
+                continue
+            parts.append(f"【{labels.get(key, key)}】\n{text}")
+        return "\n\n".join(parts)
+
+    @staticmethod
+    def build_lorebook_prompt_trace(selection: Any, *, chars_per_token: int = 4) -> dict[str, Any]:
+        """Return deterministic prompt trace data for selected lorebook entries."""
+
+        safe_chars_per_token = max(1, int(chars_per_token or 4))
+        items: list[dict[str, Any]] = []
+        preview_blocks: list[str] = []
+
+        for order, item in enumerate(selection.items, start=1):
+            source_type = "lorebook"
+            entry_source_type = getattr(item, "source_type", "manual") or "manual"
+            matched_keys = list(getattr(item, "matched_keys", ()))
+            trace_item = {
+                "order": order,
+                "id": item.id,
+                "title": item.title,
+                "source_type": source_type,
+                "entry_source_type": entry_source_type,
+                "priority": item.priority,
+                "matched_keys": matched_keys,
+                "content": item.content,
+                "original_content_length": item.original_content_length,
+                "selected_content_length": item.selected_content_length,
+                "trimmed": item.trimmed,
+            }
+            items.append(trace_item)
+            preview_blocks.append(
+                "\n".join(
+                    [
+                        f"### {order}. {item.title} [{item.id}]",
+                        f"来源: {source_type}/{entry_source_type}",
+                        f"匹配关键词: {', '.join(matched_keys) if matched_keys else '无'}",
+                        item.content,
+                    ]
+                )
+            )
+
+        chars_used = int(getattr(selection, "chars_used", 0) or 0)
+        estimated_tokens = (chars_used + safe_chars_per_token - 1) // safe_chars_per_token
+        final_preview_text = "\n\n".join(preview_blocks)
+        return {
+            "source_type": "lorebook",
+            "selected_lore_ids": [item["id"] for item in items],
+            "total_candidates": int(getattr(selection, "total_candidates", 0) or 0),
+            "selected_count": len(items),
+            "budget_estimate": {
+                "chars_used": chars_used,
+                "budget_chars": getattr(selection, "budget_chars", None),
+                "estimated_tokens": estimated_tokens,
+                "chars_per_token": safe_chars_per_token,
+            },
+            "items": items,
+            "final_preview_text": final_preview_text,
+        }
+
+    @staticmethod
+    def apply_lorebook_prompt_trace(
+        base_prompt: str,
+        trace: dict[str, Any] | None,
+        *,
+        injection_enabled: bool,
+    ) -> str:
+        """Append traced lorebook text only when generation injection is explicitly enabled."""
+
+        if not injection_enabled or not trace:
+            return base_prompt
+        preview_text = str(trace.get("final_preview_text") or "").strip()
+        if not preview_text:
+            return base_prompt
+        selected_ids = ", ".join(str(item_id) for item_id in trace.get("selected_lore_ids", [])) or "无"
+        return (
+            f"{base_prompt}\n\n"
+            "<lorebook_context source_type=\"lorebook\">\n"
+            f"【Lorebook世界信息｜已选择ID: {selected_ids}】\n"
+            f"{preview_text}\n"
+            "</lorebook_context>"
+        )
+
+    @staticmethod
+    def _trace_field(value: Any, key: str, default: Any = None) -> Any:
+        if isinstance(value, dict):
+            return value.get(key, default)
+        return getattr(value, key, default)
+
+    @classmethod
+    def build_voice_persona_prompt_trace(
+        cls,
+        persona: Any,
+        *,
+        project_id: str | None = None,
+        session_id: str | None = None,
+        chars_per_token: int = 4,
+    ) -> dict[str, Any]:
+        """Return deterministic trace data for an applied narrator voice profile.
+
+        The trace is prompt-facing only and stays inside the authoring voice
+        profile boundary without adding any global mutable persona state.
+        """
+
+        safe_chars_per_token = max(1, int(chars_per_token or 4))
+        profile_id = str(cls._trace_field(persona, "id", "") or "")
+        name = str(cls._trace_field(persona, "name", "未命名声音画像") or "未命名声音画像").strip()
+        tone = str(cls._trace_field(persona, "tone", "") or "").strip()
+        style = str(cls._trace_field(persona, "style", "") or "").strip()
+        point_of_view = str(cls._trace_field(persona, "point_of_view", "") or "").strip()
+        constraints = str(cls._trace_field(persona, "constraints", "") or "").strip()
+        source_project_id = project_id or str(cls._trace_field(persona, "project_id", "") or "") or None
+        persona_session_id = str(cls._trace_field(persona, "session_id", "") or "") or None
+        applied_session_id = session_id or persona_session_id
+        profile_scope = str(cls._trace_field(persona, "scope", "session" if persona_session_id else "project") or "project")
+        source_order = cls._prompt_layer_source_rank("voice_persona")
+
+        profile_payload = {
+            "constraints": constraints,
+            "id": profile_id,
+            "name": name,
+            "point_of_view": point_of_view,
+            "project_id": source_project_id,
+            "scope": profile_scope,
+            "session_id": persona_session_id,
+            "style": style,
+            "tone": tone,
+            "trace_version": cls.VOICE_PERSONA_TRACE_VERSION,
+        }
+        trace_hash = hashlib.sha256(cls._stable_json(profile_payload).encode("utf-8")).hexdigest()[:16]
+        trace_id = f"vpt_{trace_hash}"
+
+        preview_lines = [
+            f"### Narrator Voice: {name} [{profile_id}]",
+            f"Tone: {tone or '未指定'}",
+            f"Style: {style or '未指定'}",
+            f"POV: {point_of_view or '未指定'}",
+            "Constraints:",
+            constraints or "未指定",
+        ]
+        final_preview_text = "\n".join(preview_lines)
+        chars_used = len(final_preview_text)
+        estimated_tokens = (chars_used + safe_chars_per_token - 1) // safe_chars_per_token
+        trace_item = {
+            "order": 1,
+            "source_order": source_order,
+            "source_type": "voice_persona",
+            "trace_id": trace_id,
+            "id": profile_id,
+            "name": name,
+            "scope": profile_scope,
+            "project_id": source_project_id,
+            "session_id": persona_session_id,
+            "applied_session_id": applied_session_id,
+            "tone": tone,
+            "style": style,
+            "point_of_view": point_of_view,
+            "constraints": constraints,
+        }
+        return {
+            "source_type": "voice_persona",
+            "trace_version": cls.VOICE_PERSONA_TRACE_VERSION,
+            "schema_version": cls.VOICE_PERSONA_TRACE_SCHEMA,
+            "trace_id": trace_id,
+            "selected_voice_persona_id": profile_id,
+            "selected_voice_persona_ids": [profile_id] if profile_id else [],
+            "project_id": source_project_id,
+            "session_id": applied_session_id,
+            "profile_scope": profile_scope,
+            "applied_scope": "session" if applied_session_id else "project",
+            "source_order": source_order,
+            "selected_count": 1 if profile_id else 0,
+            "profile": {
+                "id": profile_id,
+                "name": name,
+                "tone": tone,
+                "style": style,
+                "point_of_view": point_of_view,
+                "constraints": constraints,
+                "scope": profile_scope,
+            },
+            "budget_estimate": {
+                "chars_used": chars_used,
+                "estimated_tokens": estimated_tokens,
+                "chars_per_token": safe_chars_per_token,
+            },
+            "items": [trace_item],
+            "final_preview_text": final_preview_text,
+        }
+
+    @staticmethod
+    def apply_voice_persona_prompt_trace(
+        base_prompt: str,
+        trace: dict[str, Any] | None,
+        *,
+        injection_enabled: bool,
+    ) -> str:
+        """Append traced narrator voice guidance only when explicitly enabled."""
+
+        if not injection_enabled or not trace:
+            return base_prompt
+        preview_text = str(trace.get("final_preview_text") or "").strip()
+        if not preview_text:
+            return base_prompt
+        trace_id = str(trace.get("trace_id") or "")
+        selected_id = str(trace.get("selected_voice_persona_id") or "无")
+        return (
+            f"{base_prompt}\n\n"
+            f"<voice_persona_context source_type=\"voice_persona\" trace_id=\"{trace_id}\">\n"
+            f"【旁白声音画像｜已选择ID: {selected_id}】\n"
+            f"{preview_text}\n"
+            "</voice_persona_context>"
+        )
+
+    @classmethod
+    def build_group_scene_prompt_trace(
+        cls,
+        *,
+        project: Any,
+        participants: list[Any],
+        scenario: str,
+        voice_persona: Any | None = None,
+        lore_entries: list[Any] | None = None,
+        prompt_context: str = "",
+        chars_per_token: int = 4,
+    ) -> dict[str, Any]:
+        """Return deterministic trace data for a bounded group scene draft.
+
+        This trace is an authoring artifact only: it references existing project
+        characters and selected context, but it does not create chat state,
+        autonomous agents, or chapter mutation instructions.
+        """
+
+        safe_chars_per_token = max(1, int(chars_per_token or 4))
+        project_id = str(cls._trace_field(project, "id", "") or "")
+        project_title = str(cls._trace_field(project, "title", "未命名项目") or "未命名项目")
+        source_order = cls._prompt_layer_source_rank("group_scene")
+        clean_scenario = str(scenario or "").strip()
+        clean_prompt_context = str(prompt_context or "").strip()
+
+        participant_items: list[dict[str, Any]] = []
+        participant_preview_lines: list[str] = []
+        for order, character in enumerate(participants, start=1):
+            character_id = str(cls._trace_field(character, "id", "") or "")
+            name = str(cls._trace_field(character, "name", "未命名角色") or "未命名角色")
+            speech_patterns = str(cls._trace_field(character, "speech_patterns", "") or "").strip()
+            motivations = str(cls._trace_field(character, "motivations", "") or "").strip()
+            arc_summary = str(cls._trace_field(character, "arc_summary", "") or "").strip()
+            personality = str(cls._trace_field(character, "personality", "") or "").strip()
+            role_type = str(cls._trace_field(character, "role_type", "") or "").strip()
+            item = {
+                "order": order,
+                "source_order": source_order,
+                "source_type": "project_character",
+                "id": character_id,
+                "name": name,
+                "role_type": role_type,
+                "personality": personality[:240],
+                "speech_patterns": speech_patterns[:240],
+                "motivations": motivations[:240],
+                "arc_summary": arc_summary[:240],
+            }
+            participant_items.append(item)
+            participant_preview_lines.append(
+                " | ".join(
+                    part
+                    for part in [
+                        f"{order}. {name} [{character_id}]",
+                        f"定位: {role_type or '未设定'}",
+                        f"性格: {item['personality'] or '未设定'}",
+                        f"语气: {item['speech_patterns'] or '未设定'}",
+                        f"动机: {item['motivations'] or '未设定'}",
+                    ]
+                    if part
+                )
+            )
+
+        lore_items: list[dict[str, Any]] = []
+        lore_preview_lines: list[str] = []
+        for order, entry in enumerate(lore_entries or [], start=1):
+            entry_id = str(cls._trace_field(entry, "id", "") or "")
+            title = str(cls._trace_field(entry, "title", "未命名Lore") or "未命名Lore")
+            content = str(cls._trace_field(entry, "content", "") or "").strip()
+            source_type = str(cls._trace_field(entry, "source_type", "manual") or "manual")
+            activation_keys = list(cls._trace_field(entry, "activation_keys", ()) or ())
+            item = {
+                "order": order,
+                "source_type": "lorebook",
+                "id": entry_id,
+                "title": title,
+                "entry_source_type": source_type,
+                "activation_keys": activation_keys,
+                "content": content[:500],
+            }
+            lore_items.append(item)
+            lore_preview_lines.append(
+                "\n".join(
+                    [
+                        f"### Lore {order}. {title} [{entry_id}]",
+                        f"来源: lorebook/{source_type}",
+                        f"关键词: {', '.join(str(key) for key in activation_keys) if activation_keys else '无'}",
+                        str(item["content"]),
+                    ]
+                )
+            )
+
+        voice_trace = None
+        if voice_persona is not None:
+            voice_trace = cls.build_voice_persona_prompt_trace(voice_persona, project_id=project_id, chars_per_token=safe_chars_per_token)
+
+        preview_sections = [
+            f"# Group Scene Draft Context: {project_title}",
+            f"Scenario: {clean_scenario}",
+            "",
+            "## Participants",
+            "\n".join(participant_preview_lines),
+        ]
+        if voice_trace:
+            preview_sections.extend(["", "## Voice Persona", str(voice_trace.get("final_preview_text") or "")])
+        if lore_preview_lines:
+            preview_sections.extend(["", "## Lore References", "\n\n".join(lore_preview_lines)])
+        if clean_prompt_context:
+            preview_sections.extend(["", "## Selected Prompt Context", clean_prompt_context])
+        preview_sections.extend(
+            [
+                "",
+                "## Boundary",
+                "Writing-only group scene artifact; no chat room, autonomous turn loop, multiplayer state, or chapter rewrite.",
+            ]
+        )
+        final_preview_text = "\n".join(section for section in preview_sections if section is not None)
+        chars_used = len(final_preview_text)
+        trace_payload = {
+            "project_id": project_id,
+            "participant_character_ids": [item["id"] for item in participant_items],
+            "selected_voice_persona_id": voice_trace.get("selected_voice_persona_id") if voice_trace else None,
+            "selected_lore_ids": [item["id"] for item in lore_items],
+            "scenario": clean_scenario,
+            "prompt_context": clean_prompt_context,
+            "trace_version": cls.GROUP_SCENE_TRACE_VERSION,
+        }
+        trace_hash = hashlib.sha256(cls._stable_json(trace_payload).encode("utf-8")).hexdigest()[:16]
+        trace_id = f"gst_{trace_hash}"
+        return {
+            "source_type": "group_scene",
+            "trace_version": cls.GROUP_SCENE_TRACE_VERSION,
+            "schema_version": cls.GROUP_SCENE_TRACE_SCHEMA,
+            "trace_id": trace_id,
+            "project_id": project_id,
+            "project_title": project_title,
+            "source_order": source_order,
+            "participant_character_ids": [item["id"] for item in participant_items],
+            "selected_voice_persona_id": voice_trace.get("selected_voice_persona_id") if voice_trace else None,
+            "selected_lore_ids": [item["id"] for item in lore_items],
+            "selected_prompt_context": clean_prompt_context,
+            "selected_count": len(participant_items),
+            "participants": participant_items,
+            "voice_persona_trace": voice_trace,
+            "lore_items": lore_items,
+            "boundary_decision": "writing_artifact_only",
+            "forbidden_runtime_semantics": [
+                "autonomous_chat_loop",
+                "multi_agent_turn_scheduler",
+                "multiplayer_chat_room",
+                "automatic_chapter_rewrite",
+            ],
+            "budget_estimate": {
+                "chars_used": chars_used,
+                "estimated_tokens": (chars_used + safe_chars_per_token - 1) // safe_chars_per_token,
+                "chars_per_token": safe_chars_per_token,
+            },
+            "final_preview_text": final_preview_text,
+        }
+
+    @staticmethod
+    def _rag_excerpt(content: Any, *, max_chars: int = 180) -> str:
+        safe_limit = max(20, int(max_chars or 180))
+        text = str(content or "").strip()
+        if len(text) <= safe_limit:
+            return text
+        return f"{text[: safe_limit - 1].rstrip()}…"
+
+    @classmethod
+    def build_rag_prompt_trace(
+        cls,
+        retrieval_trace: Any,
+        *,
+        max_excerpt_chars: int = 180,
+        chars_per_token: int = 4,
+    ) -> dict[str, Any]:
+        """Return deterministic Data Bank/RAG source trace data for prompt preview.
+
+        This consumes the Task 10 Data Bank retrieval trace shape and emits a
+        prompt-facing preview trace only. It performs no retrieval, no ingestion,
+        no remote fetch, and no prompt mutation by itself.
+        """
+
+        safe_chars_per_token = max(1, int(chars_per_token or 4))
+        safe_excerpt_chars = max(20, int(max_excerpt_chars or 180))
+        raw_results = cls._trace_field(retrieval_trace, "results", ()) or ()
+        items: list[dict[str, Any]] = []
+        preview_blocks: list[str] = []
+        chars_used = 0
+
+        for fallback_order, result in enumerate(raw_results, start=1):
+            order = int(cls._trace_field(result, "order", fallback_order) or fallback_order)
+            source_id = str(cls._trace_field(result, "item_id", cls._trace_field(result, "source_id", "")) or "")
+            chunk_id = str(cls._trace_field(result, "chunk_id", "") or "")
+            title = str(cls._trace_field(result, "title", "未命名资料") or "未命名资料")
+            item_source_type = str(cls._trace_field(result, "item_source_type", cls._trace_field(result, "source_type", "snippet")) or "snippet")
+            content = str(cls._trace_field(result, "content", "") or "")
+            excerpt = cls._rag_excerpt(content, max_chars=safe_excerpt_chars)
+            score = float(cls._trace_field(result, "score", 0.0) or 0.0)
+            matched_terms = list(cls._trace_field(result, "matched_terms", ()) or ())
+            trace_item = {
+                "order": order,
+                "source_type": "data_bank",
+                "source_id": source_id,
+                "item_id": source_id,
+                "chunk_id": chunk_id,
+                "title": title,
+                "score": score,
+                "excerpt": excerpt,
+                "item_source_type": item_source_type,
+                "filename": cls._trace_field(result, "filename", None),
+                "chunk_index": cls._trace_field(result, "chunk_index", None),
+                "matched_terms": matched_terms,
+                "char_start": cls._trace_field(result, "char_start", None),
+                "char_end": cls._trace_field(result, "char_end", None),
+                "content_hash": cls._trace_field(result, "content_hash", None),
+            }
+            items.append(trace_item)
+            chars_used += len(excerpt)
+            preview_blocks.append(
+                "\n".join(
+                    [
+                        f"### {order}. {title} [{source_id}]",
+                        f"来源: data_bank/{item_source_type}",
+                        f"评分: {score:g}",
+                        f"匹配词: {', '.join(str(term) for term in matched_terms) if matched_terms else '无'}",
+                        excerpt,
+                    ]
+                )
+            )
+
+        estimated_tokens = (chars_used + safe_chars_per_token - 1) // safe_chars_per_token
+        return {
+            "source_type": "rag",
+            "retrieval_source": "data_bank",
+            "strategy": cls._trace_field(retrieval_trace, "strategy", "deterministic-lexical-v1"),
+            "project_id": cls._trace_field(retrieval_trace, "project_id", None),
+            "query": cls._trace_field(retrieval_trace, "query", ""),
+            "selected_source_ids": [item["source_id"] for item in items],
+            "total_candidates": int(cls._trace_field(retrieval_trace, "total_candidates", 0) or 0),
+            "selected_count": len(items),
+            "returned_count": int(cls._trace_field(retrieval_trace, "returned_count", len(items)) or 0),
+            "budget_estimate": {
+                "chars_used": chars_used,
+                "estimated_tokens": estimated_tokens,
+                "chars_per_token": safe_chars_per_token,
+                "max_excerpt_chars": safe_excerpt_chars,
+            },
+            "items": items,
+            "final_preview_text": "\n\n".join(preview_blocks),
+        }
+
+    @staticmethod
+    def apply_rag_prompt_trace(
+        base_prompt: str,
+        trace: dict[str, Any] | None,
+        *,
+        injection_enabled: bool,
+    ) -> str:
+        """Append traced Data Bank context only when RAG injection is explicitly enabled."""
+
+        if not injection_enabled or not trace:
+            return base_prompt
+        preview_text = str(trace.get("final_preview_text") or "").strip()
+        if not preview_text:
+            return base_prompt
+        selected_ids = ", ".join(str(item_id) for item_id in trace.get("selected_source_ids", [])) or "无"
+        return (
+            f"{base_prompt}\n\n"
+            "<rag_context source_type=\"data_bank\">\n"
+            f"【Data Bank检索上下文｜已选择来源ID: {selected_ids}】\n"
+            f"{preview_text}\n"
+            "</rag_context>"
+        )
+
+    @classmethod
+    def _stable_json(cls, value: Any) -> str:
+        """Serialize trace inputs deterministically for hashes/IDs."""
+
+        return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
+
+    @classmethod
+    def _prompt_layer_source_rank(cls, source_type: str) -> int:
+        return cls.PROMPT_ASSEMBLY_SOURCE_ORDER.get(source_type, 1000)
+
+    @classmethod
+    def _normalize_prompt_layer_metadata(cls, metadata: Any) -> dict[str, Any]:
+        if not isinstance(metadata, dict):
+            return {}
+        # Round-trip through deterministic JSON so nested non-primitive values cannot
+        # retain insertion-order or object-repr differences in trace IDs.
+        return json.loads(cls._stable_json(metadata))
+
+    @classmethod
+    def build_prompt_assembly_trace(
+        cls,
+        layers: list[dict[str, Any]],
+        *,
+        trace_version: int | None = None,
+        separator: str = "\n\n",
+    ) -> dict[str, Any]:
+        """Build a deterministic prompt-layer assembly trace without persisting presets.
+
+        This is the Task 9 trace-only boundary for Prompt Workshop. It validates and
+        orders caller-provided layers, computes stable hashes/IDs, and returns the
+        assembled preview text. It deliberately does not create a new preset storage,
+        marketplace, scripting, or generation mutation path.
+        """
+
+        expected_version = cls.PROMPT_ASSEMBLY_TRACE_VERSION
+        requested_version = int(trace_version or expected_version)
+        validation_errors: list[dict[str, Any]] = []
+
+        if requested_version != expected_version:
+            validation_errors.append(
+                {
+                    "field": "trace_version",
+                    "message": f"仅支持提示词组装追踪版本 {expected_version}",
+                    "expected": expected_version,
+                    "actual": requested_version,
+                }
+            )
+
+        if not isinstance(layers, list) or not layers:
+            validation_errors.append({"field": "layers", "message": "至少需要一个提示词层"})
+            layers = []
+
+        seen_ids: set[str] = set()
+        normalized_layers: list[dict[str, Any]] = []
+        for input_index, raw_layer in enumerate(layers):
+            raw = raw_layer if isinstance(raw_layer, dict) else {}
+            layer_id = str(raw.get("layer_id") or raw.get("id") or "").strip()
+            source_type = str(raw.get("source_type") or "").strip()
+            label = str(raw.get("label") or layer_id or source_type or f"layer-{input_index + 1}").strip()
+            content = str(raw.get("content") or "")
+            enabled = bool(raw.get("enabled", True))
+            explicit_order = raw.get("order")
+            metadata = cls._normalize_prompt_layer_metadata(raw.get("metadata"))
+
+            if not layer_id:
+                validation_errors.append({"field": f"layers[{input_index}].id", "message": "提示词层必须包含稳定 id"})
+                layer_id = f"invalid-{input_index + 1}"
+            if layer_id in seen_ids:
+                validation_errors.append({"field": f"layers[{input_index}].id", "message": f"重复的提示词层 id: {layer_id}"})
+            seen_ids.add(layer_id)
+
+            if not source_type:
+                validation_errors.append({"field": f"layers[{input_index}].source_type", "message": "提示词层必须声明 source_type"})
+                source_type = "manual"
+            elif source_type in cls.FORBIDDEN_PROMPT_LAYER_SOURCE_TYPES:
+                validation_errors.append(
+                    {
+                        "field": f"layers[{input_index}].source_type",
+                        "message": f"禁止的提示词层来源: {source_type}",
+                    }
+                )
+            elif source_type not in cls.PROMPT_ASSEMBLY_SOURCE_ORDER:
+                validation_errors.append(
+                    {
+                        "field": f"layers[{input_index}].source_type",
+                        "message": f"未知的提示词层来源: {source_type}",
+                        "allowed": sorted(cls.PROMPT_ASSEMBLY_SOURCE_ORDER.keys()),
+                    }
+                )
+
+            order_value: int | None = None
+            if explicit_order is not None:
+                if isinstance(explicit_order, bool) or not isinstance(explicit_order, int):
+                    validation_errors.append({"field": f"layers[{input_index}].order", "message": "order 必须是整数"})
+                else:
+                    order_value = explicit_order
+
+            if enabled and not content.strip():
+                validation_errors.append({"field": f"layers[{input_index}].content", "message": "启用的提示词层内容不能为空"})
+
+            normalized_layers.append(
+                {
+                    "input_index": input_index,
+                    "id": layer_id,
+                    "source_type": source_type,
+                    "label": label,
+                    "enabled": enabled,
+                    "order": order_value,
+                    "content": content,
+                    "metadata": metadata,
+                }
+            )
+
+        ordered_layers = sorted(
+            normalized_layers,
+            key=lambda layer: (
+                layer["order"] if layer["order"] is not None else cls._prompt_layer_source_rank(layer["source_type"]),
+                cls._prompt_layer_source_rank(layer["source_type"]),
+                layer["id"],
+                layer["input_index"],
+            ),
+        )
+
+        trace_layers: list[dict[str, Any]] = []
+        included_content: list[str] = []
+        for assembly_order, layer in enumerate(ordered_layers, start=1):
+            content = str(layer["content"])
+            content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
+            if layer["enabled"] and content.strip():
+                included_content.append(content.strip())
+            trace_layers.append(
+                {
+                    "order": assembly_order,
+                    "id": layer["id"],
+                    "label": layer["label"],
+                    "source_type": layer["source_type"],
+                    "enabled": layer["enabled"],
+                    "content_hash": content_hash,
+                    "content_length": len(content),
+                    "metadata": layer["metadata"],
+                }
+            )
+
+        safe_separator = str(separator if separator is not None else "\n\n")
+        final_prompt = safe_separator.join(included_content)
+        canonical_payload = {
+            "trace_version": requested_version,
+            "schema_version": cls.PROMPT_ASSEMBLY_TRACE_SCHEMA,
+            "boundary": cls.PROMPT_ASSEMBLY_BOUNDARY,
+            "separator": safe_separator,
+            "layers": [
+                {
+                    "id": layer["id"],
+                    "label": layer["label"],
+                    "source_type": layer["source_type"],
+                    "enabled": layer["enabled"],
+                    "content": layer["content"],
+                    "metadata": layer["metadata"],
+                    "order": layer["order"],
+                }
+                for layer in ordered_layers
+            ],
+        }
+        trace_hash = hashlib.sha256(cls._stable_json(canonical_payload).encode("utf-8")).hexdigest()
+        final_prompt_hash = hashlib.sha256(final_prompt.encode("utf-8")).hexdigest()
+
+        return {
+            "trace_version": requested_version,
+            "schema_version": cls.PROMPT_ASSEMBLY_TRACE_SCHEMA,
+            "trace_id": f"pat_{trace_hash[:24]}",
+            "preset_boundary": cls.PROMPT_ASSEMBLY_BOUNDARY,
+            "boundary_decision": "trace_only_existing_prompt_workshop",
+            "validation": {
+                "valid": len(validation_errors) == 0,
+                "errors": validation_errors,
+                "expected_trace_version": expected_version,
+                "allowed_source_types": sorted(cls.PROMPT_ASSEMBLY_SOURCE_ORDER.keys()),
+            },
+            "layer_order": [layer["id"] for layer in trace_layers],
+            "layers": trace_layers,
+            "final_prompt": final_prompt,
+            "final_prompt_hash": final_prompt_hash,
+        }
 
     @classmethod
     async def get_chapter_regeneration_prompt(

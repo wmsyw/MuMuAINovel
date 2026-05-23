@@ -13,6 +13,7 @@ import json
 import time
 
 from app.database import get_db
+from app import feature_flags
 from app.models.settings import Settings
 from app.services.cover_generation_service import cover_generation_service
 from app.schemas.settings import (
@@ -22,6 +23,7 @@ from app.schemas.settings import (
     ChapterAnalysisPresetSelectionRequest,
     SystemSMTPSettingsResponse, SystemSMTPSettingsUpdate, SMTPTestRequest,
     ReasoningCapabilitiesResponse,
+    FeatureFlagsResponse,
 )
 from app.user_manager import User
 from app.logger import get_logger
@@ -374,6 +376,15 @@ async def get_settings(
 
     logger.info(f"用户 {user.user_id} 获取已保存的设置")
     return settings
+
+
+@router.get("/feature-flags", response_model=FeatureFlagsResponse)
+async def get_feature_flags(user: User = Depends(require_login)):
+    """获取前端所需的最小特性开关。"""
+    _ = user
+    return {
+        "local_assets_enabled": feature_flags.is_enabled("local_assets_enabled"),
+    }
 
 
 @router.post("/cover/test")

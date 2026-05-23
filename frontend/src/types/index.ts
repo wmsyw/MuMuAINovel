@@ -139,6 +139,10 @@ export interface SettingsUpdate {
   preferences?: string;
 }
 
+export interface FeatureFlags {
+  local_assets_enabled: boolean;
+}
+
 // API预设相关类型定义
 export interface APIKeyPresetConfig {
   api_provider: string;
@@ -250,6 +254,326 @@ export interface ProjectUpdate {
 export interface ProjectWizardUpdate extends ProjectUpdate {
   wizard_status?: 'incomplete' | 'completed';
   wizard_step?: number;
+}
+
+// ==================== 项目本地资源 ====================
+
+export type ProjectAssetType = 'avatar' | 'background' | 'sprite';
+
+export interface ProjectAsset {
+  id: string;
+  project_id: string;
+  user_id: string;
+  asset_type: ProjectAssetType | string;
+  display_name: string;
+  original_filename: string;
+  storage_filename: string;
+  mime_type: string;
+  file_size: number;
+  content_hash: string;
+  file_url: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface ProjectAssetListResponse {
+  total: number;
+  items: ProjectAsset[];
+}
+
+export interface ProjectAssetUploadRequest {
+  asset_type: ProjectAssetType;
+  display_name?: string;
+  file: File;
+}
+
+// ==================== 创作会话 ====================
+
+export type CreativeSessionStatus = 'active' | 'archived';
+export type CreativeSessionRole = 'user' | 'assistant' | 'system' | 'note';
+
+export interface CreativeSessionCreate {
+  title: string;
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface CreativeSessionMessageCreate {
+  role?: CreativeSessionRole;
+  content: string;
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface CreativeSession {
+  id: string;
+  project_id: string;
+  user_id: string;
+  title: string;
+  status: CreativeSessionStatus | string;
+  metadata?: Record<string, unknown> | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface CreativeSessionMessage {
+  id: string;
+  session_id: string;
+  project_id: string;
+  user_id: string;
+  role: CreativeSessionRole | string;
+  content: string;
+  position: number;
+  metadata?: Record<string, unknown> | null;
+  created_at?: string | null;
+}
+
+export interface CreativeSessionDetail extends CreativeSession {
+  messages: CreativeSessionMessage[];
+}
+
+export interface CreativeSessionListResponse {
+  total: number;
+  items: CreativeSession[];
+}
+
+export interface CreativeSessionSearchResult {
+  session_id: string;
+  session_title: string;
+  message_id: string;
+  project_id: string;
+  user_id: string;
+  role: CreativeSessionRole | string;
+  content: string;
+  position: number;
+  created_at?: string | null;
+}
+
+export interface CreativeSessionSearchResponse {
+  query: string;
+  total: number;
+  items: CreativeSessionSearchResult[];
+}
+
+// ==================== 快捷回复 / 安全片段 ====================
+
+export type QuickReplyActionType = 'safe_snippet';
+
+export interface QuickReply {
+  id: string;
+  project_id: string;
+  user_id: string;
+  label: string;
+  action_type: QuickReplyActionType | string;
+  snippet: string;
+  sort_order: number;
+  enabled: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface QuickReplyCreate {
+  label: string;
+  action_type?: QuickReplyActionType;
+  snippet: string;
+  sort_order?: number;
+  enabled?: boolean;
+}
+
+export interface QuickReplyUpdate {
+  label?: string;
+  action_type?: QuickReplyActionType;
+  snippet?: string;
+  sort_order?: number;
+  enabled?: boolean;
+}
+
+export interface QuickReplyListResponse {
+  total: number;
+  items: QuickReply[];
+}
+
+export interface QuickReplyApplyRequest {
+  session_id: string;
+}
+
+export interface QuickReplyApplyResponse {
+  quick_reply: QuickReply;
+  source_type: string;
+  trace_label: string;
+  action_type: QuickReplyActionType | string;
+  applied_content: string;
+  prompt_mutation: boolean;
+  boundary_decision: string;
+  emitted_message: CreativeSessionMessage;
+}
+
+// ==================== 旁白声音画像 / Voice Personas ====================
+
+export type VoicePersonaScope = 'project' | 'session';
+
+export interface VoicePersona {
+  id: string;
+  project_id: string;
+  user_id: string;
+  session_id?: string | null;
+  scope: VoicePersonaScope | string;
+  name: string;
+  tone: string;
+  style: string;
+  point_of_view: string;
+  constraints: string;
+  sort_order: number;
+  enabled: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface VoicePersonaCreate {
+  name: string;
+  tone?: string;
+  style?: string;
+  point_of_view?: string;
+  constraints?: string;
+  session_id?: string | null;
+  sort_order?: number;
+  enabled?: boolean;
+}
+
+export interface VoicePersonaUpdate {
+  name?: string;
+  tone?: string;
+  style?: string;
+  point_of_view?: string;
+  constraints?: string;
+  session_id?: string | null;
+  sort_order?: number;
+  enabled?: boolean;
+}
+
+export interface VoicePersonaListResponse {
+  total: number;
+  items: VoicePersona[];
+}
+
+export interface VoicePersonaPromptTraceItem {
+  order: number;
+  source_order: number;
+  source_type: string;
+  trace_id: string;
+  id: string;
+  name: string;
+  scope: string;
+  project_id?: string | null;
+  session_id?: string | null;
+  applied_session_id?: string | null;
+  tone: string;
+  style: string;
+  point_of_view: string;
+  constraints: string;
+}
+
+export interface VoicePersonaPromptTrace {
+  source_type: string;
+  trace_version: number;
+  schema_version: string;
+  trace_id: string;
+  selected_voice_persona_id: string;
+  selected_voice_persona_ids: string[];
+  project_id?: string | null;
+  session_id?: string | null;
+  profile_scope: string;
+  applied_scope: string;
+  source_order: number;
+  selected_count: number;
+  profile: {
+    id: string;
+    name: string;
+    tone: string;
+    style: string;
+    point_of_view: string;
+    constraints: string;
+    scope: string;
+  };
+  budget_estimate: {
+    chars_used: number;
+    estimated_tokens: number;
+    chars_per_token: number;
+  };
+  items: VoicePersonaPromptTraceItem[];
+  final_preview_text: string;
+}
+
+export interface VoicePersonaPromptPreviewRequest {
+  persona_id: string;
+  session_id?: string | null;
+  base_prompt?: string;
+  injection_enabled?: boolean;
+}
+
+export interface VoicePersonaPromptPreviewResponse {
+  project_id: string;
+  session_id?: string | null;
+  trace: VoicePersonaPromptTrace;
+  preview_prompt: string;
+}
+
+// ==================== 群像场景 / Group Scenes ====================
+
+export interface GroupScenePromptTrace {
+  source_type: string;
+  trace_version: number;
+  schema_version: string;
+  trace_id: string;
+  project_id: string;
+  project_title: string;
+  source_order: number;
+  participant_character_ids: string[];
+  selected_voice_persona_id?: string | null;
+  selected_lore_ids: string[];
+  selected_prompt_context: string;
+  selected_count: number;
+  participants: Array<Record<string, unknown>>;
+  voice_persona_trace?: VoicePersonaPromptTrace | null;
+  lore_items: Array<Record<string, unknown>>;
+  boundary_decision: string;
+  forbidden_runtime_semantics: string[];
+  budget_estimate: {
+    chars_used: number;
+    estimated_tokens: number;
+    chars_per_token: number;
+  };
+  final_preview_text: string;
+}
+
+export interface GroupScene {
+  id: string;
+  project_id: string;
+  user_id: string;
+  title: string;
+  scenario: string;
+  participant_character_ids: string[];
+  selected_voice_persona_id?: string | null;
+  selected_lore_ids: string[];
+  prompt_context: string;
+  draft_text: string;
+  prompt_trace: GroupScenePromptTrace;
+  status: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface GroupSceneDraftRequest {
+  title: string;
+  scenario: string;
+  participant_character_ids: string[];
+  selected_voice_persona_id?: string | null;
+  selected_lore_ids?: string[];
+  prompt_context?: string;
+  draft_text?: string | null;
+}
+
+export interface GroupSceneListResponse {
+  total: number;
+  items: GroupScene[];
 }
 
 // 项目创建向导
@@ -579,6 +903,11 @@ export interface Character extends EntityEnrichmentFields, LegacyOrganizationCha
   organization_members?: string;
   traits?: string;
   avatar_url?: string;
+  writing_notes?: string;
+  speech_patterns?: string;
+  motivations?: string;
+  arc_summary?: string;
+  card_version?: number;
   // 组织扩展字段（从Organization表关联）
   power_level?: number;
   location?: string;
@@ -613,6 +942,11 @@ export interface CharacterCreate extends LegacyOrganizationPayloadFields {
   organization_members?: string;
   traits?: string;
   avatar_url?: string;
+  writing_notes?: string;
+  speech_patterns?: string;
+  motivations?: string;
+  arc_summary?: string;
+  card_version?: number;
   power_level?: number;
   location?: string;
   motto?: string;
@@ -635,6 +969,11 @@ export interface CharacterUpdate extends LegacyOrganizationPayloadFields {
   sub_careers?: string;
   organization_members?: string;
   traits?: string;
+  writing_notes?: string;
+  speech_patterns?: string;
+  motivations?: string;
+  arc_summary?: string;
+  card_version?: number;
   // 组织扩展字段
   power_level?: number;
   location?: string;
@@ -2184,6 +2523,135 @@ export interface PromptWorkshopStatusResponse {
   instance_id: string;
   cloud_url?: string;
   cloud_connected?: boolean;
+}
+
+export interface PromptAssemblyLayerRequest {
+  id: string;
+  source_type: string;
+  content: string;
+  label?: string;
+  order?: number | null;
+  enabled?: boolean;
+  metadata?: Record<string, unknown>;
+}
+
+export interface PromptAssemblyTraceRequest {
+  trace_version?: number;
+  layers: PromptAssemblyLayerRequest[];
+  separator?: string;
+}
+
+export interface PromptAssemblyTraceLayer {
+  order: number;
+  id: string;
+  label: string;
+  source_type: string;
+  enabled: boolean;
+  content_hash: string;
+  content_length: number;
+  metadata: Record<string, unknown>;
+}
+
+export interface PromptAssemblyTrace {
+  trace_version: number;
+  schema_version: string;
+  trace_id: string;
+  preset_boundary: string;
+  boundary_decision: string;
+  validation: {
+    valid: boolean;
+    errors: Array<Record<string, unknown>>;
+    expected_trace_version: number;
+    allowed_source_types: string[];
+  };
+  layer_order: string[];
+  layers: PromptAssemblyTraceLayer[];
+  final_prompt: string;
+  final_prompt_hash: string;
+}
+
+export interface PromptAssemblyTraceResponse {
+  success: boolean;
+  boundary: {
+    mode: string;
+    owner: string;
+    duplicates_prompt_stack: boolean;
+    persistence: string;
+    reason: string;
+  };
+  trace: PromptAssemblyTrace;
+}
+
+export interface LorebookPromptPreviewRequest {
+  activation_text: string;
+  max_chars?: number | null;
+  max_tokens?: number | null;
+  chars_per_token?: number;
+}
+
+export interface LorebookPromptTraceItem {
+  order: number;
+  id: string;
+  title: string;
+  source_type: string;
+  entry_source_type: string;
+  priority: number;
+  matched_keys: string[];
+  content: string;
+  original_content_length: number;
+  selected_content_length: number;
+  trimmed: boolean;
+}
+
+export interface LorebookPromptTrace {
+  source_type: string;
+  selected_lore_ids: string[];
+  total_candidates: number;
+  selected_count: number;
+  budget_estimate: {
+    chars_used: number;
+    budget_chars?: number | null;
+    estimated_tokens: number;
+    chars_per_token: number;
+  };
+  items: LorebookPromptTraceItem[];
+  final_preview_text: string;
+}
+
+export interface LorebookPromptPreviewResponse {
+  project_id: string;
+  trace: LorebookPromptTrace;
+}
+
+export interface DataBankRetrievalRequest {
+  query: string;
+  limit?: number;
+}
+
+export interface DataBankRetrievalResult {
+  order: number;
+  source_type: string;
+  item_source_type: string;
+  item_id: string;
+  chunk_id: string;
+  title: string;
+  filename?: string | null;
+  chunk_index: number;
+  score: number;
+  matched_terms: string[];
+  content: string;
+  char_start: number;
+  char_end: number;
+  content_hash: string;
+}
+
+export interface DataBankRetrievalTraceResponse {
+  project_id: string;
+  query: string;
+  strategy: string;
+  total_candidates: number;
+  returned_count: number;
+  results: DataBankRetrievalResult[];
 }
 
 export interface PromptWorkshopAdminStats {

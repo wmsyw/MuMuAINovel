@@ -24,6 +24,7 @@ from app.models.relationship import (
     OrganizationMember,
     RelationshipTimelineEvent,
 )
+from app.services.character_card_service import normalize_character_card_fields
 
 
 EXTRACTION_SOURCE_TYPE = "extraction_candidate"
@@ -480,6 +481,7 @@ class CandidateMergeService:
                 personality=self._text(payload.get("personality")),
                 background=self._text(payload.get("background")),
                 appearance=self._text(payload.get("appearance")),
+                **normalize_character_card_fields(payload),
                 status=self._text(payload.get("status")) or "active",
                 current_state=self._text(payload.get("current_state")),
                 traits=self._json_text(payload.get("traits")),

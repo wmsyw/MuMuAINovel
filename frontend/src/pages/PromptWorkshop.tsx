@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useParams } from 'react-router-dom';
 import {
   Card,
   Row,
   Col,
   Input,
+  InputNumber,
   Select,
   Button,
   Tag,
@@ -20,6 +22,7 @@ import {
   Pagination,
   Alert,
   Statistic,
+  List,
   theme,
 } from 'antd';
 import {
@@ -39,9 +42,13 @@ import {
   DisconnectOutlined,
   SettingOutlined,
   PlusOutlined,
+  DatabaseOutlined,
 } from '@ant-design/icons';
-import { promptWorkshopApi, authApi } from '../services/api';
+import { promptWorkshopApi, authApi, lorebookApi, dataBankApi } from '../services/api';
 import type {
+  DataBankRetrievalTraceResponse,
+  LorebookPromptPreviewResponse,
+  PromptAssemblyTraceResponse,
   PromptWorkshopItem,
   PromptSubmission,
   PromptSubmissionCreate,
@@ -53,6 +60,7 @@ const { TextArea } = Input;
 const { Text, Paragraph } = Typography;
 
 export default function PromptWorkshop() {
+  const { projectId } = useParams<{ projectId: string }>();
   const [items, setItems] = useState<PromptWorkshopItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
@@ -116,6 +124,25 @@ export default function PromptWorkshop() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editForm] = Form.useForm();
   const [editLoading, setEditLoading] = useState(false);
+
+  // Lorebook 预览追踪
+  const [loreActivationText, setLoreActivationText] = useState('');
+  const [loreMaxTokens, setLoreMaxTokens] = useState<number | null>(512);
+  const [lorePreview, setLorePreview] = useState<LorebookPromptPreviewResponse | null>(null);
+  const [lorePreviewLoading, setLorePreviewLoading] = useState(false);
+
+  // Data Bank / RAG 来源追踪预览（preview-only）
+  const [ragQuery, setRagQuery] = useState('');
+  const [ragLimit, setRagLimit] = useState<number | null>(5);
+  const [ragPreview, setRagPreview] = useState<DataBankRetrievalTraceResponse | null>(null);
+  const [ragPreviewLoading, setRagPreviewLoading] = useState(false);
+
+  // 提示词组装追踪（trace-only，不创建第二套预设系统）
+  const [assemblySystemPrompt, setAssemblySystemPrompt] = useState('');
+  const [assemblyWorkshopPrompt, setAssemblyWorkshopPrompt] = useState('');
+  const [assemblyUserInstruction, setAssemblyUserInstruction] = useState('');
+  const [assemblyTrace, setAssemblyTrace] = useState<PromptAssemblyTraceResponse | null>(null);
+  const [assemblyTraceLoading, setAssemblyTraceLoading] = useState(false);
   
   // 当前活动的 Tab
   const [activeTab, setActiveTab] = useState<string>('browse');
@@ -301,6 +328,108 @@ export default function PromptWorkshop() {
     }
   };
 
+  const handlePreviewLorebook = async () => {
+    if (!projectId) {
+      message.warning('请先进入项目后再预览 Lorebook');
+      return;
+    }
+    setLorePreviewLoading(true);
+    try {
+      const response = await lorebookApi.previewPromptTrace(projectId, {
+        activation_text: loreActivationText,
+        max_tokens: loreMaxTokens || undefined,
+        chars_per_token: 4,
+      });
+      setLorePreview(response);
+      message.success('Lorebook 预览已更新');
+    } catch (error) {
+      console.error('Failed to preview lorebook prompt trace:', error);
+      message.error('Lorebook 预览失败');
+    } finally {
+      setLorePreviewLoading(false);
+    }
+  };
+
+  const handlePreviewRagSources = async () => {
+    if (!projectId) {
+      message.warning('请先进入项目后再预览 Data Bank');
+      return;
+    }
+    const query = ragQuery.trim();
+    if (!query) {
+      message.warning('请输入用于检索 Data Bank 的查询文本');
+      return;
+    }
+
+    setRagPreviewLoading(true);
+    try {
+      const response = await dataBankApi.retrievePreview(projectId, {
+        query,
+        limit: ragLimit || undefined,
+      });
+      setRagPreview(response);
+      message.success('Data Bank/RAG 预览已更新');
+    } catch (error) {
+      console.error('Failed to preview Data Bank RAG sources:', error);
+      message.error('Data Bank/RAG 预览失败');
+    } finally {
+      setRagPreviewLoading(false);
+    }
+  };
+
+  const handlePreviewAssemblyTrace = async () => {
+    const layerInputs = [
+      {
+        id: 'system-template',
+        label: '系统模板 / 基础提示词',
+        source_type: 'system_template',
+        content: assemblySystemPrompt,
+        order: 10,
+        metadata: { boundary: 'prompt_workshop', editable_in: 'PromptWorkshop' },
+      },
+      {
+        id: 'workshop-item',
+        label: '工坊提示词 / 写作风格',
+        source_type: 'workshop_item',
+        content: assemblyWorkshopPrompt,
+        order: 40,
+        metadata: { boundary: 'prompt_workshop', persistence: 'existing_workshop_or_writing_style' },
+      },
+      {
+        id: 'user-instruction',
+        label: '本次用户指令',
+        source_type: 'user_instruction',
+        content: assemblyUserInstruction,
+        order: 80,
+        metadata: { boundary: 'prompt_workshop', ephemeral: true },
+      },
+    ];
+    const layers = layerInputs
+      .map(layer => ({ ...layer, content: layer.content.trim() }))
+      .filter(layer => layer.content.length > 0);
+
+    if (layers.length === 0) {
+      message.warning('请至少填写一个提示词层');
+      return;
+    }
+
+    setAssemblyTraceLoading(true);
+    try {
+      const response = await promptWorkshopApi.previewAssemblyTrace({
+        trace_version: 1,
+        layers,
+        separator: '\n\n',
+      });
+      setAssemblyTrace(response);
+      message.success('组装追踪已更新');
+    } catch (error) {
+      console.error('Failed to preview prompt assembly trace:', error);
+      message.error('组装追踪失败');
+    } finally {
+      setAssemblyTraceLoading(false);
+    }
+  };
+
   // 获取分类标签颜色
   const getCategoryColor = (cat: string) => {
     const colors: Record<string, string> = {
@@ -435,12 +564,12 @@ export default function PromptWorkshop() {
                       flexDirection: 'column',
                       border: `1px solid ${token.colorBorderSecondary}`,
                     }}
-                    bodyStyle={{ 
+                    styles={{ body: { 
                       padding: 16, 
                       display: 'flex', 
                       flexDirection: 'column', 
                       flex: 1,
-                    }}
+                    } }}
                     actions={[
                       <Tooltip title="查看详情" key="view">
                         <EyeOutlined onClick={() => handleViewDetail(item)} />
@@ -572,7 +701,7 @@ export default function PromptWorkshop() {
               >
                 <Card
                   style={{ borderRadius: 12, height: '100%', border: `1px solid ${token.colorBorderSecondary}` }}
-                  bodyStyle={{ padding: 16 }}
+                  styles={{ body: { padding: 16 } }}
                 >
                   <Space direction="vertical" style={{ width: '100%' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -638,6 +767,330 @@ export default function PromptWorkshop() {
       </Spin>
     </div>
   );
+
+  const renderLorebookPreview = () => {
+    const trace = lorePreview?.trace;
+    return (
+      <div style={{ paddingRight: isMobile ? 0 : 8 }}>
+        <Alert
+          type="info"
+          showIcon
+          message="Lorebook 提示词预览"
+          description="这里仅展示会被选中的 Lorebook 条目和提示词追踪；默认不会注入章节生成，除非后端显式开启 lorebook_injection_enabled。"
+          style={{ marginBottom: 16 }}
+        />
+
+        <Card style={{ borderRadius: 12, border: `1px solid ${token.colorBorderSecondary}`, marginBottom: 16 }}>
+          <Space direction="vertical" style={{ width: '100%' }} size={12}>
+            <Text strong>激活文本</Text>
+            <TextArea
+              rows={5}
+              value={loreActivationText}
+              onChange={event => setLoreActivationText(event.target.value)}
+              placeholder="粘贴章节大纲、上一章摘要或试写片段，用于匹配 Lorebook 激活关键词..."
+            />
+            <Space wrap>
+              <Text type="secondary">Token 预算估算</Text>
+              <InputNumber
+                min={1}
+                max={4000}
+                value={loreMaxTokens}
+                onChange={value => setLoreMaxTokens(typeof value === 'number' ? value : null)}
+              />
+              <Button type="primary" loading={lorePreviewLoading} onClick={handlePreviewLorebook}>
+                生成预览
+              </Button>
+            </Space>
+          </Space>
+        </Card>
+
+        {trace ? (
+          <Space direction="vertical" style={{ width: '100%' }} size={16}>
+            <Row gutter={[12, 12]}>
+              <Col xs={24} md={8}>
+                <Card size="small"><Statistic title="命中条目" value={trace.selected_count} suffix={`/ ${trace.total_candidates}`} /></Card>
+              </Col>
+              <Col xs={24} md={8}>
+                <Card size="small"><Statistic title="预算字符" value={trace.budget_estimate.chars_used} suffix={trace.budget_estimate.budget_chars ? `/ ${trace.budget_estimate.budget_chars}` : ''} /></Card>
+              </Col>
+              <Col xs={24} md={8}>
+                <Card size="small"><Statistic title="估算 Token" value={trace.budget_estimate.estimated_tokens} /></Card>
+              </Col>
+            </Row>
+
+            <Card title="追踪摘要" size="small">
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <div><Text type="secondary">来源类型：</Text><Tag color="blue">{trace.source_type}</Tag></div>
+                <div><Text type="secondary">选中 ID：</Text>{trace.selected_lore_ids.length > 0 ? trace.selected_lore_ids.map(id => <Tag key={id}>{id}</Tag>) : <Text type="secondary">无</Text>}</div>
+              </Space>
+            </Card>
+
+            <Card title="选中条目" size="small">
+              <List
+                dataSource={trace.items}
+                locale={{ emptyText: '未命中 Lorebook 条目' }}
+                renderItem={item => (
+                  <List.Item>
+                    <Space direction="vertical" style={{ width: '100%' }}>
+                      <Space wrap>
+                        <Tag color="processing">#{item.order}</Tag>
+                        <Text strong>{item.title}</Text>
+                        <Tag>{item.id}</Tag>
+                        <Tag color="blue">{item.source_type}</Tag>
+                        <Tag color="purple">{item.entry_source_type}</Tag>
+                        <Text type="secondary">优先级 {item.priority}</Text>
+                      </Space>
+                      <Text type="secondary">匹配关键词：{item.matched_keys.join('、') || '无'}</Text>
+                      <Paragraph style={{ marginBottom: 0 }} ellipsis={{ rows: 2, expandable: true }}>
+                        {item.content}
+                      </Paragraph>
+                    </Space>
+                  </List.Item>
+                )}
+              />
+            </Card>
+
+            <Card title="最终预览文本" size="small">
+              {trace.final_preview_text ? (
+                <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, fontSize: 13 }}>
+                  {trace.final_preview_text}
+                </pre>
+              ) : (
+                <Empty description="没有可注入的预览文本" />
+              )}
+            </Card>
+          </Space>
+        ) : (
+          <Empty description="输入激活文本后生成 Lorebook 预览" />
+        )}
+      </div>
+    );
+  };
+
+  const renderRagPreview = () => {
+    const trace = ragPreview;
+    return (
+      <div style={{ paddingRight: isMobile ? 0 : 8 }}>
+        <Alert
+          type="info"
+          showIcon
+          message="Data Bank / RAG 来源预览"
+          description="这里仅预览本项目 Data Bank 中哪些来源会进入提示词候选上下文；默认 rag_injection_enabled=false，不会自动注入章节生成，也不会写入、抓取或修改资料库。"
+          style={{ marginBottom: token.marginMD }}
+        />
+
+        <Card style={{ borderRadius: token.borderRadiusLG, border: `1px solid ${token.colorBorderSecondary}`, marginBottom: token.marginMD }}>
+          <Space direction="vertical" style={{ width: '100%' }} size={token.marginSM}>
+            <Space align="center" wrap>
+              <DatabaseOutlined style={{ color: token.colorPrimary }} />
+              <Text strong>检索查询</Text>
+              <Tag color="blue">preview-only</Tag>
+              <Tag color="default">rag_injection_enabled=false</Tag>
+            </Space>
+            <TextArea
+              rows={4}
+              value={ragQuery}
+              onChange={event => setRagQuery(event.target.value)}
+              placeholder="粘贴章节大纲、场景目标或关键词，用于查看 Data Bank 会命中的来源片段..."
+            />
+            <Space wrap>
+              <Text type="secondary">返回来源数</Text>
+              <InputNumber
+                min={1}
+                max={20}
+                value={ragLimit}
+                onChange={value => setRagLimit(typeof value === 'number' ? value : null)}
+              />
+              <Button type="primary" loading={ragPreviewLoading} onClick={handlePreviewRagSources}>
+                生成来源预览
+              </Button>
+            </Space>
+          </Space>
+        </Card>
+
+        {trace ? (
+          <Space direction="vertical" style={{ width: '100%' }} size={token.marginMD}>
+            <Row gutter={[token.marginSM, token.marginSM]}>
+              <Col xs={24} md={8}>
+                <Card size="small"><Statistic title="命中来源" value={trace.returned_count} suffix={`/ ${trace.total_candidates}`} /></Card>
+              </Col>
+              <Col xs={24} md={8}>
+                <Card size="small"><Statistic title="检索策略" value={trace.strategy} /></Card>
+              </Col>
+              <Col xs={24} md={8}>
+                <Card size="small"><Statistic title="项目范围" value={trace.project_id} /></Card>
+              </Col>
+            </Row>
+
+            <Card title="来源追踪" size="small">
+              <List
+                dataSource={trace.results}
+                locale={{ emptyText: '当前查询未命中 Data Bank 来源' }}
+                renderItem={item => (
+                  <List.Item>
+                    <Space direction="vertical" style={{ width: '100%' }} size={token.marginXS}>
+                      <Space wrap>
+                        <Tag color="processing">#{item.order}</Tag>
+                        <Text strong>{item.title}</Text>
+                        <Tag>{item.item_id}</Tag>
+                        <Tag color="blue">score {item.score.toFixed(2)}</Tag>
+                        <Tag color="purple">{item.item_source_type}</Tag>
+                        {item.filename && <Tag>{item.filename}</Tag>}
+                      </Space>
+                      <Text type="secondary">
+                        chunk_id={item.chunk_id} · chunk_index={item.chunk_index} · 位置 {item.char_start}–{item.char_end}
+                      </Text>
+                      <Text type="secondary">匹配词：{item.matched_terms.join('、') || '无'}</Text>
+                      <div
+                        style={{
+                          padding: `${token.paddingXS}px ${token.paddingSM}px`,
+                          background: token.colorFillTertiary,
+                          border: `1px solid ${token.colorBorderSecondary}`,
+                          borderRadius: token.borderRadius,
+                        }}
+                      >
+                        <Text type="secondary" style={{ display: 'block', marginBottom: token.marginXXS }}>Excerpt</Text>
+                        <Paragraph style={{ marginBottom: 0 }} ellipsis={{ rows: 3, expandable: true, symbol: '展开' }}>
+                          {item.content}
+                        </Paragraph>
+                      </div>
+                    </Space>
+                  </List.Item>
+                )}
+              />
+            </Card>
+
+            <Card title="预览说明" size="small">
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <div><Text type="secondary">请求范围：</Text><Tag color="green">server-scoped project/user</Tag></div>
+                <div><Text type="secondary">来源 ID：</Text>{trace.results.length > 0 ? trace.results.map(item => <Tag key={`${item.item_id}-${item.chunk_id}`}>{item.item_id}</Tag>) : <Text type="secondary">无</Text>}</div>
+                <Text type="secondary">该界面复用 /api/memories/projects/{'{project_id}'}/data-bank/retrieve；不会在前端生成 embeddings 或抓取远程 URL。</Text>
+              </Space>
+            </Card>
+          </Space>
+        ) : (
+          <Empty description="输入查询文本后生成 Data Bank/RAG 来源预览" />
+        )}
+      </div>
+    );
+  };
+
+  const renderAssemblyTrace = () => {
+    const trace = assemblyTrace?.trace;
+    return (
+      <div style={{ paddingRight: isMobile ? 0 : 8 }}>
+        <Alert
+          type="info"
+          showIcon
+          message="提示词组装追踪（不新增预设栈）"
+          description="Task 9 调查确认新的预设系统会与提示词工坊高度重叠；这里仅在现有边界内校验层顺序、版本和哈希，不保存、不分享、不执行脚本。"
+          style={{ marginBottom: 16 }}
+        />
+
+        <Card style={{ borderRadius: 12, border: `1px solid ${token.colorBorderSecondary}`, marginBottom: 16 }}>
+          <Space direction="vertical" style={{ width: '100%' }} size={12}>
+            <Row gutter={[12, 12]}>
+              <Col xs={24} lg={8}>
+                <Text strong>系统模板 / 基础提示词</Text>
+                <TextArea
+                  rows={6}
+                  value={assemblySystemPrompt}
+                  onChange={event => setAssemblySystemPrompt(event.target.value)}
+                  placeholder="粘贴系统模板或章节基础提示词..."
+                  style={{ marginTop: 8 }}
+                />
+              </Col>
+              <Col xs={24} lg={8}>
+                <Text strong>工坊提示词 / 写作风格</Text>
+                <TextArea
+                  rows={6}
+                  value={assemblyWorkshopPrompt}
+                  onChange={event => setAssemblyWorkshopPrompt(event.target.value)}
+                  placeholder="粘贴从工坊导入或本地写作风格内容..."
+                  style={{ marginTop: 8 }}
+                />
+              </Col>
+              <Col xs={24} lg={8}>
+                <Text strong>本次用户指令</Text>
+                <TextArea
+                  rows={6}
+                  value={assemblyUserInstruction}
+                  onChange={event => setAssemblyUserInstruction(event.target.value)}
+                  placeholder="填写一次性的章节/场景要求..."
+                  style={{ marginTop: 8 }}
+                />
+              </Col>
+            </Row>
+            <Space wrap>
+              <Tag color="blue">trace_version=1</Tag>
+              <Tag color="purple">boundary=prompt_workshop</Tag>
+              <Tag color="green">persistence=none</Tag>
+              <Button type="primary" loading={assemblyTraceLoading} onClick={handlePreviewAssemblyTrace}>
+                生成组装追踪
+              </Button>
+            </Space>
+          </Space>
+        </Card>
+
+        {trace ? (
+          <Space direction="vertical" style={{ width: '100%' }} size={16}>
+            <Row gutter={[12, 12]}>
+              <Col xs={24} md={8}>
+                <Card size="small"><Statistic title="追踪ID" value={trace.trace_id} /></Card>
+              </Col>
+              <Col xs={24} md={8}>
+                <Card size="small"><Statistic title="层数量" value={trace.layers.length} /></Card>
+              </Col>
+              <Col xs={24} md={8}>
+                <Card size="small"><Statistic title="输出字符" value={trace.final_prompt.length} /></Card>
+              </Col>
+            </Row>
+
+            <Card title="边界与校验" size="small">
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <div><Text type="secondary">Schema：</Text><Tag>{trace.schema_version}</Tag></div>
+                <div><Text type="secondary">边界：</Text><Tag color="purple">{trace.preset_boundary}</Tag><Tag color="green">{assemblyTrace?.boundary.mode}</Tag></div>
+                <div><Text type="secondary">是否有效：</Text><Tag color={trace.validation.valid ? 'green' : 'red'}>{trace.validation.valid ? 'valid' : 'invalid'}</Tag></div>
+                <Text type="secondary">最终 Hash：{trace.final_prompt_hash}</Text>
+              </Space>
+            </Card>
+
+            <Card title="层顺序" size="small">
+              <List
+                dataSource={trace.layers}
+                renderItem={item => (
+                  <List.Item>
+                    <Space direction="vertical" style={{ width: '100%' }}>
+                      <Space wrap>
+                        <Tag color="processing">#{item.order}</Tag>
+                        <Text strong>{item.label}</Text>
+                        <Tag>{item.id}</Tag>
+                        <Tag color="blue">{item.source_type}</Tag>
+                        <Tag color={item.enabled ? 'green' : 'default'}>{item.enabled ? 'enabled' : 'disabled'}</Tag>
+                      </Space>
+                      <Text type="secondary">content_sha256={item.content_hash} · {item.content_length} 字符</Text>
+                    </Space>
+                  </List.Item>
+                )}
+              />
+            </Card>
+
+            <Card title="最终组装预览" size="small">
+              {trace.final_prompt ? (
+                <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, fontSize: 13 }}>
+                  {trace.final_prompt}
+                </pre>
+              ) : (
+                <Empty description="没有可预览的组装文本" />
+              )}
+            </Card>
+          </Space>
+        ) : (
+          <Empty description="填写提示词层后生成确定性追踪" />
+        )}
+      </div>
+    );
+  };
 
   // 加载管理员待审核列表
   const loadAdminSubmissions = async () => {
@@ -856,7 +1309,7 @@ export default function PromptWorkshop() {
               >
                 <Card
                   style={{ borderRadius: 12, border: `1px solid ${token.colorBorderSecondary}` }}
-                  bodyStyle={{ padding: 16 }}
+                      styles={{ body: { padding: 16 } }}
                   actions={[
                     <Button
                       key="approve"
@@ -931,7 +1384,7 @@ export default function PromptWorkshop() {
               >
                 <Card
                   style={{ borderRadius: 12, border: `1px solid ${token.colorBorderSecondary}` }}
-                  bodyStyle={{ padding: 16 }}
+                      styles={{ body: { padding: 16 } }}
                   actions={[
                     <Tooltip title="编辑" key="edit">
                       <Button
@@ -1027,6 +1480,9 @@ export default function PromptWorkshop() {
           }}
           items={[
             { key: 'browse', label: '浏览工坊' },
+            { key: 'lorebook-preview', label: 'Lorebook预览' },
+            { key: 'rag-preview', label: 'Data Bank预览' },
+            { key: 'assembly-trace', label: '组装追踪' },
             {
               key: 'submissions',
               label: (
@@ -1054,6 +1510,9 @@ export default function PromptWorkshop() {
       {/* 滚动区域：只有卡片列表滚动 */}
       <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
         {activeTab === 'browse' && renderWorkshopList()}
+        {activeTab === 'lorebook-preview' && renderLorebookPreview()}
+        {activeTab === 'rag-preview' && renderRagPreview()}
+        {activeTab === 'assembly-trace' && renderAssemblyTrace()}
         {activeTab === 'submissions' && renderMySubmissions()}
         {activeTab === 'admin' && renderAdminPanel()}
       </div>

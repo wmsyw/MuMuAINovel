@@ -16,6 +16,11 @@ import ChapterReader from './pages/ChapterReader';
 import ChapterAnalysis from './pages/ChapterAnalysis';
 import Foreshadows from './pages/Foreshadows';
 import WritingStyles from './pages/WritingStyles';
+import VoicePersonas from './pages/VoicePersonas';
+import GroupScenes from './pages/GroupScenes';
+import CreativeSessions from './pages/CreativeSessions';
+import QuickReplies from './pages/QuickReplies';
+import LocalAssets from './pages/LocalAssets';
 import PromptWorkshop from './pages/PromptWorkshop';
 import Settings from './pages/Settings';
 import MCPPlugins from './pages/MCPPlugins';
@@ -68,6 +73,11 @@ function App() {
             <Route path="chapter-analysis" element={<ChapterAnalysis />} />
             <Route path="foreshadows" element={<Foreshadows />} />
             <Route path="writing-styles" element={<WritingStyles />} />
+            <Route path="voice-personas" element={<VoicePersonas />} />
+            <Route path="group-scenes" element={<GroupScenes />} />
+            <Route path="creative-sessions" element={<CreativeSessions />} />
+            <Route path="quick-replies" element={<QuickReplies />} />
+            <Route path="local-assets" element={<LocalAssets />} />
             <Route path="prompt-workshop" element={<PromptWorkshop />} />
             <Route path="sponsor" element={<Sponsor />} />
             {/* <Route path="polish" element={<Polish />} /> */}

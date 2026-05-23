@@ -25,6 +25,13 @@ class Character(Base):
     background = Column(Text, comment="背景故事")
     appearance = Column(Text, comment="外貌描述")
     relationships = Column(Text, comment="人物关系(JSON)")
+
+    # 写作型角色卡扩展字段
+    writing_notes = Column(Text, comment="作者私有写作笔记，不注入AI上下文")
+    speech_patterns = Column(Text, comment="语言风格、口头禅、语气说明")
+    motivations = Column(Text, comment="核心动机、目标与欲望")
+    arc_summary = Column(Text, comment="角色成长/变化弧线摘要")
+    card_version = Column(Integer, default=1, server_default="1", nullable=False, comment="角色卡JSON版本号")
     
     # 角色/组织存活状态
     status = Column(String(20), default="active", comment="状态：active/deceased/missing/retired/destroyed")

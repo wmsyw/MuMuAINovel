@@ -11,6 +11,7 @@ from app.services.ai_service import AIService
 from app.services.entity_generation_policy_service import entity_generation_policy_service
 from app.services.prompt_service import PromptService
 from app.services.relationship_merge_service import RelationshipMergeService
+from app.services.character_card_service import normalize_character_card_fields
 from app.logger import get_logger
 
 logger = get_logger(__name__)
@@ -215,6 +216,7 @@ class AutoCharacterService:
             personality=character_data.get("personality", ""),
             background=character_data.get("background", ""),
             appearance=character_data.get("appearance", ""),
+            **normalize_character_card_fields(character_data),
             traits=json.dumps(character_data.get("traits", []), ensure_ascii=False) if character_data.get("traits") else None,
             main_career_id=main_career_id,
             main_career_stage=main_career_stage if main_career_id else None,

@@ -1,4 +1,6 @@
 """FastAPI应用主入口"""
+# pyright: reportImplicitRelativeImport=false, reportMissingImports=false, reportOperatorIssue=false
+
 from fastapi import FastAPI, Request, status, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -7,6 +9,7 @@ from fastapi.exceptions import RequestValidationError
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+from app import feature_flags
 from app.config import settings as config_settings
 from app.database import close_db, _session_stats
 from app.logger import setup_logging, get_logger
@@ -142,13 +145,41 @@ async def db_session_stats(request: Request):
 
 
 from app.api import (
-    projects, outlines, characters, chapters,
-    wizard_stream, relationships, organizations,
-    auth, users, settings, writing_styles, memories,
-    mcp_plugins, admin, inspiration, prompt_templates,
-    changelog, careers, foreshadows, prompt_workshop, book_import,
-project_covers, extraction, timeline, world_setting_results, goldfingers, sync,
-    tasks, announcements
+    admin,
+    announcements,
+    auth,
+    book_import,
+    careers,
+    changelog,
+    chapters,
+    characters,
+    creative_sessions,
+    extraction,
+    foreshadows,
+    goldfingers,
+    group_scenes,
+    inspiration,
+    lorebook,
+    mcp_plugins,
+    memories,
+    organizations,
+    outlines,
+    project_assets,
+    project_covers,
+    projects,
+    prompt_templates,
+    prompt_workshop,
+    quick_replies,
+    relationships,
+    settings,
+    sync,
+    tasks,
+    timeline,
+    users,
+    voice_personas,
+    wizard_stream,
+    world_setting_results,
+    writing_styles,
 )
 
 app.include_router(auth.router, prefix="/api")
@@ -157,6 +188,11 @@ app.include_router(settings.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 
 app.include_router(projects.router, prefix="/api")
+app.include_router(
+    project_assets.router,
+    prefix="/api",
+    include_in_schema=feature_flags.is_enabled("local_assets_enabled"),
+)  # 项目本地资源API
 app.include_router(project_covers.router, prefix="/api")
 app.include_router(wizard_stream.router, prefix="/api")
 app.include_router(inspiration.router, prefix="/api")
@@ -181,6 +217,11 @@ app.include_router(prompt_workshop.router, prefix="/api")  # 提示词工坊API
 app.include_router(book_import.router, prefix="/api")  # 拆书导入API
 app.include_router(tasks.router, prefix="/api")  # 后台任务API
 app.include_router(announcements.router, prefix="/api")  # 公告API
+app.include_router(creative_sessions.router, prefix="/api")  # 创作会话API
+app.include_router(lorebook.router, prefix="/api")  # Lorebook/世界信息API
+app.include_router(quick_replies.router, prefix="/api")  # 快捷回复/安全片段API
+app.include_router(voice_personas.router, prefix="/api")  # 旁白声音画像API
+app.include_router(group_scenes.router, prefix="/api")  # 群像场景写作草稿API
 
 static_dir = Path(__file__).parent.parent / "static"
 generated_assets_root_dir = Path(__file__).parent.parent / "storage"

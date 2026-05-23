@@ -72,6 +72,13 @@ class ReasoningCapabilitiesResponse(BaseModel):
     capabilities: List[ReasoningCapabilityResponse]
 
 
+class FeatureFlagsResponse(BaseModel):
+    """前端所需的最小特性开关响应"""
+    model_config = ConfigDict(protected_namespaces=())
+
+    local_assets_enabled: bool = Field(..., description="是否启用本地资源工作流")
+
+
 class SystemSMTPSettingsBase(BaseModel):
     """系统 SMTP 设置基础模型"""
     model_config = ConfigDict(protected_namespaces=())

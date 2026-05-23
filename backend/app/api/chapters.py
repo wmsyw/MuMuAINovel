@@ -1,16 +1,19 @@
 """章节管理API"""
 
+# pyright: reportMissingImports=false, reportImplicitRelativeImport=false, reportMissingTypeArgument=false, reportArgumentType=false, reportAttributeAccessIssue=false, reportOptionalMemberAccess=false, reportPossiblyUnboundVariable=false
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Query, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 import json
 import asyncio
-from typing import Optional
+from typing import Any, Optional
 from datetime import datetime
 from asyncio import Queue, Lock
 
 from app.database import get_db
+from app import feature_flags
 from app.api.common import verify_project_access
 from app.services.chapter_context_service import (
     OneToManyContextBuilder,
@@ -62,6 +65,7 @@ from app.services.prompt_service import (
     PromptService,
     WritingStyleManager,
 )
+from app.services.lorebook_service import LorebookService
 from app.services.plot_analyzer import PlotAnalyzer
 from app.services.memory_service import memory_service
 from app.services.foreshadow_service import foreshadow_service
@@ -85,6 +89,51 @@ async def get_db_write_lock(user_id: str) -> Lock:
         db_write_locks[user_id] = Lock()
         logger.debug(f"🔒 为用户 {user_id} 创建数据库写入锁")
     return db_write_locks[user_id]
+
+
+async def _maybe_apply_lorebook_injection(
+    base_prompt: str,
+    *,
+    db: AsyncSession,
+    project: Project,
+    user_id: str,
+    chapter_context: Any,
+) -> str:
+    """Append lorebook prompt trace only when the safe-off feature flag is enabled."""
+
+    if not feature_flags.is_enabled("lorebook_injection_enabled"):
+        return base_prompt
+
+    activation_text = PromptService.build_lorebook_activation_text(
+        project_title=project.title,
+        genre=project.genre,
+        theme=project.theme,
+        chapter_title=getattr(chapter_context, "chapter_title", ""),
+        chapter_outline=getattr(chapter_context, "chapter_outline", ""),
+        recent_chapters_context=getattr(chapter_context, "recent_chapters_context", ""),
+        continuation_point=getattr(chapter_context, "continuation_point", ""),
+        previous_chapter_summary=getattr(chapter_context, "previous_chapter_summary", ""),
+        characters_info=getattr(chapter_context, "chapter_characters", ""),
+    )
+    selection = await LorebookService.select_for_project(
+        db=db,
+        project_id=project.id,
+        user_id=user_id,
+        activation_text=activation_text,
+        max_tokens=800,
+        chars_per_token=4,
+    )
+    trace = PromptService.build_lorebook_prompt_trace(selection)
+    logger.info(
+        "📚 Lorebook注入已启用: selected_ids=%s chars=%s",
+        trace["selected_lore_ids"],
+        trace["budget_estimate"]["chars_used"],
+    )
+    return PromptService.apply_lorebook_prompt_trace(
+        base_prompt,
+        trace,
+        injection_enabled=True,
+    )
 
 
 def _schedule_chapter_fact_sync_fire_and_forget(
@@ -1916,6 +1965,14 @@ async def generate_chapter_content_stream(
                         )
                         logger.debug(f"创建第一章提示词: {base_prompt}")
 
+                base_prompt = await _maybe_apply_lorebook_injection(
+                    base_prompt,
+                    db=db_session,
+                    project=project,
+                    user_id=current_user_id,
+                    chapter_context=chapter_context,
+                )
+
                 # 应用写作风格
                 if style_content:
                     prompt = WritingStyleManager.apply_style_to_prompt(
@@ -2425,6 +2482,14 @@ async def _run_chapter_generation_bg(
                 foreshadow_reminders=chapter_context.foreshadow_reminders or '暂无需要关注的伏笔',
                 relevant_memories=chapter_context.relevant_memories or '暂无相关记忆'
             )
+
+    base_prompt = await _maybe_apply_lorebook_injection(
+        base_prompt,
+        db=db,
+        project=project,
+        user_id=user_id,
+        chapter_context=chapter_context,
+    )
 
     # 应用写作风格
     if style_content:

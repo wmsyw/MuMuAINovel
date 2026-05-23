@@ -1,10 +1,11 @@
 """添加小说封面生成配置
 
 Revision ID: 8e3ac0236b27
-Revises: d4d253e3f4c6
+Revises: aa11bb22cc33
 Create Date: 2026-03-16 10:56:31.489936
 
 """
+# pyright: reportAttributeAccessIssue=false, reportDeprecated=false, reportMissingImports=false, reportUnknownArgumentType=false, reportUnknownMemberType=false, reportUnknownParameterType=false, reportUnknownVariableType=false
 from typing import Sequence, Union
 
 from alembic import op
@@ -13,7 +14,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = '8e3ac0236b27'
-down_revision: Union[str, None] = 'd4d253e3f4c6'
+down_revision: Union[str, None] = 'aa11bb22cc33'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

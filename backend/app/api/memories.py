@@ -1,4 +1,6 @@
 """记忆管理API - 提供记忆的查询、分析等接口"""
+# pyright: reportImplicitRelativeImport=false, reportMissingImports=false, reportUnknownMemberType=false, reportUnknownVariableType=false, reportArgumentType=false
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, desc, delete
@@ -21,6 +23,10 @@ import uuid
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api/memories", tags=["memories"])
+
+from app.api.data_bank import router as data_bank_router
+
+router.include_router(data_bank_router)
 
 
 def _schedule_memory_fact_sync(

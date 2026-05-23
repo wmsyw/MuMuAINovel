@@ -1,4 +1,6 @@
 """云端提示词工坊 API 客户端（client 模式使用）"""
+# pyright: reportMissingImports=false, reportImplicitRelativeImport=false, reportMissingTypeArgument=false
+
 import httpx
 from typing import Optional, Dict, Any
 from app.config import settings, INSTANCE_ID
@@ -169,6 +171,24 @@ class WorkshopClient:
             f"/submissions/{submission_id}",
             params=params if params else None,
             user_identifier=user_identifier
+        )
+
+    async def preview_assembly_trace(
+        self,
+        data: Dict[str, Any],
+        user_identifier: str,
+    ) -> Dict[str, Any]:
+        """Proxy deterministic trace-only assembly preview through Workshop boundary.
+
+        This mirrors the local Prompt Workshop endpoint without adding preset
+        persistence or a second prompt stack.
+        """
+
+        return await self._request(
+            "POST",
+            "/preset-boundary/assembly-trace",
+            json=data,
+            user_identifier=user_identifier,
         )
 
 

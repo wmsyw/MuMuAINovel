@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-# pyright: reportAny=false
+# pyright: reportAny=false, reportExplicitAny=false, reportMissingImports=false, reportImplicitRelativeImport=false, reportUnknownArgumentType=false, reportUnknownMemberType=false, reportUnknownParameterType=false, reportUnknownVariableType=false
 
 from copy import deepcopy
 
 from collections.abc import Callable
 
-from .fixture_schema import load_golden_fixture, validate_golden_fixture
+from .fixture_schema import load_golden_fixture, load_workflow_fixture, validate_golden_fixture, validate_workflow_fixture
 
 
 def test_validator_accepts_valid_golden_fixture() -> None:
@@ -55,6 +55,28 @@ def test_validator_rejects_source_span_that_does_not_match_evidence() -> None:
     malformed_fixture["expected"]["organization_affiliations"][0]["source"]["offset_end"] -= 1
 
     _assert_validation_error(lambda: validate_golden_fixture(malformed_fixture), "span must match evidence_text")
+
+
+def test_workflow_validator_accepts_valid_fixture() -> None:
+    fixture = load_workflow_fixture()
+
+    validate_workflow_fixture(fixture)
+
+
+def test_missing_fixture_provenance_is_rejected() -> None:
+    fixture = load_workflow_fixture()
+    malformed_fixture = deepcopy(fixture)
+    del malformed_fixture["project"]["provenance"]["project_id"]
+
+    _assert_validation_error(lambda: validate_workflow_fixture(malformed_fixture), "project.provenance.project_id")
+
+
+def test_workflow_validator_rejects_missing_user_provenance() -> None:
+    fixture = load_workflow_fixture()
+    malformed_fixture = deepcopy(fixture)
+    del malformed_fixture["character"]["provenance"]["user_id"]
+
+    _assert_validation_error(lambda: validate_workflow_fixture(malformed_fixture), "character.provenance.user_id")
 
 
 def _assert_validation_error(action: Callable[[], None], expected_message: str) -> None:

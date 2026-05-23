@@ -2,6 +2,9 @@
 
 重构后使用统一的MCPClientFacade门面来管理所有MCP操作。
 """
+
+# pyright: reportAny=false, reportExplicitAny=false, reportMissingImports=false, reportImplicitRelativeImport=false, reportUnknownArgumentType=false, reportUnknownMemberType=false, reportUnknownParameterType=false, reportUnknownVariableType=false, reportPrivateUsage=false, reportMissingParameterType=false, reportUnknownLambdaType=false, reportUnusedCallResult=false, reportMissingTypeArgument=false, reportAssignmentType=false, reportArgumentType=false
+
 import asyncio
 from fastapi import APIRouter, HTTPException, Depends, Query, Request, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -46,6 +49,13 @@ def require_login(request: Request) -> User:
     if not hasattr(request.state, "user") or not request.state.user:
         raise HTTPException(status_code=401, detail="需要登录")
     return request.state.user
+
+
+def require_admin(user: User = Depends(require_login)) -> User:
+    """依赖：要求管理员权限"""
+    if not user.is_admin:
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    return user
 
 
 async def _register_plugin_background(
@@ -210,6 +220,12 @@ async def create_plugin(
 
     # 创建插件数据
     plugin_data = data.model_dump()
+    
+    # 安全检查：只有管理员可以创建 stdio 类型插件
+    if plugin_data.get("plugin_type") == "stdio" and not user.is_admin:
+        logger.warning(f"非管理员用户 {user.user_id} 尝试创建 stdio 插件")
+        raise HTTPException(status_code=403, detail="只有管理员可以创建 stdio 类型插件")
+
     plugin_data["server_url"] = _validate_mcp_server_url(
         plugin_data.get("plugin_type", "http"),
         plugin_data.get("server_url")
@@ -286,6 +302,11 @@ async def create_plugin_simple(
 
         # 提取配置
         server_type = server_config.get("type", "http")
+
+        # 安全检查：只有管理员可以创建 stdio 类型插件
+        if server_type == "stdio" and not user.is_admin:
+            logger.warning(f"非管理员用户 {user.user_id} 尝试通过配置创建 stdio 插件")
+            raise HTTPException(status_code=403, detail="只有管理员可以创建 stdio 类型插件")
 
         if server_type not in ["http", "stdio", "streamable_http", "sse"]:
             raise HTTPException(status_code=400, detail=f"不支持的服务器类型: {server_type}")
@@ -397,6 +418,52 @@ async def create_plugin_simple(
         raise HTTPException(status_code=500, detail=f"创建插件失败: {str(e)}")
 
 
+@router.get("/metrics")
+async def get_metrics(
+    tool_name: Optional[str] = Query(None, description="工具名称（可选，获取特定工具的指标）"),
+    user: User = Depends(require_admin)
+):
+    """
+    获取MCP工具调用指标（管理员专用）
+
+    Query参数:
+        - tool_name: 可选，指定工具名称获取特定工具的指标
+    """
+    metrics = mcp_client.get_metrics(tool_name)
+
+    return {
+        "metrics": metrics,
+        "tool_name": tool_name,
+        "timestamp": datetime.now().isoformat()
+    }
+
+
+@router.get("/cache/stats")
+async def get_cache_stats(
+    user: User = Depends(require_admin)
+):
+    """获取工具缓存统计信息（管理员专用）"""
+    stats = mcp_client.get_cache_stats()
+
+    return {
+        "cache_stats": stats,
+        "timestamp": datetime.now().isoformat()
+    }
+
+
+@router.get("/sessions/stats")
+async def get_session_stats(
+    user: User = Depends(require_admin)
+):
+    """获取MCP会话统计信息（管理员专用）"""
+    stats = mcp_client.get_session_stats()
+
+    return {
+        "session_stats": stats,
+        "timestamp": datetime.now().isoformat()
+    }
+
+
 @router.get("/{plugin_id}", response_model=MCPPluginResponse)
 async def get_plugin(
     plugin_id: str,
@@ -444,6 +511,12 @@ async def update_plugin(
     # 更新字段
     update_data = data.model_dump(exclude_unset=True)
     target_type = update_data.get("plugin_type", plugin.plugin_type)
+    
+    # 安全检查：只有管理员可以更新为 stdio 类型插件
+    if target_type == "stdio" and not user.is_admin:
+        logger.warning(f"非管理员用户 {user.user_id} 尝试更新插件为 stdio 类型")
+        raise HTTPException(status_code=403, detail="只有管理员可以创建或更新 stdio 类型插件")
+
     if "server_url" in update_data or target_type in HTTP_PLUGIN_TYPES:
         update_data["server_url"] = _validate_mcp_server_url(
             target_type,
@@ -727,9 +800,7 @@ async def get_plugin_status(
     if not plugin:
         raise HTTPException(status_code=404, detail="插件不存在")
 
-    session_stats = mcp_client.get_session_stats()
-    session_key = f"{user.user_id}:{plugin.plugin_name}"
-    session_info = next((s for s in session_stats.get("sessions", []) if s["key"] == session_key), None)
+    session_info = mcp_client.get_session_snapshot(user.user_id, plugin.plugin_name)
 
     return {
         "plugin_id": plugin_id,
@@ -739,80 +810,6 @@ async def get_plugin_status(
         "is_registered": session_info is not None,
         "error_rate": session_info["error_rate"] if session_info else 0,
         "in_sync": (plugin.status == session_info["status"]) if session_info else (plugin.status == "inactive"),
-        "timestamp": datetime.now().isoformat()
-    }
-
-
-@router.get("/metrics")
-async def get_metrics(
-    tool_name: Optional[str] = Query(None, description="工具名称（可选，获取特定工具的指标）"),
-    user: User = Depends(require_login)
-):
-    """
-    获取MCP工具调用指标
-
-    Query参数:
-        - tool_name: 可选，指定工具名称获取特定工具的指标
-
-    Returns:
-        工具调用指标字典，包含：
-        - total_calls: 总调用次数
-        - success_calls: 成功调用次数
-        - failed_calls: 失败调用次数
-        - success_rate: 成功率
-        - avg_duration_ms: 平均耗时（毫秒）
-        - last_call_time: 最后调用时间
-    """
-    # 使用统一门面获取指标
-    metrics = mcp_client.get_metrics(tool_name)
-
-    return {
-        "metrics": metrics,
-        "tool_name": tool_name,
-        "timestamp": datetime.now().isoformat()
-    }
-
-
-@router.get("/cache/stats")
-async def get_cache_stats(
-    user: User = Depends(require_login)
-):
-    """
-    获取工具缓存统计信息
-
-    Returns:
-        缓存统计信息，包含：
-        - total_entries: 缓存条目总数
-        - total_hits: 缓存总命中次数
-        - cache_ttl_minutes: 缓存TTL（分钟）
-        - entries: 各缓存条目详情
-    """
-    # 使用统一门面获取缓存统计
-    stats = mcp_client.get_cache_stats()
-
-    return {
-        "cache_stats": stats,
-        "timestamp": datetime.now().isoformat()
-    }
-
-
-@router.get("/sessions/stats")
-async def get_session_stats(
-    user: User = Depends(require_login)
-):
-    """
-    获取MCP会话统计信息
-
-    Returns:
-        会话统计信息，包含：
-        - total_sessions: 会话总数
-        - sessions: 各会话详情
-    """
-    # 使用统一门面获取会话统计
-    stats = mcp_client.get_session_stats()
-
-    return {
-        "session_stats": stats,
         "timestamp": datetime.now().isoformat()
     }
 

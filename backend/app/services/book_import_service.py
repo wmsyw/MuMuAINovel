@@ -45,6 +45,7 @@ from app.schemas.book_import import (
 from app.services.ai_service import AIService, create_user_ai_service_with_mcp
 from app.services.entity_generation_policy_service import entity_generation_policy_service
 from app.services.organization_compat import add_organization_member, create_organization_entity_from_payload
+from app.services.character_card_service import normalize_character_card_fields
 from app.services.extraction_service import run_project_extraction_trigger_after_commit
 from app.services.prompt_service import PromptService
 from app.services.relationship_merge_service import RelationshipMergeService
@@ -2114,6 +2115,7 @@ class BookImportService:
                 personality=item.get("personality"),
                 background=item.get("background"),
                 appearance=item.get("appearance"),
+                **normalize_character_card_fields(item),
                 traits=json.dumps(item.get("traits", []), ensure_ascii=False) if item.get("traits") else None,
             )
             db.add(character)

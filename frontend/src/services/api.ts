@@ -9,6 +9,10 @@ import type {
   Project,
   ProjectCreate,
   ProjectUpdate,
+  ProjectAsset,
+  ProjectAssetListResponse,
+  ProjectAssetType,
+  ProjectAssetUploadRequest,
   WorldBuildingResponse,
   Outline,
   OutlineCreate,
@@ -29,8 +33,12 @@ import type {
   PolishTextRequest,
   GenerateCharactersResponse,
   GenerateOutlineResponse,
+  GroupScene,
+  GroupSceneDraftRequest,
+  GroupSceneListResponse,
   Settings,
   SettingsUpdate,
+  FeatureFlags,
   ReasoningCapabilitiesResponse,
   ReasoningIntensity,
   WritingStyle,
@@ -42,6 +50,12 @@ import type {
   PromptWorkshopItem,
   PromptSubmission,
   PromptSubmissionCreate,
+  PromptAssemblyTraceRequest,
+  PromptAssemblyTraceResponse,
+  DataBankRetrievalRequest,
+  DataBankRetrievalTraceResponse,
+  LorebookPromptPreviewRequest,
+  LorebookPromptPreviewResponse,
   Announcement,
   AnnouncementCreate,
   AnnouncementListResponse,
@@ -77,6 +91,25 @@ import type {
   CareerCreateRequest,
   CareerListResponse,
   CareerUpdateRequest,
+  CreativeSession,
+  CreativeSessionCreate,
+  CreativeSessionDetail,
+  CreativeSessionListResponse,
+  CreativeSessionMessage,
+  CreativeSessionMessageCreate,
+  CreativeSessionSearchResponse,
+  QuickReply,
+  QuickReplyApplyRequest,
+  QuickReplyApplyResponse,
+  QuickReplyCreate,
+  QuickReplyListResponse,
+  QuickReplyUpdate,
+  VoicePersona,
+  VoicePersonaCreate,
+  VoicePersonaListResponse,
+  VoicePersonaPromptPreviewRequest,
+  VoicePersonaPromptPreviewResponse,
+  VoicePersonaUpdate,
   EntityEnrichmentQuery,
   ExtractionCandidate,
   ExtractionCandidateListParams,
@@ -297,6 +330,8 @@ export const userApi = {
 
 export const settingsApi = {
   getSettings: () => api.get<unknown, Settings>('/settings'),
+
+  getFeatureFlags: () => api.get<unknown, FeatureFlags>('/settings/feature-flags'),
 
   saveSettings: (data: SettingsUpdate) =>
     api.post<unknown, Settings>('/settings', data),
@@ -537,6 +572,109 @@ export const projectApi = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
+};
+
+export const projectAssetApi = {
+  list: (projectId: string, params?: { asset_type?: ProjectAssetType; limit?: number; offset?: number }) =>
+    api.get<unknown, ProjectAssetListResponse>(`/projects/${projectId}/assets`, { params }),
+
+  upload: (projectId: string, payload: ProjectAssetUploadRequest) => {
+    const formData = new FormData();
+    formData.append('asset_type', payload.asset_type);
+    if (payload.display_name) {
+      formData.append('display_name', payload.display_name);
+    }
+    formData.append('file', payload.file);
+    return api.post<unknown, ProjectAsset>(`/projects/${projectId}/assets`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+
+  deleteAsset: (projectId: string, assetId: string) =>
+    api.delete<unknown, { deleted: boolean }>(`/projects/${projectId}/assets/${assetId}`),
+};
+
+export const creativeSessionApi = {
+  createSession: (projectId: string, data: CreativeSessionCreate) =>
+    api.post<unknown, CreativeSession>(`/creative-sessions/projects/${projectId}`, data),
+
+  listSessions: (projectId: string) =>
+    api.get<unknown, CreativeSessionListResponse>(`/creative-sessions/projects/${projectId}`),
+
+  searchMessages: (projectId: string, query: string, limit?: number) =>
+    api.get<unknown, CreativeSessionSearchResponse>(`/creative-sessions/projects/${projectId}/search`, {
+      params: { query, limit },
+    }),
+
+  getSession: (sessionId: string) =>
+    api.get<unknown, CreativeSessionDetail>(`/creative-sessions/${sessionId}`),
+
+  appendMessage: (sessionId: string, data: CreativeSessionMessageCreate) =>
+    api.post<unknown, CreativeSessionMessage>(`/creative-sessions/${sessionId}/messages`, data),
+};
+
+export const quickReplyApi = {
+  create: (projectId: string, data: QuickReplyCreate) =>
+    api.post<unknown, QuickReply>(`/quick-replies/projects/${projectId}`, data),
+
+  list: (projectId: string, params?: { enabled?: boolean; limit?: number; offset?: number }) =>
+    api.get<unknown, QuickReplyListResponse>(`/quick-replies/projects/${projectId}`, { params }),
+
+  get: (replyId: string) =>
+    api.get<unknown, QuickReply>(`/quick-replies/${replyId}`),
+
+  update: (replyId: string, data: QuickReplyUpdate) =>
+    api.put<unknown, QuickReply>(`/quick-replies/${replyId}`, data),
+
+  deleteReply: (replyId: string) =>
+    api.delete<unknown, { deleted: boolean }>(`/quick-replies/${replyId}`),
+
+  apply: (replyId: string, data: QuickReplyApplyRequest) =>
+    api.post<unknown, QuickReplyApplyResponse>(`/quick-replies/${replyId}/apply`, data),
+};
+
+export const voicePersonaApi = {
+  create: (projectId: string, data: VoicePersonaCreate) =>
+    api.post<unknown, VoicePersona>(`/voice-personas/projects/${projectId}`, data),
+
+  list: (projectId: string, params?: { session_id?: string; enabled?: boolean; limit?: number; offset?: number }) =>
+    api.get<unknown, VoicePersonaListResponse>(`/voice-personas/projects/${projectId}`, { params }),
+
+  get: (personaId: string) =>
+    api.get<unknown, VoicePersona>(`/voice-personas/${personaId}`),
+
+  update: (personaId: string, data: VoicePersonaUpdate) =>
+    api.put<unknown, VoicePersona>(`/voice-personas/${personaId}`, data),
+
+  deletePersona: (personaId: string) =>
+    api.delete<unknown, { deleted: boolean }>(`/voice-personas/${personaId}`),
+
+  previewPromptTrace: (projectId: string, data: VoicePersonaPromptPreviewRequest) =>
+    api.post<unknown, VoicePersonaPromptPreviewResponse>(`/voice-personas/projects/${projectId}/prompt-preview`, data),
+};
+
+export const groupSceneApi = {
+  draft: (projectId: string, data: GroupSceneDraftRequest) =>
+    api.post<unknown, GroupScene>(`/group-scenes/projects/${projectId}/draft`, data),
+
+  list: (projectId: string, params?: { limit?: number; offset?: number }) =>
+    api.get<unknown, GroupSceneListResponse>(`/group-scenes/projects/${projectId}`, { params }),
+
+  get: (sceneId: string) =>
+    api.get<unknown, GroupScene>(`/group-scenes/${sceneId}`),
+
+  deleteScene: (sceneId: string) =>
+    api.delete<unknown, { deleted: boolean }>(`/group-scenes/${sceneId}`),
+};
+
+export const lorebookApi = {
+  previewPromptTrace: (projectId: string, data: LorebookPromptPreviewRequest) =>
+    api.post<unknown, LorebookPromptPreviewResponse>(`/lorebook/projects/${projectId}/prompt-preview`, data),
+};
+
+export const dataBankApi = {
+  retrievePreview: (projectId: string, data: DataBankRetrievalRequest) =>
+    api.post<unknown, DataBankRetrievalTraceResponse>(`/memories/projects/${projectId}/data-bank/retrieve`, data),
 };
 
 export const bookImportApi = {
@@ -1099,6 +1237,10 @@ export const promptWorkshopApi = {
   // 获取单个提示词
   getItem: (itemId: string) =>
     api.get<unknown, { success: boolean; data: PromptWorkshopItem }>(`/prompt-workshop/items/${itemId}`),
+
+  // 预览确定性组装追踪（不创建第二套 preset/prompt stack）
+  previewAssemblyTrace: (data: PromptAssemblyTraceRequest) =>
+    api.post<unknown, PromptAssemblyTraceResponse>('/prompt-workshop/preset-boundary/assembly-trace', data),
 
   // 导入到本地
   importItem: (itemId: string, customName?: string) =>

@@ -15,6 +15,11 @@ class CharacterBase(BaseModel):
     background: Optional[str] = Field(None, description="背景故事")
     appearance: Optional[str] = Field(None, description="外貌特征")
     relationships: Optional[str] = Field(None, description="人际关系(JSON)")
+    writing_notes: Optional[str] = Field(None, description="作者私有写作笔记，不注入AI上下文")
+    speech_patterns: Optional[str] = Field(None, description="语言风格、口头禅、语气说明")
+    motivations: Optional[str] = Field(None, description="核心动机、目标与欲望")
+    arc_summary: Optional[str] = Field(None, description="角色成长/变化弧线摘要")
+    card_version: Optional[int] = Field(1, ge=1, description="角色卡JSON版本号")
     organization_type: Optional[str] = Field(None, description="组织类型")
     organization_purpose: Optional[str] = Field(None, description="组织目的")
     organization_members: Optional[str] = Field(None, description="组织成员(JSON)")
@@ -32,6 +37,11 @@ class CharacterCreate(BaseModel):
     personality: Optional[str] = Field(None, description="性格特点/组织特性")
     background: Optional[str] = Field(None, description="背景故事")
     appearance: Optional[str] = Field(None, description="外貌特征")
+    writing_notes: Optional[str] = Field(None, description="作者私有写作笔记，不注入AI上下文")
+    speech_patterns: Optional[str] = Field(None, description="语言风格、口头禅、语气说明")
+    motivations: Optional[str] = Field(None, description="核心动机、目标与欲望")
+    arc_summary: Optional[str] = Field(None, description="角色成长/变化弧线摘要")
+    card_version: Optional[int] = Field(1, ge=1, description="角色卡JSON版本号")
     organization_type: Optional[str] = Field(None, description="组织类型")
     organization_purpose: Optional[str] = Field(None, description="组织目的")
     organization_members: Optional[str] = Field(None, description="组织成员(JSON)")
@@ -60,6 +70,11 @@ class CharacterUpdate(BaseModel):
     personality: Optional[str] = None
     background: Optional[str] = None
     appearance: Optional[str] = None
+    writing_notes: Optional[str] = None
+    speech_patterns: Optional[str] = None
+    motivations: Optional[str] = None
+    arc_summary: Optional[str] = None
+    card_version: Optional[int] = Field(None, ge=1, description="角色卡JSON版本号")
     organization_type: Optional[str] = None
     organization_purpose: Optional[str] = None
     organization_members: Optional[str] = None

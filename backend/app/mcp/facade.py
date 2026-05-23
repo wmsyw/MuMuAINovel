@@ -26,6 +26,8 @@
     mcp_client.register_status_callback(on_status_change)
 """
 
+# pyright: reportAny=false, reportExplicitAny=false, reportMissingImports=false, reportImplicitRelativeImport=false, reportUnknownArgumentType=false, reportUnknownMemberType=false, reportUnknownParameterType=false, reportUnknownVariableType=false, reportPrivateUsage=false, reportMissingParameterType=false, reportUnknownLambdaType=false, reportUnusedCallResult=false, reportMissingTypeArgument=false, reportAssignmentType=false, reportAttributeAccessIssue=false
+
 from typing import Dict, Any, List, Optional, Callable, Awaitable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -42,8 +44,11 @@ from anyio import ClosedResourceError
 
 from app.mcp.config import mcp_config
 from app.logger import get_logger
+from app.security import validate_public_http_url
 
 logger = get_logger(__name__)
+
+HTTP_PLUGIN_TYPES = {"http", "streamable_http", "sse"}
 
 
 # ==================== 数据结构 ====================
@@ -203,6 +208,12 @@ class MCPClientFacade:
         """生成会话键"""
         return f"{user_id}:{plugin_name}"
 
+    def _validate_runtime_url(self, url: str, plugin_type: str) -> str:
+        """Revalidate HTTP/SSE URLs immediately before runtime MCP use."""
+        if plugin_type in HTTP_PLUGIN_TYPES:
+            return validate_public_http_url(url)
+        return url
+
     async def _get_user_lock(self, user_id: str) -> asyncio.Lock:
         """获取用户专属锁（细粒度锁）"""
         async with self._locks_lock:
@@ -320,6 +331,7 @@ class MCPClientFacade:
             session = None
 
             try:
+                config.url = self._validate_runtime_url(config.url, config.plugin_type)
                 logger.info(f"🔗 连接MCP服务器: {config.plugin_name} -> {config.url} (类型: {config.plugin_type})")
 
                 # 根据类型选择客户端
@@ -464,6 +476,12 @@ class MCPClientFacade:
         if not info:
             raise ValueError(f"MCP会话不存在: {plugin_name}，请先调用register()")
 
+        try:
+            info.url = self._validate_runtime_url(info.url, info.plugin_type)
+        except Exception:
+            await self._close_session_unsafe(key)
+            raise
+
         if info.status == "error":
             logger.warning(f"⚠️ 会话 {key} 处于错误状态，可能需要重新注册")
 
@@ -501,6 +519,21 @@ class MCPClientFacade:
         info = self._sessions.get(key)
         return info.status if info else None
 
+    def get_session_snapshot(self, user_id: str, plugin_name: str) -> Optional[Dict[str, Any]]:
+        """Return non-sensitive details for one user's plugin session."""
+        key = self._get_key(user_id, plugin_name)
+        info = self._sessions.get(key)
+        if not info:
+            return None
+        return {
+            "status": info.status,
+            "request_count": info.request_count,
+            "error_count": info.error_count,
+            "error_rate": round(info.error_rate, 3),
+            "created_at": datetime.fromtimestamp(info.created_at).isoformat(),
+            "last_access": datetime.fromtimestamp(info.last_access).isoformat(),
+        }
+
     async def ensure_registered(
         self,
         user_id: str,
@@ -522,6 +555,7 @@ class MCPClientFacade:
         Returns:
             是否成功
         """
+        url = self._validate_runtime_url(url, plugin_type)
         key = self._get_key(user_id, plugin_name)
 
         if key in self._sessions:
@@ -1092,6 +1126,24 @@ class MCPClientFacade:
             self._tool_cache.clear()
             logger.info(f"🧹 已清理所有缓存 ({count}个)")
 
+    @staticmethod
+    def _summarize_tool_metrics(metrics: List[ToolMetrics]) -> Dict[str, Any]:
+        total_tools = len(metrics)
+        total_calls = sum(metric.total_calls for metric in metrics)
+        success_calls = sum(metric.success_calls for metric in metrics)
+        failed_calls = sum(metric.failed_calls for metric in metrics)
+        total_duration_ms = sum(metric.total_duration_ms for metric in metrics)
+        average_duration_ms = total_duration_ms / total_calls if total_calls > 0 else 0.0
+        success_rate = success_calls / total_calls if total_calls > 0 else 0.0
+        return {
+            "total_tools": total_tools,
+            "total_calls": total_calls,
+            "success_calls": success_calls,
+            "failed_calls": failed_calls,
+            "success_rate": round(success_rate, 3),
+            "avg_duration_ms": round(average_duration_ms, 2),
+        }
+
     def get_metrics(self, tool_name: Optional[str] = None) -> Dict[str, Any]:
         """
         获取调用指标
@@ -1105,62 +1157,53 @@ class MCPClientFacade:
         if tool_name and tool_name in self._metrics:
             m = self._metrics[tool_name]
             return {
-                tool_name: {
+                "tool_name": tool_name,
+                "summary": {
                     "total_calls": m.total_calls,
                     "success_calls": m.success_calls,
                     "failed_calls": m.failed_calls,
                     "success_rate": round(m.success_rate, 3),
                     "avg_duration_ms": round(m.avg_duration_ms, 2),
-                    "last_call_time": m.last_call_time.isoformat() if m.last_call_time else None
-                }
+                    "last_call_time": m.last_call_time.isoformat() if m.last_call_time else None,
+                },
             }
 
-        return {
-            k: {
-                "total_calls": m.total_calls,
-                "success_calls": m.success_calls,
-                "failed_calls": m.failed_calls,
-                "success_rate": round(m.success_rate, 3),
-                "avg_duration_ms": round(m.avg_duration_ms, 2),
-                "last_call_time": m.last_call_time.isoformat() if m.last_call_time else None
-            }
-            for k, m in self._metrics.items()
-        }
+        return self._summarize_tool_metrics(list(self._metrics.values()))
 
     def get_cache_stats(self) -> Dict[str, Any]:
-        """获取缓存统计"""
+        """获取缓存汇总统计（不暴露用户/插件键）"""
+        entries = list(self._tool_cache.values())
+        total_entries = len(entries)
+        total_hits = sum(entry.hit_count for entry in entries)
+        total_tools = sum(len(entry.tools) for entry in entries)
         return {
-            "total_entries": len(self._tool_cache),
-            "total_hits": sum(e.hit_count for e in self._tool_cache.values()),
+            "total_entries": total_entries,
+            "total_hits": total_hits,
             "cache_ttl_minutes": self._cache_ttl.total_seconds() / 60,
-            "entries": [
-                {
-                    "key": k,
-                    "tools_count": len(e.tools),
-                    "hit_count": e.hit_count,
-                    "expire_time": e.expire_time.isoformat()
-                }
-                for k, e in self._tool_cache.items()
-            ]
+            "average_tools_per_entry": round(total_tools / total_entries, 3) if total_entries else 0.0,
+            "average_hit_count": round(total_hits / total_entries, 3) if total_entries else 0.0,
         }
 
     def get_session_stats(self) -> Dict[str, Any]:
-        """获取会话统计"""
+        """获取会话汇总统计（不暴露用户/插件键或URL）"""
+        sessions = list(self._sessions.values())
+        total_sessions = len(sessions)
+        status_counts: Dict[str, int] = {}
+        total_requests = 0
+        total_errors = 0
+        total_error_rate = 0.0
+        for session in sessions:
+            status = getattr(session, "status", "unknown") or "unknown"
+            status_counts[status] = status_counts.get(status, 0) + 1
+            total_requests += int(getattr(session, "request_count", 0) or 0)
+            total_errors += int(getattr(session, "error_count", 0) or 0)
+            total_error_rate += float(getattr(session, "error_rate", 0.0) or 0.0)
         return {
-            "total_sessions": len(self._sessions),
-            "sessions": [
-                {
-                    "key": k,
-                    "url": s.url,
-                    "status": s.status,
-                    "request_count": s.request_count,
-                    "error_count": s.error_count,
-                    "error_rate": round(s.error_rate, 3),
-                    "created_at": datetime.fromtimestamp(s.created_at).isoformat(),
-                    "last_access": datetime.fromtimestamp(s.last_access).isoformat()
-                }
-                for k, s in self._sessions.items()
-            ]
+            "total_sessions": total_sessions,
+            "status_counts": status_counts,
+            "average_request_count": round(total_requests / total_sessions, 3) if total_sessions else 0.0,
+            "average_error_count": round(total_errors / total_sessions, 3) if total_sessions else 0.0,
+            "average_error_rate": round(total_error_rate / total_sessions, 3) if total_sessions else 0.0,
         }
 
     # ==================== 状态回调 ====================

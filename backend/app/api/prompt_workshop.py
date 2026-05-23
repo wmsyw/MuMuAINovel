@@ -1,5 +1,8 @@
 """提示词工坊 API"""
+# pyright: reportMissingImports=false, reportImplicitRelativeImport=false, reportMissingTypeArgument=false, reportArgumentType=false
+
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
 from typing import Optional
@@ -15,11 +18,39 @@ from app.schemas.prompt_workshop import (
     ReviewRequest, AdminItemCreate, AdminItemUpdate
 )
 from app.services.workshop_client import workshop_client, WorkshopClientError
+from app.services.prompt_service import PromptService
 from app.constants.prompt_categories import PROMPT_CATEGORIES
 from app.logger import get_logger
 
 router = APIRouter(prefix="/prompt-workshop", tags=["prompt-workshop"])
 logger = get_logger(__name__)
+
+
+class PromptAssemblyLayerRequest(BaseModel):
+    """Single prompt layer used only for deterministic trace preview."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    layer_id: str = Field(alias="id", min_length=1, max_length=120)
+    source_type: str = Field(min_length=1, max_length=64)
+    content: str = Field(default="", max_length=20000)
+    label: Optional[str] = Field(default=None, max_length=120)
+    order: Optional[int] = None
+    enabled: bool = True
+    metadata: dict = Field(default_factory=dict)
+
+
+class PromptAssemblyTraceRequest(BaseModel):
+    """Prompt Workshop trace-only boundary payload.
+
+    This payload intentionally does not describe persisted presets. It only asks the
+    existing Prompt Workshop / PromptService boundary to validate, order, and trace
+    prompt layers deterministically.
+    """
+
+    trace_version: int = Field(default=PromptService.PROMPT_ASSEMBLY_TRACE_VERSION, ge=1)
+    layers: list[PromptAssemblyLayerRequest] = Field(min_length=1, max_length=20)
+    separator: str = Field(default="\n\n", max_length=10)
 
 
 # ==================== 辅助函数 ====================
@@ -145,6 +176,39 @@ async def get_status():
             result["cloud_connected"] = False
     
     return result
+
+
+@router.post("/preset-boundary/assembly-trace")
+async def preview_prompt_assembly_trace(
+    data: PromptAssemblyTraceRequest,
+    request: Request,
+):
+    """在现有提示词工坊边界内预览确定性组装追踪。
+
+    Task 9 的边界决策是不新增第二套 preset/prompt stack；此接口只做
+    trace-only 校验、排序和哈希，不持久化、不分享、不注入生成。
+    """
+
+    get_current_user_id(request)
+    trace = PromptService.build_prompt_assembly_trace(
+        [layer.model_dump(by_alias=False) for layer in data.layers],
+        trace_version=data.trace_version,
+        separator=data.separator,
+    )
+    if not trace["validation"]["valid"]:
+        raise HTTPException(status_code=422, detail=trace["validation"])
+
+    return {
+        "success": True,
+        "boundary": {
+            "mode": "trace_only",
+            "owner": "prompt_workshop",
+            "duplicates_prompt_stack": False,
+            "persistence": "none",
+            "reason": "Prompt Workshop 已覆盖提示词浏览、导入、提交、审核和本地写作风格导入；此处仅补齐确定性组装追踪。",
+        },
+        "trace": trace,
+    }
 
 
 @router.get("/items")

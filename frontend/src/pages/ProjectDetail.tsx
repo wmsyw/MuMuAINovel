@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams, useNavigate, Outlet, Link, useLocation } from 'react-router-dom';
-import { Layout, Menu, Spin, Button, Drawer, theme } from 'antd';
+import { useParams, useNavigate, Outlet, Link, useLocation, Navigate } from 'react-router-dom';
+import { Layout, Menu, Spin, Button, Drawer, Result, theme } from 'antd';
 import {
   ArrowLeftOutlined,
   FileTextOutlined,
@@ -20,10 +20,15 @@ import {
   BulbOutlined,
   CloudOutlined,
   MoonOutlined,
+  MessageOutlined,
+  SoundOutlined,
+  SnippetsOutlined,
+  CommentOutlined,
+  PictureOutlined,
 } from '@ant-design/icons';
 import { useStore } from '../store';
 import { useCharacterSync, useOutlineSync, useChapterSync } from '../store/hooks';
-import { projectApi } from '../services/api';
+import { projectApi, settingsApi } from '../services/api';
 import ThemeSwitch from '../components/common/ThemeSwitch';
 import { useThemeMode } from '../theme/useThemeMode';
 import { getStoredSidebarCollapsed, setStoredSidebarCollapsed } from '../utils/sidebarState';
@@ -41,6 +46,8 @@ export default function ProjectDetail() {
   const [collapsed, setCollapsed] = useState<boolean>(() => getStoredSidebarCollapsed());
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [mobile, setMobile] = useState(isMobile());
+  const [projectLoadError, setProjectLoadError] = useState<string | null>(null);
+  const [localAssetsEnabled, setLocalAssetsEnabled] = useState<boolean | null>(null);
   const { token } = theme.useToken();
   const alphaColor = (color: string, alpha: number) => `color-mix(in srgb, ${color} ${(alpha * 100).toFixed(0)}%, transparent)`;
   const { mode, resolvedMode, setMode } = useThemeMode();
@@ -85,9 +92,15 @@ export default function ProjectDetail() {
     const loadProjectData = async (id: string) => {
       try {
         setLoading(true);
-        // 加载项目基本信息
-        const project = await projectApi.getProject(id);
+        setProjectLoadError(null);
+        setLocalAssetsEnabled(null);
+        // 加载项目基本信息与特性开关
+        const [project, featureFlags] = await Promise.all([
+          projectApi.getProject(id),
+          settingsApi.getFeatureFlags().catch(() => ({ local_assets_enabled: false })),
+        ]);
         setCurrentProject(project);
+        setLocalAssetsEnabled(Boolean(featureFlags.local_assets_enabled));
 
         // 并行加载其他数据
         await Promise.all([
@@ -97,6 +110,7 @@ export default function ProjectDetail() {
         ]);
       } catch (error) {
         console.error('加载项目数据失败:', error);
+        setProjectLoadError('项目不可用，可能已被删除或当前账号无权访问。');
       } finally {
         setLoading(false);
       }
@@ -186,6 +200,31 @@ export default function ProjectDetail() {
           label: <Link to={`/project/${projectId}/writing-styles`}>写作风格</Link>,
         },
         {
+          key: 'voice-personas',
+          icon: <SoundOutlined />,
+          label: <Link to={`/project/${projectId}/voice-personas`}>旁白声音</Link>,
+        },
+        {
+          key: 'group-scenes',
+          icon: <CommentOutlined />,
+          label: <Link to={`/project/${projectId}/group-scenes`}>群像场景</Link>,
+        },
+        {
+          key: 'creative-sessions',
+          icon: <MessageOutlined />,
+          label: <Link to={`/project/${projectId}/creative-sessions`}>创作会话</Link>,
+        },
+        {
+          key: 'quick-replies',
+          icon: <SnippetsOutlined />,
+          label: <Link to={`/project/${projectId}/quick-replies`}>快捷片段</Link>,
+        },
+        ...(localAssetsEnabled ? [{
+          key: 'local-assets',
+          icon: <PictureOutlined />,
+          label: <Link to={`/project/${projectId}/local-assets`}>本地资源</Link>,
+        }] : []),
+        {
           key: 'prompt-workshop',
           icon: <CloudOutlined />,
           label: <Link to={`/project/${projectId}/prompt-workshop`}>提示词工坊</Link>,
@@ -256,6 +295,31 @@ export default function ProjectDetail() {
       label: <Link to={`/project/${projectId}/writing-styles`}>写作风格</Link>,
     },
     {
+      key: 'voice-personas',
+      icon: <SoundOutlined />,
+      label: <Link to={`/project/${projectId}/voice-personas`}>旁白声音</Link>,
+    },
+    {
+      key: 'group-scenes',
+      icon: <CommentOutlined />,
+      label: <Link to={`/project/${projectId}/group-scenes`}>群像场景</Link>,
+    },
+    {
+      key: 'creative-sessions',
+      icon: <MessageOutlined />,
+      label: <Link to={`/project/${projectId}/creative-sessions`}>创作会话</Link>,
+    },
+    {
+      key: 'quick-replies',
+      icon: <SnippetsOutlined />,
+      label: <Link to={`/project/${projectId}/quick-replies`}>快捷片段</Link>,
+    },
+    ...(localAssetsEnabled ? [{
+      key: 'local-assets',
+      icon: <PictureOutlined />,
+      label: <Link to={`/project/${projectId}/local-assets`}>本地资源</Link>,
+    }] : []),
+    {
       key: 'prompt-workshop',
       icon: <CloudOutlined />,
       label: <Link to={`/project/${projectId}/prompt-workshop`}>提示词工坊</Link>,
@@ -276,13 +340,33 @@ export default function ProjectDetail() {
     if (path.includes('/foreshadows')) return 'foreshadows';
     if (path.includes('/chapters')) return 'chapters';
     if (path.includes('/writing-styles')) return 'writing-styles';
+    if (path.includes('/voice-personas')) return 'voice-personas';
+    if (path.includes('/group-scenes')) return 'group-scenes';
+    if (path.includes('/creative-sessions')) return 'creative-sessions';
+    if (path.includes('/quick-replies')) return 'quick-replies';
+    if (path.includes('/local-assets')) return 'local-assets';
     if (path.includes('/prompt-workshop')) return 'prompt-workshop';
     if (path.includes('/sponsor')) return 'sponsor';
     // if (path.includes('/polish')) return 'polish';
     return 'sponsor'; // 默认选中赞助支持
   }, [location.pathname]);
 
+  if (localAssetsEnabled === false && location.pathname.includes('/local-assets')) {
+    return <Navigate to={`/project/${projectId}/sponsor`} replace />;
+  }
+
   if (loading || !currentProject) {
+    if (!loading && projectLoadError) {
+      return (
+        <Result
+          status="warning"
+          title="项目不可用"
+          subTitle={projectLoadError}
+          extra={<Button type="primary" onClick={() => navigate('/')}>返回主页</Button>}
+        />
+      );
+    }
+
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
         <Spin size="large" />

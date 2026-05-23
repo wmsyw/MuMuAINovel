@@ -40,6 +40,11 @@ class CharacterExportData(BaseModel):
     background: Optional[str] = None
     appearance: Optional[str] = None
     relationships: Optional[str] = None
+    writing_notes: Optional[str] = None
+    speech_patterns: Optional[str] = None
+    motivations: Optional[str] = None
+    arc_summary: Optional[str] = None
+    card_version: int = 1
     traits: Optional[List[str]] = None
     organization_type: Optional[str] = None
     organization_purpose: Optional[str] = None
@@ -207,7 +212,7 @@ class ProjectDefaultStyleExportData(BaseModel):
 
 class ProjectExportData(BaseModel):
     """项目完整导出数据"""
-    version: str = "1.1.0"  # 升级版本号
+    version: str = "1.2.0"  # 升级版本号
     export_time: str
     project: Dict[str, Any]
     chapters: List[ChapterExportData] = []
@@ -253,7 +258,7 @@ class CharactersExportRequest(BaseModel):
 
 class CharactersExportData(BaseModel):
     """角色/组织批量导出数据"""
-    version: str = "1.0.0"
+    version: str = "1.2.0"
     export_time: str
     export_type: str = "characters"
     count: int

@@ -23,6 +23,7 @@ from app.services.entity_generation_policy_service import entity_generation_poli
 from app.services.json_helper import loads_json
 from app.services.prompt_service import prompt_service, PromptService
 from app.services.import_export_service import ImportExportService
+from app.services.character_card_service import character_card_field_values, normalize_character_card_fields
 from app.services.relationship_merge_service import RelationshipMergeService
 from app.schemas.import_export import CharactersExportRequest, CharactersImportResult
 from app.logger import get_logger
@@ -181,6 +182,7 @@ async def _character_response_dict(
         "background": character.background,
         "appearance": character.appearance,
         "relationships": rel_summary,
+        **character_card_field_values(character),
         "organization_type": None,
         "organization_purpose": None,
         "organization_members": "",
@@ -239,6 +241,11 @@ async def _organization_as_character_response_dict(
         "background": org_entity.background,
         "appearance": None,
         "relationships": "",
+        "writing_notes": None,
+        "speech_patterns": None,
+        "motivations": None,
+        "arc_summary": None,
+        "card_version": None,
         "organization_type": org_entity.organization_type,
         "organization_purpose": org_entity.organization_purpose,
         "organization_members": await _build_org_members_summary(org_entity.id, db),
@@ -289,6 +296,7 @@ async def _export_character_payload(character: Character) -> dict:
         "personality": character.personality,
         "background": character.background,
         "appearance": character.appearance,
+        **character_card_field_values(character),
         "traits": _parse_json_field(character.traits),
         "organization_type": None,
         "organization_purpose": None,
@@ -531,6 +539,8 @@ async def update_character(
 
     # 更新字段
     update_data = character_update.model_dump(exclude_unset=True)
+    if update_data.get("card_version") is None:
+        update_data.pop("card_version", None)
 
     for org_only_field in (
         'power_level', 'location', 'motto', 'color', 'organization_type',
@@ -800,6 +810,7 @@ async def create_character(
             personality=character_data.personality,
             background=character_data.background,
             appearance=character_data.appearance,
+            **normalize_character_card_fields(request_data),
             traits=character_data.traits,
             avatar_url=character_data.avatar_url,
             main_career_id=character_data.main_career_id,
@@ -1221,6 +1232,7 @@ async def generate_character_stream(
                 personality=character_data.get("personality", ""),
                 background=character_data.get("background", ""),
                 appearance=character_data.get("appearance", ""),
+                **normalize_character_card_fields(character_data),
                 traits=traits_json,
                 main_career_id=main_career_id,
                 main_career_stage=main_career_stage if main_career_id else None,

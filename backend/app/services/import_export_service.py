@@ -36,6 +36,11 @@ from app.schemas.import_export import (
 from app.logger import get_logger
 from app.services.organization_compat import add_organization_member, create_organization_entity_from_payload, ensure_organization_bridge, legacy_org_payload
 from app.services.relationship_merge_service import RelationshipMergeService
+from app.services.character_card_service import (
+    character_card_field_values,
+    normalize_character_card_fields,
+    validate_character_card_envelope,
+)
 
 logger = get_logger(__name__)
 
@@ -43,8 +48,8 @@ logger = get_logger(__name__)
 class ImportExportService:
     """导入导出服务类"""
     
-    SUPPORTED_VERSIONS = ["1.0.0", "1.1.0"]  # 支持的版本列表
-    CURRENT_VERSION = "1.1.0"  # 当前导出版本
+    SUPPORTED_VERSIONS = ["1.0.0", "1.1.0", "1.2.0"]  # 支持的版本列表
+    CURRENT_VERSION = "1.2.0"  # 当前导出版本
     
     @staticmethod
     async def export_project(
@@ -257,6 +262,7 @@ class ImportExportService:
                 personality=char.personality,
                 background=char.background,
                 appearance=char.appearance,
+                **character_card_field_values(char),
                 traits=traits,
                 organization_type=None,
                 organization_purpose=None,
@@ -966,6 +972,7 @@ class ImportExportService:
                 personality=char_data.get("personality"),
                 background=char_data.get("background"),
                 appearance=char_data.get("appearance"),
+                **normalize_character_card_fields(char_data),
                 traits=traits,
             )
             db.add(character)
@@ -1488,6 +1495,7 @@ class ImportExportService:
                 "personality": char.personality,
                 "background": char.background,
                 "appearance": char.appearance,
+                **character_card_field_values(char),
                 "traits": traits,
                 "organization_type": None,
                 "organization_purpose": None,
@@ -1531,7 +1539,7 @@ class ImportExportService:
             "version": ImportExportService.CURRENT_VERSION,
             "export_time": datetime.utcnow().isoformat(),
             "export_type": "characters",
-                "count": len(exported_characters),
+            "count": len(exported_characters),
             "data": exported_characters
         }
         
@@ -1566,6 +1574,26 @@ class ImportExportService:
         errors = []
         
         try:
+            validation = ImportExportService.validate_characters_import(data)
+            if not validation["valid"]:
+                return {
+                    "success": False,
+                    "message": f"数据验证失败: {', '.join(validation['errors'])}",
+                    "statistics": {
+                        "total": len(data.get("data", [])) if isinstance(data, dict) and isinstance(data.get("data"), list) else 0,
+                        "imported": 0,
+                        "skipped": 0,
+                        "errors": len(validation["errors"]),
+                    },
+                    "details": {
+                        "imported_characters": [],
+                        "imported_organizations": [],
+                        "skipped": [],
+                        "errors": validation["errors"],
+                    },
+                    "warnings": validation["warnings"],
+                }
+
             # 验证数据格式
             if "data" not in data:
                 raise ValueError("导入数据格式错误：缺少data字段")
@@ -1675,6 +1703,7 @@ class ImportExportService:
                         personality=char_data.get("personality"),
                         background=char_data.get("background"),
                         appearance=char_data.get("appearance"),
+                        **normalize_character_card_fields(char_data),
                         traits=traits,
                         avatar_url=char_data.get("avatar_url"),
                         main_career_id=None,  # 职业ID需要验证后再设置
@@ -1831,50 +1860,4 @@ class ImportExportService:
         Returns:
             Dict: 验证结果
         """
-        errors = []
-        warnings = []
-        
-        # 检查版本
-        version = data.get("version", "")
-        if not version:
-            errors.append("缺少版本信息")
-        elif version not in ImportExportService.SUPPORTED_VERSIONS:
-            warnings.append(f"版本不匹配: 导入文件版本为 {version}, 当前支持版本为 {', '.join(ImportExportService.SUPPORTED_VERSIONS)}")
-        
-        # 检查导出类型
-        export_type = data.get("export_type", "")
-        if export_type != "characters":
-            errors.append(f"导出类型错误: 期望'characters'，实际'{export_type}'")
-        
-        # 检查数据字段
-        if "data" not in data:
-            errors.append("缺少data字段")
-        elif not isinstance(data["data"], list):
-            errors.append("data字段必须是数组")
-        else:
-            characters_data = data["data"]
-            
-            # 统计信息
-            character_count = sum(1 for c in characters_data if not c.get("is_organization", False))
-            org_count = sum(1 for c in characters_data if c.get("is_organization", False))
-            
-            # 检查必填字段
-            for idx, char_data in enumerate(characters_data):
-                if not char_data.get("name"):
-                    errors.append(f"第{idx+1}个角色缺少name字段")
-            
-            statistics = {
-                "characters": character_count,
-                "organizations": org_count
-            }
-        
-        if "data" not in data or errors:
-            statistics = {"characters": 0, "organizations": 0}
-        
-        return {
-            "valid": len(errors) == 0,
-            "version": version,
-            "statistics": statistics,
-            "errors": errors,
-            "warnings": warnings
-        }
+        return validate_character_card_envelope(data, ImportExportService.SUPPORTED_VERSIONS)
