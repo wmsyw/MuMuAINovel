@@ -7,6 +7,7 @@ from __future__ import annotations
 from typing import Dict, Any, Optional
 import hashlib
 import json
+from app.services.skill_loader import get_all_skills_cached
 
 
 # Genre Strategy Matrix for Long-Form Novels (1M+ words)
@@ -4800,6 +4801,14 @@ class PromptService:
                         "content": template_content,
                     }
                 )
+
+        # 加载 Skill 提示词模板
+        try:
+            skill_templates = get_all_skills_cached()
+            templates.extend(skill_templates)
+        except Exception as e:
+            from app.logger import get_logger
+            get_logger(__name__).warning(f"加载 Skill 模板失败: {e}")
 
         return templates
 

@@ -250,6 +250,7 @@ export async function generateChapterBackground(
     target_word_count?: number;
     model?: string | null;
     narrative_perspective?: string | null;
+    skill_key?: string | null;
     enable_mcp?: boolean;
   },
   onProgress: TaskProgressCallback,

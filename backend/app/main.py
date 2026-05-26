@@ -172,6 +172,7 @@ from app.api import (
     quick_replies,
     relationships,
     settings,
+    skills,
     sync,
     tasks,
     timeline,
@@ -213,6 +214,7 @@ app.include_router(foreshadows.router)  # 伏笔管理API (已包含/api前缀)
 app.include_router(mcp_plugins.router, prefix="/api")  # MCP插件管理API
 app.include_router(prompt_templates.router, prefix="/api")  # 提示词模板管理API
 app.include_router(changelog.router, prefix="/api")  # 更新日志API
+app.include_router(skills.router)  # Skill API（已包含/api前缀）
 app.include_router(prompt_workshop.router, prefix="/api")  # 提示词工坊API
 app.include_router(book_import.router, prefix="/api")  # 拆书导入API
 app.include_router(tasks.router, prefix="/api")  # 后台任务API
