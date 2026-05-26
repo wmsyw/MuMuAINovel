@@ -136,3 +136,4 @@ backend/.instance_id
 test.json
 # Added by code-review-graph
 .code-review-graph/
+.omo/
