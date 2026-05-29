@@ -2,7 +2,6 @@ import axios from 'axios';
 import { message } from 'antd';
 import { ssePost } from '../utils/sseClient';
 import type { SSEClientOptions } from '../utils/sseClient';
-import { isInspirationStep } from '../types';
 import type {
   User,
   AuthUrlResponse,
@@ -142,11 +141,6 @@ import type {
   InspirationGenerateStoryBibleResponse,
   InspirationMergeCardsRequest,
   InspirationMergeCardsResponse,
-  InspirationOptionsRequest,
-  InspirationOptionsResponse,
-  InspirationQuickGenerateRequest,
-  InspirationQuickGenerateResponse,
-  InspirationRefineOptionsRequest,
   InspirationRepairRequest,
   InspirationRepairResult,
   InspirationQualityReport,
@@ -1361,29 +1355,7 @@ export const polishApi = {
     api.post<unknown, { polished_texts: string[] }>('/polish/batch', { texts }),
 };
 
-function assertSupportedInspirationStep(step: string): void {
-  if (!isInspirationStep(step)) {
-    throw new Error(`不支持的灵感步骤: ${step}`);
-  }
-}
-
 export const inspirationApi = {
-  // 生成选项建议
-  generateOptions: (data: InspirationOptionsRequest) => {
-    assertSupportedInspirationStep(data.step);
-    return api.post<unknown, InspirationOptionsResponse>('/inspiration/generate-options', data);
-  },
-
-  // 基于用户反馈重新生成选项（新增）
-  refineOptions: (data: InspirationRefineOptionsRequest) => {
-    assertSupportedInspirationStep(data.step);
-    return api.post<unknown, InspirationOptionsResponse>('/inspiration/refine-options', data);
-  },
-
-  // 智能补全缺失信息
-  quickGenerate: (data: InspirationQuickGenerateRequest) =>
-    api.post<unknown, InspirationQuickGenerateResponse>('/inspiration/quick-generate', data),
-
   // 生成故事方向卡片
   generateCards: (data: InspirationGenerateCardsRequest) =>
     api.post<unknown, InspirationGenerateCardsResponse>('/inspiration/generate-cards', data),

@@ -596,24 +596,6 @@ export interface ProjectWizardRequest {
 
 // ==================== 灵感模式共享契约 ====================
 
-export const INSPIRATION_STEPS = [
-  'title',
-  'description',
-  'theme',
-  'genre',
-  'world_setting',
-  'core_conflict',
-  'protagonist',
-  'golden_finger',
-  'auto',
-] as const;
-
-export type InspirationStep = typeof INSPIRATION_STEPS[number];
-
-export function isInspirationStep(step: string): step is InspirationStep {
-  return (INSPIRATION_STEPS as readonly string[]).includes(step);
-}
-
 export interface InspirationOptionsContext {
   initial_idea?: string;
   title?: string;
@@ -625,38 +607,6 @@ export interface InspirationOptionsContext {
   protagonist?: string;
   golden_finger?: string | null;
   [key: string]: unknown;
-}
-
-export interface InspirationOptionsRequest {
-  step: InspirationStep;
-  context: InspirationOptionsContext;
-}
-
-export interface InspirationRefineOptionsRequest extends InspirationOptionsRequest {
-  feedback: string;
-  previous_options?: string[];
-}
-
-export interface InspirationOptionsResponse {
-  prompt?: string;
-  options: string[];
-  error?: string;
-}
-
-export interface InspirationQuickGenerateRequest {
-  title?: string;
-  description?: string;
-  theme?: string;
-  genre?: string | string[];
-}
-
-export interface InspirationQuickGenerateResponse {
-  title?: string;
-  description?: string;
-  theme?: string;
-  genre?: string[];
-  narrative_perspective?: string;
-  error?: string;
 }
 
 export interface InspirationDirectionCard {

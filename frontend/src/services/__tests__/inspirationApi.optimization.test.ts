@@ -1,11 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
-  INSPIRATION_STEPS,
-  isInspirationStep,
   type InspirationDirectionCard,
-  type InspirationOptionsRequest,
-  type InspirationStep,
   type InspirationStoryBibleDraft,
 } from '../../types';
 
@@ -52,18 +48,6 @@ vi.mock('axios', () => {
 
 import { inspirationApi } from '../api';
 
-const allSteps = [
-  'title',
-  'description',
-  'theme',
-  'genre',
-  'world_setting',
-  'core_conflict',
-  'protagonist',
-  'golden_finger',
-  'auto',
-] satisfies InspirationStep[];
-
 const sampleCard: InspirationDirectionCard = {
   id: 'card-1',
   title: '星桥尽头',
@@ -107,63 +91,7 @@ beforeEach(() => {
 });
 
 describe('inspirationApi shared optimization contracts', () => {
-  it('defines exactly the backend-supported AI step vocabulary', () => {
-    expect([...INSPIRATION_STEPS]).toEqual(allSteps);
-    expect(INSPIRATION_STEPS).not.toContain('perspective');
-    expect(INSPIRATION_STEPS).not.toContain('outline_mode');
-
-    expect(isInspirationStep('golden_finger')).toBe(true);
-    expect(isInspirationStep('character_sheet')).toBe(false);
-  });
-
-  it('accepts every shared step for generateOptions and refineOptions', async () => {
-    for (const step of allSteps) {
-      const context = {
-        initial_idea: '星桥断裂后的归乡故事',
-        title: '星桥尽头',
-        description: '远航者寻找归途。',
-        theme: '流亡与归属',
-        genre: ['科幻', '冒险'],
-        world_setting: '星桥税则限制航行。',
-        core_conflict: '修复星桥需要牺牲故乡。',
-        protagonist: '失忆星图师',
-        golden_finger: '读取星桥残响',
-      };
-
-      await inspirationApi.generateOptions({ step, context });
-      await inspirationApi.refineOptions({
-        step,
-        context,
-        feedback: '更有史诗感',
-        previous_options: ['旧选项A', '旧选项B', '旧选项C'],
-      });
-    }
-
-    const generateCalls = mocks.post.mock.calls.filter(([url]) => url === '/inspiration/generate-options');
-    const refineCalls = mocks.post.mock.calls.filter(([url]) => url === '/inspiration/refine-options');
-
-    expect(generateCalls).toHaveLength(allSteps.length);
-    expect(refineCalls).toHaveLength(allSteps.length);
-    expect(generateCalls.map(([, data]) => (data as InspirationOptionsRequest).step)).toEqual(allSteps);
-    expect(refineCalls.map(([, data]) => (data as InspirationOptionsRequest).step)).toEqual(allSteps);
-  });
-
-  it('rejects an unknown step before posting from a runtime-unsafe caller', () => {
-    const unsafePayload = {
-      step: 'character_sheet' as InspirationStep,
-      context: { initial_idea: '星桥断裂' },
-    };
-
-    expect(() => inspirationApi.generateOptions(unsafePayload)).toThrow('不支持的灵感步骤: character_sheet');
-    expect(() => inspirationApi.refineOptions({
-      ...unsafePayload,
-      feedback: '请改成角色卡',
-      previous_options: ['旧选项A', '旧选项B', '旧选项C'],
-    })).toThrow('不支持的灵感步骤: character_sheet');
-    expect(mocks.post).not.toHaveBeenCalled();
-  });
-
-  it('maps future card, story bible, evaluate, and repair contracts to existing /api inspiration routes', async () => {
+  it('maps direction card, story bible, evaluate, and repair contracts to /api inspiration routes', async () => {
     await inspirationApi.generateCards({
       idea: '星桥断裂后的归乡故事',
       context: { theme: '流亡与归属' },
