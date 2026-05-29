@@ -149,7 +149,7 @@ async def _ensure_organization_bridge(org_entity: OrganizationEntity, db: AsyncS
     if bridge:
         return bridge
     bridge = Organization(
-        character_id=org_entity.legacy_character_id,
+        character_id=org_entity.legacy_character_id or org_entity.id,
         project_id=org_entity.project_id,
         organization_entity_id=org_entity.id,
     )

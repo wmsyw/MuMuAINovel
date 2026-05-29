@@ -25,7 +25,7 @@ async def ensure_organization_bridge(entity: OrganizationEntity, db: AsyncSessio
 
     bridge = Organization(
         project_id=entity.project_id,
-        character_id=entity.legacy_character_id,
+        character_id=entity.legacy_character_id or entity.id,
         organization_entity_id=entity.id,
     )
     db.add(bridge)

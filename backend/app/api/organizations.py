@@ -64,7 +64,7 @@ async def _ensure_organization_bridge(entity: OrganizationEntity, db: AsyncSessi
     if bridge:
         return bridge
     bridge = Organization(
-        character_id=entity.legacy_character_id,
+        character_id=entity.legacy_character_id or entity.id,
         project_id=entity.project_id,
         organization_entity_id=entity.id,
     )
@@ -273,7 +273,7 @@ async def create_organization(
     entity.location = organization.location
     entity.motto = organization.motto
     entity.color = organization.color
-    db_org = Organization(project_id=organization.project_id, character_id=entity.legacy_character_id, organization_entity_id=entity.id)
+    db_org = Organization(project_id=organization.project_id, character_id=entity.legacy_character_id or entity.id, organization_entity_id=entity.id)
     db.add(db_org)
     await db.commit()
     await db.refresh(entity)
