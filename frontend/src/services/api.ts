@@ -1434,6 +1434,8 @@ export const wizardStreamApi = {
     sub_careers_count: number;
     main_careers: string[];
     sub_careers: string[];
+    career_skipped?: boolean;
+    message?: string;
   }>(
     '/api/wizard-stream/career-system',
     data,

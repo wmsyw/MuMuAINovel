@@ -46,6 +46,31 @@ interface WorldBuildingResult {
   rules: string;
 }
 
+const CAREER_SYSTEM_REQUIRED_GENRE_KEYWORDS = [
+  '玄幻', '修仙', '仙侠', '修真', '奇幻', '西幻', '魔法', '武侠', '高武',
+  '异能', '末世', '游戏', '网游', '系统', '科幻', '星际', '机甲'
+];
+
+const CAREER_SYSTEM_OPTIONAL_GENRE_KEYWORDS = [
+  '都市', '悬疑', '推理', '刑侦', '犯罪', '言情', '现实', '历史', '职场',
+  '校园', '娱乐', '生活', '商战'
+];
+
+function formatGenre(genre: GenerationConfig['genre']): string {
+  return Array.isArray(genre) ? genre.join('、') : genre;
+}
+
+export function shouldGenerateCareerSystem(genre: GenerationConfig['genre']): boolean {
+  const genreText = formatGenre(genre);
+  const hasRequiredGenre = CAREER_SYSTEM_REQUIRED_GENRE_KEYWORDS.some(keyword => genreText.includes(keyword));
+  if (hasRequiredGenre) {
+    return true;
+  }
+
+  const hasOptionalGenre = CAREER_SYSTEM_OPTIONAL_GENRE_KEYWORDS.some(keyword => genreText.includes(keyword));
+  return !hasOptionalGenre;
+}
+
 function buildWorldBuildingRequest(data: GenerationConfig, genre: string) {
   return {
     title: data.title,
@@ -132,6 +157,49 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
     localStorage.removeItem(storageKeys.currentStep);
   };
 
+  const markCareersSkipped = (data: GenerationConfig) => {
+    const genreString = formatGenre(data.genre);
+    console.log(`当前题材无需职业体系，已跳过：${genreString}`);
+    setGenerationSteps(prev => ({ ...prev, careers: 'completed' }));
+    setProgress(prev => Math.max(prev, 40));
+    setProgressMessage(`当前题材（${genreString}）无需职业体系，已跳过`);
+  };
+
+  const generateCareerSystemStep = async (pid: string, progressText = '正在生成职业体系...') => {
+    setGenerationSteps(prev => ({ ...prev, careers: 'processing' }));
+    setProgressMessage(progressText);
+
+    await wizardStreamApi.generateCareerSystemStream(
+      {
+        project_id: pid,
+      },
+      {
+        onProgress: (msg, prog) => {
+          setProgress(prog);
+          setProgressMessage(msg);
+        },
+        onResult: (result) => {
+          if (result.career_skipped) {
+            console.log(result.message || '当前题材无需职业体系，后端已跳过');
+          } else {
+            console.log(`成功生成职业体系：主职业${result.main_careers_count}个，副职业${result.sub_careers_count}个`);
+          }
+          setGenerationSteps(prev => ({ ...prev, careers: 'completed' }));
+        },
+        onError: (error) => {
+          console.error('职业体系生成失败:', error);
+          setErrorDetails(`职业体系生成失败: ${error}`);
+          setGenerationSteps(prev => ({ ...prev, careers: 'error' }));
+          setLoading(false);
+          throw new Error(error);
+        },
+        onComplete: () => {
+          console.log('职业体系生成完成');
+        }
+      }
+    );
+  };
+
   // 开始自动化生成流程
   useEffect(() => {
     if (config) {
@@ -184,8 +252,9 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
         await resumeFromWorldBuilding(data);
       } else if (wizardStep === 1) {
         // 世界观已完成，从职业体系开始
-        message.info('世界观已完成，从职业体系步骤继续...');
-        setGenerationSteps({ worldBuilding: 'completed', careers: 'processing', characters: 'pending', outline: 'pending' });
+        const shouldRunCareers = shouldGenerateCareerSystem(data.genre);
+        message.info(shouldRunCareers ? '世界观已完成，从职业体系步骤继续...' : '世界观已完成，当前题材跳过职业体系并继续生成角色...');
+        setGenerationSteps({ worldBuilding: 'completed', careers: shouldRunCareers ? 'processing' : 'completed', characters: 'pending', outline: 'pending' });
         setWorldBuildingResult(worldResult);
         setProgress(20);
         await resumeFromCareers(data, worldResult);
@@ -257,34 +326,11 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
   const resumeFromCareers = async (data: GenerationConfig, worldResult: WorldBuildingResult) => {
     const pid = projectId || worldResult.project_id;
 
-    setGenerationSteps(prev => ({ ...prev, careers: 'processing' }));
-    setProgressMessage('正在生成职业体系...');
-
-    await wizardStreamApi.generateCareerSystemStream(
-      {
-        project_id: pid,
-      },
-      {
-        onProgress: (msg, prog) => {
-          setProgress(prog);
-          setProgressMessage(msg);
-        },
-        onResult: (result) => {
-          console.log(`成功生成职业体系：主职业${result.main_careers_count}个，副职业${result.sub_careers_count}个`);
-          setGenerationSteps(prev => ({ ...prev, careers: 'completed' }));
-        },
-        onError: (error) => {
-          console.error('职业体系生成失败:', error);
-          setErrorDetails(`职业体系生成失败: ${error}`);
-          setGenerationSteps(prev => ({ ...prev, careers: 'error' }));
-          setLoading(false);
-          throw new Error(error);
-        },
-        onComplete: () => {
-          console.log('职业体系生成完成');
-        }
-      }
-    );
+    if (shouldGenerateCareerSystem(data.genre)) {
+      await generateCareerSystemStep(pid);
+    } else {
+      markCareersSkipped(data);
+    }
 
     await resumeFromCharacters(data, worldResult);
   };
@@ -430,35 +476,11 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
       setWorldBuildingResult(worldResult);
       saveProgress(createdProjectId, data, 'generating');
 
-      // 步骤2: 生成职业体系
-      setGenerationSteps(prev => ({ ...prev, careers: 'processing' }));
-      setProgressMessage('正在生成职业体系...');
-
-      await wizardStreamApi.generateCareerSystemStream(
-        {
-          project_id: createdProjectId,
-        },
-        {
-          onProgress: (msg, prog) => {
-            setProgress(prog);
-            setProgressMessage(msg);
-          },
-          onResult: (result) => {
-            console.log(`成功生成职业体系：主职业${result.main_careers_count}个，副职业${result.sub_careers_count}个`);
-            setGenerationSteps(prev => ({ ...prev, careers: 'completed' }));
-          },
-          onError: (error) => {
-            console.error('职业体系生成失败:', error);
-            setErrorDetails(`职业体系生成失败: ${error}`);
-            setGenerationSteps(prev => ({ ...prev, careers: 'error' }));
-            setLoading(false);
-            throw new Error(error);
-          },
-          onComplete: () => {
-            console.log('职业体系生成完成');
-          }
-        }
-      );
+      if (shouldGenerateCareerSystem(data.genre)) {
+        await generateCareerSystemStep(createdProjectId);
+      } else {
+        markCareersSkipped(data);
+      }
 
       // 步骤3: 生成角色
       setGenerationSteps(prev => ({ ...prev, characters: 'processing' }));
@@ -629,7 +651,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
 
   // 从职业体系步骤继续
   const retryFromCareers = async () => {
-    if (!worldBuildingResult) {
+    if (!generationData || !worldBuildingResult) {
       message.warning('缺少必要数据，无法从职业体系步骤继续');
       setLoading(false);
       return;
@@ -642,34 +664,11 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
       return;
     }
 
-    setGenerationSteps(prev => ({ ...prev, careers: 'processing' }));
-    setProgressMessage('重新生成职业体系...');
-
-    await wizardStreamApi.generateCareerSystemStream(
-      {
-        project_id: pid,
-      },
-      {
-        onProgress: (msg, prog) => {
-          setProgress(prog);
-          setProgressMessage(msg);
-        },
-        onResult: (result) => {
-          console.log(`成功生成职业体系：主职业${result.main_careers_count}个，副职业${result.sub_careers_count}个`);
-          setGenerationSteps(prev => ({ ...prev, careers: 'completed' }));
-        },
-        onError: (error) => {
-          console.error('职业体系生成失败:', error);
-          setErrorDetails(`职业体系生成失败: ${error}`);
-          setGenerationSteps(prev => ({ ...prev, careers: 'error' }));
-          setLoading(false);
-          throw new Error(error);
-        },
-        onComplete: () => {
-          console.log('职业体系重新生成完成');
-        }
-      }
-    );
+    if (shouldGenerateCareerSystem(generationData.genre)) {
+      await generateCareerSystemStep(pid, '重新生成职业体系...');
+    } else {
+      markCareersSkipped(generationData);
+    }
 
     await continueFromCharacters(worldBuildingResult);
   };
@@ -800,34 +799,11 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
 
     const pid = worldResult.project_id;
 
-    setGenerationSteps(prev => ({ ...prev, careers: 'processing' }));
-    setProgressMessage('正在生成职业体系...');
-
-    await wizardStreamApi.generateCareerSystemStream(
-      {
-        project_id: pid,
-      },
-      {
-        onProgress: (msg, prog) => {
-          setProgress(prog);
-          setProgressMessage(msg);
-        },
-        onResult: (result) => {
-          console.log(`成功生成职业体系：主职业${result.main_careers_count}个，副职业${result.sub_careers_count}个`);
-          setGenerationSteps(prev => ({ ...prev, careers: 'completed' }));
-        },
-        onError: (error) => {
-          console.error('职业体系生成失败:', error);
-          setErrorDetails(`职业体系生成失败: ${error}`);
-          setGenerationSteps(prev => ({ ...prev, careers: 'error' }));
-          setLoading(false);
-          throw new Error(error);
-        },
-        onComplete: () => {
-          console.log('职业体系生成完成');
-        }
-      }
-    );
+    if (shouldGenerateCareerSystem(generationData.genre)) {
+      await generateCareerSystemStep(pid);
+    } else {
+      markCareersSkipped(generationData);
+    }
 
     await continueFromCharacters(worldResult);
   };
@@ -981,10 +957,11 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
     : progress === 100
       ? token.colorSuccess
       : token.colorPrimary;
+  const willGenerateCareers = shouldGenerateCareerSystem(config.genre);
 
   const stepItems = [
     { key: 'worldBuilding', label: '生成世界观', step: generationSteps.worldBuilding },
-    { key: 'careers', label: '生成职业体系', step: generationSteps.careers },
+    { key: 'careers', label: willGenerateCareers ? '生成职业体系' : '跳过职业体系', step: generationSteps.careers },
     { key: 'characters', label: '生成角色', step: generationSteps.characters },
     { key: 'outline', label: '生成大纲', step: generationSteps.outline },
   ];
@@ -1045,7 +1022,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
         >
           {hasError
             ? '生成流程中断，已保留当前进度与上下文信息，可从失败步骤继续重试。'
-            : '系统会依次生成世界观、职业体系、角色与大纲，请耐心等待。'}
+            : '系统会依次生成世界观、题材需要时的职业体系、角色与大纲，请耐心等待。'}
         </Paragraph>
       </div>
 
