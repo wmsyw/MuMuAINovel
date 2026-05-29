@@ -230,6 +230,22 @@ describe('AIProjectGenerator inspiration context handoff', () => {
     }
   });
 
+  it('navigates generated projects to the sponsor entry route', async () => {
+    const view = await renderGenerator(baseConfig);
+
+    try {
+      await waitForAssertion(() => expect(mocks.generateCompleteOutlineStream).toHaveBeenCalledTimes(1));
+
+      await act(async () => {
+        await delay(1050);
+      });
+
+      expect(mocks.navigate).toHaveBeenCalledWith('/project/project-generated/sponsor');
+    } finally {
+      await view.cleanup();
+    }
+  });
+
   it('passes optional inspiration context only to worldbuilding and outline requests', async () => {
     const view = await renderGenerator({
       ...baseConfig,

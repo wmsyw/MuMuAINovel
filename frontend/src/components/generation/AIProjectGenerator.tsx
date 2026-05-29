@@ -71,6 +71,10 @@ function buildOutlineRequest(data: GenerationConfig, projectId: string) {
   };
 }
 
+function buildProjectEntryPath(projectId: string): string {
+  return `/project/${projectId}/sponsor`;
+}
+
 export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
   config,
   storagePrefix,
@@ -204,7 +208,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
         setProgress(100);
         onComplete(projectIdParam);
         setTimeout(() => {
-          navigate(`/project/${projectIdParam}`);
+          navigate(buildProjectEntryPath(projectIdParam));
         }, 1000);
       }
     } catch (error) {
@@ -371,7 +375,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
 
     onComplete(pid);
     setTimeout(() => {
-      navigate(`/project/${pid}`);
+      navigate(buildProjectEntryPath(pid));
     }, 1000);
   };
 
@@ -536,7 +540,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
 
       // 延迟1秒后自动跳转到项目详情页
       setTimeout(() => {
-        navigate(`/project/${createdProjectId}`);
+        navigate(buildProjectEntryPath(createdProjectId));
       }, 1000);
 
     } catch (error) {
@@ -785,7 +789,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
 
       // 延迟1秒后自动跳转到项目详情页
       setTimeout(() => {
-        navigate(`/project/${pid}`);
+        navigate(buildProjectEntryPath(pid));
       }, 1000);
     }
   };
@@ -920,7 +924,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
 
       // 延迟1秒后自动跳转到项目详情页
       setTimeout(() => {
-        navigate(`/project/${pid}`);
+        navigate(buildProjectEntryPath(pid));
       }, 1000);
     }
   };
