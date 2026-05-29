@@ -53,6 +53,32 @@ from app.services.txt_parser_service import txt_parser_service
 
 logger = get_logger(__name__)
 
+CAREER_SYSTEM_REQUIRED_GENRE_KEYWORDS = (
+    "玄幻", "修仙", "仙侠", "修真", "奇幻", "西幻", "魔法", "武侠", "高武",
+    "异能", "末世", "游戏", "网游", "系统", "科幻", "星际", "机甲",
+)
+CAREER_SYSTEM_OPTIONAL_GENRE_KEYWORDS = (
+    "都市", "悬疑", "推理", "刑侦", "犯罪", "言情", "现实", "历史", "职场",
+    "校园", "娱乐", "生活", "商战",
+)
+
+
+def _format_genre_text(genre: Any) -> str:
+    if genre is None:
+        return ""
+    if isinstance(genre, list):
+        return "、".join(str(item) for item in genre if item is not None)
+    if isinstance(genre, dict):
+        return json.dumps(genre, ensure_ascii=False)
+    return str(genre)
+
+
+def should_generate_career_system_for_genre(genre: Any) -> bool:
+    genre_text = _format_genre_text(genre)
+    if any(keyword in genre_text for keyword in CAREER_SYSTEM_REQUIRED_GENRE_KEYWORDS):
+        return True
+    return not any(keyword in genre_text for keyword in CAREER_SYSTEM_OPTIONAL_GENRE_KEYWORDS)
+
 
 @dataclass
 class _StepFailure:
@@ -368,7 +394,8 @@ class BookImportService:
                 await _notify(f"⚠️ 世界观生成失败：{str(exc)[:80]}，将继续后续步骤", 40, "warning")
 
             # -- 步骤5: 生成职业体系 (40-65%)
-            await _notify("💼 正在生成职业体系...", 42)
+            career_system_needed = should_generate_career_system_for_genre(project.genre)
+            await _notify("💼 正在生成职业体系..." if career_system_needed else "💼 当前题材无需职业体系，准备跳过...", 42)
             try:
                 generated_careers = await self._generate_career_system_from_project(
                     db=db,
@@ -380,7 +407,10 @@ class BookImportService:
                     progress_range=(42, 65),
                 )
                 statistics["generated_careers"] = generated_careers
-                await _notify(f"💼 职业体系生成完成（{generated_careers}个）", 65)
+                await _notify(
+                    f"💼 职业体系生成完成（{generated_careers}个）" if career_system_needed else "💼 当前题材已跳过职业体系",
+                    65,
+                )
             except Exception as exc:
                 logger.warning(f"拆书导入：职业体系生成失败（将继续后续步骤）: {exc}")
                 failed_steps.append(_StepFailure(
@@ -1801,6 +1831,10 @@ class BookImportService:
             if progress_callback:
                 p = progress_range[0] + int((progress_range[1] - progress_range[0]) * sub)
                 await progress_callback(msg, p)
+
+        if not should_generate_career_system_for_genre(project.genre):
+            await _notify("💼 当前题材无需职业体系，已跳过", 1.0)
+            return 0
 
         settings_result = await db.execute(select(Settings).where(Settings.user_id == user_id))
         user_settings = settings_result.scalar_one_or_none()

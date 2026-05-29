@@ -29,6 +29,32 @@ from app.api.settings import get_user_ai_service
 router = APIRouter(prefix="/wizard-stream", tags=["项目创建向导(流式)"])
 logger = get_logger(__name__)
 
+CAREER_SYSTEM_REQUIRED_GENRE_KEYWORDS = (
+    "玄幻", "修仙", "仙侠", "修真", "奇幻", "西幻", "魔法", "武侠", "高武",
+    "异能", "末世", "游戏", "网游", "系统", "科幻", "星际", "机甲",
+)
+CAREER_SYSTEM_OPTIONAL_GENRE_KEYWORDS = (
+    "都市", "悬疑", "推理", "刑侦", "犯罪", "言情", "现实", "历史", "职场",
+    "校园", "娱乐", "生活", "商战",
+)
+
+
+def _format_genre_text(genre: Any) -> str:
+    if genre is None:
+        return ""
+    if isinstance(genre, list):
+        return "、".join(str(item) for item in genre if item is not None)
+    if isinstance(genre, dict):
+        return json.dumps(genre, ensure_ascii=False)
+    return str(genre)
+
+
+def should_generate_career_system_for_genre(genre: Any) -> bool:
+    genre_text = _format_genre_text(genre)
+    if any(keyword in genre_text for keyword in CAREER_SYSTEM_REQUIRED_GENRE_KEYWORDS):
+        return True
+    return not any(keyword in genre_text for keyword in CAREER_SYSTEM_OPTIONAL_GENRE_KEYWORDS)
+
 
 STORY_BIBLE_CONTEXT_FIELD_LABELS: dict[str, str] = {
     "core_idea": "核心创意",
@@ -410,6 +436,25 @@ async def career_system_generator(
         if not project:
             yield await tracker.error("项目不存在或无权访问", 404)
             return
+
+        if not should_generate_career_system_for_genre(project.genre):
+            yield await tracker.loading("当前题材无需职业体系，跳过该步骤...", 40)
+            project.wizard_step = max(project.wizard_step or 0, 2)
+            await db.commit()
+            db_committed = True
+            yield await tracker.complete()
+            yield await tracker.result({
+                "project_id": project.id,
+                "career_skipped": True,
+                "message": "当前题材无需职业体系，已跳过",
+                "main_careers_count": 0,
+                "sub_careers_count": 0,
+                "main_careers": [],
+                "sub_careers": [],
+            })
+            yield await tracker.done()
+            return
+
         policy_decision = await entity_generation_policy_service.evaluate_for_user(
             db,
             actor_user_id=user_id,
@@ -781,6 +826,13 @@ async def characters_generator(
         MAX_RETRIES = 3  # 每批最多重试3次
         all_characters = []
         total_batches = (count + BATCH_SIZE - 1) // BATCH_SIZE
+        role_guidance = (
+            "\n\n【男频角色定位】\n"
+            "- protagonist：男主/主角，承载核心成长线、爽点与主要视角。\n"
+            "- heroine：女主，女性核心角色，承担情感牵引、剧情推动或关键同盟功能，不能混作普通配角。\n"
+            "- supporting：核心配角、盟友、导师、竞争者或功能型伙伴。\n"
+            "- antagonist：反派或阶段性阻力。"
+        )
 
         for batch_idx in range(total_batches):
             # 精确计算当前批次应该生成的数量
@@ -824,11 +876,13 @@ async def characters_generator(
                     # 构建精确的批次要求,明确告诉AI要生成的数量
                     if batch_idx == 0:
                         if current_batch_size == 1:
-                            batch_requirements = f"{requirements}\n请生成1个主角(protagonist)"
+                            batch_requirements = f"{requirements}{role_guidance}\n请生成1个男主/主角(protagonist)"
+                        elif current_batch_size == 2:
+                            batch_requirements = f"{requirements}{role_guidance}\n请精确生成2个角色:1个男主/主角(protagonist)和1个女主(heroine)"
                         else:
-                            batch_requirements = f"{requirements}\n请精确生成{current_batch_size}个角色:1个主角(protagonist)和{current_batch_size-1}个核心配角(supporting)"
+                            batch_requirements = f"{requirements}{role_guidance}\n请精确生成{current_batch_size}个角色:1个男主/主角(protagonist)、1个女主(heroine)和{current_batch_size-2}个核心配角(supporting)"
                     else:
-                        batch_requirements = f"{requirements}\n请精确生成{current_batch_size}个角色{existing_chars_context}"
+                        batch_requirements = f"{requirements}{role_guidance}\n请精确生成{current_batch_size}个角色{existing_chars_context}"
                         if batch_idx == total_batches - 1:
                             batch_requirements += "\n可以包含组织或反派(antagonist)"
                         else:
