@@ -390,8 +390,8 @@ class PromptService:
 数组中必须精确包含{count}个对象，不多不少。
 
 【实体类型分配】
-- 至少1个主角（protagonist）
-- 多个配角（supporting）
+- 按特殊要求中的批次角色配比执行
+- protagonist表示男主/主角，heroine表示女主，supporting表示核心配角
 - 可包含反派（antagonist）
 - 可包含1-2个高影响力组织（power_level: 70-95）
 </task>
@@ -422,7 +422,7 @@ class PromptService:
   "age": 25,
   "gender": "男/女/其他",
   "is_organization": false,
-  "role_type": "protagonist/supporting/antagonist",
+  "role_type": "protagonist/heroine/supporting/antagonist",
   "personality": "性格特点（100-200字）：核心性格、优缺点、特殊习惯",
   "background": "背景故事（100-200字）：家庭背景、成长经历、重要转折",
   "appearance": "外貌描述（50-100字）：身高、体型、面容、着装风格",
@@ -1184,6 +1184,7 @@ class PromptService:
   "name": "角色姓名（如用户未提供则生成符合世界观的名字）",
   "age": "年龄（具体数字或年龄段）",
   "gender": "男/女/其他",
+  "role_type": "protagonist/heroine/supporting/antagonist",
   "appearance": "外貌描述（100-150字）：身高体型、面容特征、着装风格",
   "personality": "性格特点（150-200字）：核心性格特质、优缺点、特殊习惯",
   "background": "背景故事（200-300字）：家庭背景、成长经历、重要转折、与主题关联",
@@ -1249,7 +1250,8 @@ class PromptService:
 ✅ 职业匹配：职业选择与角色高度契合
 
 【角色定位要求】
-✅ 主角：有成长空间和目标动机
+✅ 男主/主角（protagonist）：有成长空间、目标动机和主要视角承载力
+✅ 女主（heroine）：女性核心角色，有情感牵引、剧情推动或关键同盟价值
 ✅ 反派：有合理动机，不脸谱化
 ✅ 配角：有独特性，不是工具人
 
@@ -2539,7 +2541,7 @@ class PromptService:
     {{
       "name": "建议的角色名字（可选）",
       "role_description": "角色在剧情中的定位和作用（100-150字）",
-      "suggested_role_type": "supporting/antagonist/protagonist",
+      "suggested_role_type": "supporting/antagonist/protagonist/heroine",
       "importance": "high/medium/low",
       "appearance_chapter": {start_chapter},
       "key_abilities": ["能力1", "能力2"],

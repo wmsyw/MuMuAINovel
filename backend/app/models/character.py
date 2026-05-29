@@ -17,7 +17,7 @@ class Character(Base):
     age = Column(String(50), comment="年龄")
     gender = Column(String(50), comment="性别")
     
-    # 角色类型：protagonist(主角)/supporting(配角)/antagonist(反派)
+    # 角色类型：protagonist(男主/主角)/heroine(女主)/supporting(配角)/antagonist(反派)
     role_type = Column(String(50), comment="角色类型")
     
     # 角色详细信息
