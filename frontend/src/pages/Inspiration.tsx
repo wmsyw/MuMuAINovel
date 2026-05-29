@@ -4,36 +4,21 @@ import { Alert, Card, Input, Button, Space, Typography, message, Spin, Modal, th
 import { SendOutlined, ArrowLeftOutlined, ReloadOutlined } from '@ant-design/icons';
 import { inspirationApi, projectApi } from '../services/api';
 import { AIProjectGenerator, type GenerationConfig } from '../components/generation/AIProjectGenerator';
-import { DIRECTION_CARD_LABELS, isInspirationStep } from '../types';
-import type { InspirationDirectionCard, InspirationGenerationContext, InspirationOptionsContext, InspirationQualityReport, InspirationStep, InspirationStoryBibleDraft, Project, ProjectCreate } from '../types';
+import { DIRECTION_CARD_LABELS } from '../types';
+import type { InspirationDirectionCard, InspirationGenerationContext, InspirationOptionsContext, InspirationQualityReport, InspirationStoryBibleDraft, Project, ProjectCreate } from '../types';
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
 
-type Step = 'idea' | 'direction_cards' | 'title' | 'description' | 'theme' | 'genre' | 'world_setting' | 'core_conflict' | 'protagonist' | 'golden_finger' | 'perspective' | 'outline_mode' | 'confirm' | 'generating' | 'complete';
+type Step = 'idea' | 'direction_cards' | 'perspective' | 'outline_mode' | 'confirm' | 'generating' | 'complete';
 
-const NO_GOLDEN_FINGER_OPTION = '无特殊金手指，仅保留普通优势';
-
-const stepLabels: Record<InspirationStep, string> = {
-  title: '书名',
-  description: '简介',
-  theme: '主题',
-  genre: '类型',
-  world_setting: '世界规则',
-  core_conflict: '核心冲突',
-  protagonist: '主角原型',
-  golden_finger: '金手指/特殊优势',
-  auto: '自动补全',
-};
+const restorableSteps = new Set<Step>(['idea', 'direction_cards', 'perspective', 'outline_mode', 'confirm']);
 
 interface Message {
   type: 'ai' | 'user';
   content: string;
   options?: string[];
-  isMultiSelect?: boolean;
   optionsDisabled?: boolean; // 标记选项是否已禁用
-  canRefine?: boolean; // 是否可以优化（用于支持多轮对话）
-  step?: InspirationStep; // 当前AI步骤（用于反馈）
 }
 
 interface WizardData {
@@ -80,17 +65,12 @@ interface CacheData {
   currentStep: Step;
   wizardData: Partial<WizardData>;
   initialIdea: string;
-  selectedOptions: string[];
   directionCards?: InspirationDirectionCard[];
   selectedDirectionCardIds?: string[];
   activeDirectionCard?: InspirationDirectionCard | null;
   storyBibleDraft?: InspirationStoryBibleDraft;
   storyBibleQualityReport?: InspirationQualityReport | null;
   storyBibleQualityError?: string | null;
-  lastFailedRequest: {
-    step: InspirationStep;
-    context: InspirationOptionsContext;
-  } | null;
   timestamp: number;
 }
 
@@ -144,6 +124,10 @@ function buildProjectDraftPayload(data: WizardData): ProjectCreate {
   }
 
   return payload;
+}
+
+function buildProjectEntryPath(projectId: string): string {
+  return `/project/${projectId}/sponsor`;
 }
 
 type InspirationGenerationConfig = GenerationConfig & {
@@ -210,18 +194,6 @@ function buildGenerationConfig(
 
   return config;
 }
-
-const generatedOptionSteps = [
-  'description',
-  'theme',
-  'genre',
-  'world_setting',
-  'core_conflict',
-  'protagonist',
-  'golden_finger',
-] as const;
-
-type GeneratedOptionStep = typeof generatedOptionSteps[number];
 
 const DIRECTION_CARD_COUNT = 3;
 
@@ -335,10 +307,6 @@ function directionCardToWizardData(card: InspirationDirectionCard): Partial<Wiza
   };
 }
 
-function isGeneratedOptionStep(step: Step): step is GeneratedOptionStep {
-  return (generatedOptionSteps as readonly Step[]).includes(step);
-}
-
 function buildOptionsContext(data: Partial<WizardData>, initialIdea: string): InspirationOptionsContext {
   return {
     initial_idea: initialIdea,
@@ -351,14 +319,6 @@ function buildOptionsContext(data: Partial<WizardData>, initialIdea: string): In
     protagonist: data.protagonist,
     golden_finger: data.golden_finger,
   };
-}
-
-function withGoldenFingerNoneOption(step: InspirationStep, options?: string[]): string[] {
-  if (step !== 'golden_finger') {
-    return options || [];
-  }
-
-  return Array.from(new Set([...(options || []), NO_GOLDEN_FINGER_OPTION]));
 }
 
 function saveInspirationDraftToStorage(draft: InspirationDraftRecord, storage: Storage = localStorage): void {
@@ -386,6 +346,7 @@ async function runInspirationDraftAction(
 interface InspirationTestUtils {
   INSPIRATION_DRAFTS_KEY: string;
   buildProjectDraftPayload: typeof buildProjectDraftPayload;
+  buildProjectEntryPath: typeof buildProjectEntryPath;
   normalizeWizardData: typeof normalizeWizardData;
   runInspirationDraftAction: typeof runInspirationDraftAction;
   saveInspirationDraftToStorage: typeof saveInspirationDraftToStorage;
@@ -419,7 +380,6 @@ const InspirationImpl: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [draftActionLoading, setDraftActionLoading] = useState<InspirationDraftAction | null>(null);
   const [createdDraftProjectId, setCreatedDraftProjectId] = useState<string | null>(null);
-  const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
   const [directionCards, setDirectionCards] = useState<InspirationDirectionCard[]>([]);
   const [selectedDirectionCardIds, setSelectedDirectionCardIds] = useState<string[]>([]);
   const [activeDirectionCard, setActiveDirectionCard] = useState<InspirationDirectionCard | null>(null);
@@ -435,11 +395,6 @@ const InspirationImpl: React.FC = () => {
   // 保存用户的原始想法，用于保持上下文一致性
   const [initialIdea, setInitialIdea] = useState<string>('');
   
-  // 反馈相关状态
-  const [feedbackValue, setFeedbackValue] = useState('');
-  const [showFeedbackInput, setShowFeedbackInput] = useState<number | null>(null); // 当前显示反馈输入的消息索引
-  const [refining, setRefining] = useState(false); // 正在优化选项
-
   // 生成配置
   const [generationConfig, setGenerationConfig] = useState<InspirationGenerationConfig | null>(null);
 
@@ -450,12 +405,6 @@ const InspirationImpl: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const submitInFlightRef = useRef(false);
-
-  // 记录上次失败的请求参数，用于重试
-  const [lastFailedRequest, setLastFailedRequest] = useState<{
-    step: InspirationStep;
-    context: InspirationOptionsContext;
-  } | null>(null);
 
   // 标记是否已经加载缓存
   const [cacheLoaded, setCacheLoaded] = useState(false);
@@ -490,14 +439,12 @@ const InspirationImpl: React.FC = () => {
         currentStep,
         wizardData,
         initialIdea,
-        selectedOptions,
         directionCards,
         selectedDirectionCardIds,
         activeDirectionCard,
         storyBibleDraft,
         storyBibleQualityReport,
         storyBibleQualityError,
-        lastFailedRequest,
         timestamp: Date.now()
       };
 
@@ -506,7 +453,7 @@ const InspirationImpl: React.FC = () => {
     } catch (error) {
       console.error('保存缓存失败:', error);
     }
-  }, [currentStep, messages, wizardData, initialIdea, selectedOptions, directionCards, selectedDirectionCardIds, activeDirectionCard, storyBibleDraft, storyBibleQualityReport, storyBibleQualityError, lastFailedRequest]);
+  }, [currentStep, messages, wizardData, initialIdea, directionCards, selectedDirectionCardIds, activeDirectionCard, storyBibleDraft, storyBibleQualityReport, storyBibleQualityError]);
 
   // 从缓存恢复
   const restoreFromCache = useCallback((): boolean => {
@@ -531,22 +478,22 @@ const InspirationImpl: React.FC = () => {
         return false;
       }
 
+      if (!restorableSteps.has(cacheData.currentStep)) {
+        clearCache();
+        return false;
+      }
+
       // 恢复所有状态
       setMessages(cacheData.messages);
       setCurrentStep(cacheData.currentStep);
       setWizardData(cacheData.wizardData);
       setInitialIdea(cacheData.initialIdea);
-      setSelectedOptions(cacheData.selectedOptions);
       setDirectionCards(cacheData.directionCards || []);
       setSelectedDirectionCardIds(cacheData.selectedDirectionCardIds || []);
       setActiveDirectionCard(cacheData.activeDirectionCard || null);
       setStoryBibleDraft(cacheData.storyBibleDraft);
       setStoryBibleQualityReport(cacheData.storyBibleQualityReport || null);
       setStoryBibleQualityError(cacheData.storyBibleQualityError || null);
-      // 恢复失败请求信息，确保"重新生成"按钮可用
-      if (cacheData.lastFailedRequest) {
-        setLastFailedRequest(cacheData.lastFailedRequest);
-      }
 
       console.log('✅ 已恢复上次的对话进度');
       message.success('已恢复上次的对话进度', 2);
@@ -578,7 +525,7 @@ const InspirationImpl: React.FC = () => {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [messages, currentStep, wizardData, initialIdea, selectedOptions, directionCards, selectedDirectionCardIds, activeDirectionCard, storyBibleDraft, storyBibleQualityReport, storyBibleQualityError, lastFailedRequest, cacheLoaded, saveToCache]);
+  }, [messages, currentStep, wizardData, initialIdea, directionCards, selectedDirectionCardIds, activeDirectionCard, storyBibleDraft, storyBibleQualityReport, storyBibleQualityError, cacheLoaded, saveToCache]);
 
   // 自动滚动到底部
   const scrollToBottom = () => {
@@ -597,134 +544,6 @@ const InspirationImpl: React.FC = () => {
     scrollToBottom();
   }, [messages]);
 
-  // 重试生成
-  const handleRetry = async () => {
-    if (!lastFailedRequest) return;
-
-    setLoading(true);
-    try {
-      const response = await inspirationApi.generateOptions({
-        step: lastFailedRequest.step,
-        context: lastFailedRequest.context
-      });
-
-      if (response.error) {
-        message.error(response.error);
-        return;
-      }
-
-      setMessages(prev => {
-        const newMessages = [...prev];
-        if (newMessages[newMessages.length - 1].type === 'ai' &&
-          (newMessages[newMessages.length - 1].content.includes('生成失败') ||
-            newMessages[newMessages.length - 1].content.includes('出错了'))) {
-          newMessages.pop();
-        }
-        return newMessages;
-      });
-
-      const aiMessage: Message = {
-        type: 'ai',
-        content: response.prompt || '请选择一个选项，或者输入你自己的：',
-        options: withGoldenFingerNoneOption(lastFailedRequest.step, response.options),
-        isMultiSelect: lastFailedRequest.step === 'genre',
-        canRefine: true,
-        step: lastFailedRequest.step,
-      };
-      setMessages(prev => [...prev, aiMessage]);
-      setLastFailedRequest(null);
-    } catch (error: unknown) {
-      console.error('重试失败:', error);
-      message.error('重试失败，请稍后再试');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 处理用户反馈，重新生成选项
-  const handleRefineOptions = async (messageIndex: number, feedback: string) => {
-    if (!feedback.trim()) {
-      message.warning('请输入您的反馈意见');
-      return;
-    }
-
-    const targetMessage = messages[messageIndex];
-    if (!targetMessage.options || !targetMessage.step) {
-      return;
-    }
-
-    setRefining(true);
-    setShowFeedbackInput(null);
-    setFeedbackValue('');
-
-    // 先禁用旧的选项
-    setMessages(prev => {
-      const newMessages = [...prev];
-      if (newMessages[messageIndex]) {
-        newMessages[messageIndex] = {
-          ...newMessages[messageIndex],
-          optionsDisabled: true,
-          canRefine: false, // 同时禁用反馈功能
-        };
-      }
-      return newMessages;
-    });
-
-    try {
-      // 添加用户反馈消息
-      const feedbackMessage: Message = {
-        type: 'user',
-        content: `💭 ${feedback}`,
-      };
-      setMessages(prev => [...prev, feedbackMessage]);
-
-      const step = targetMessage.step as InspirationStep;
-      if (!isInspirationStep(step)) {
-        message.error('当前步骤不支持重新生成');
-        return;
-      }
-      
-      // 构建上下文
-      const context = buildOptionsContext(wizardData, initialIdea);
-
-      // 调用refine接口
-      const response = await inspirationApi.refineOptions({
-        step,
-        context,
-        feedback,
-        previous_options: targetMessage.options,
-      });
-
-      if (response.error) {
-        message.error(response.error);
-        return;
-      }
-
-      // 添加新的AI消息
-      const aiMessage: Message = {
-        type: 'ai',
-        content: response.prompt || `根据您的反馈，我重新生成了一些${stepLabels[step]}选项：`,
-        options: withGoldenFingerNoneOption(step, response.options),
-        isMultiSelect: step === 'genre',
-        canRefine: true,
-        step: step,
-      };
-      setMessages(prev => [...prev, aiMessage]);
-
-      message.success('已根据您的反馈重新生成选项');
-    } catch (error: unknown) {
-      console.error('优化选项失败:', error);
-      const errMsg = error instanceof Error ? error.message : '优化失败，请重试';
-      const axiosError = error as { response?: { data?: { detail?: string } } };
-      message.error(axiosError.response?.data?.detail || errMsg);
-    } finally {
-      setRefining(false);
-    }
-  };
-
-  // 步骤顺序
-  const stepOrder: Step[] = ['idea', 'title', 'description', 'theme', 'genre', 'world_setting', 'core_conflict', 'protagonist', 'golden_finger', 'perspective', 'outline_mode', 'confirm'];
-
   const requestDirectionCards = async (idea: string) => {
     const response = await inspirationApi.generateCards({
       idea,
@@ -742,8 +561,8 @@ const InspirationImpl: React.FC = () => {
       const errorMessage: Message = {
         type: 'ai',
         content: response.error
-          ? `生成故事方向时出错：${response.error}\n\n你可以使用经典逐步生成继续。`
-          : '暂时没有生成可用的故事方向，你可以使用经典逐步生成继续。',
+          ? `生成故事方向时出错：${response.error}\n\n请重新生成一批方向，或重新开始调整初始创意。`
+          : '暂时没有生成可用的故事方向，请重新生成一批方向，或重新开始调整初始创意。',
       };
       setMessages(prev => [...prev, errorMessage]);
       setCurrentStep('direction_cards');
@@ -755,69 +574,10 @@ const InspirationImpl: React.FC = () => {
     setActiveDirectionCard(null);
     const aiMessage: Message = {
       type: 'ai',
-      content: response.prompt || '我先为你生成了三张故事方向卡。可以选择一个继续深化，也可以合并两个方向，或切换到经典逐步生成。',
+      content: response.prompt || '我先为你生成了三张故事方向卡。可以选择一个继续深化，也可以合并两个方向。',
     };
     setMessages(prev => [...prev, aiMessage]);
     setCurrentStep('direction_cards');
-    setLastFailedRequest(null);
-  };
-
-  const startClassicFlow = async () => {
-    if (!initialIdea.trim()) {
-      message.warning('请先输入初始创意');
-      return;
-    }
-
-    const userMessage: Message = {
-      type: 'user',
-      content: '使用经典逐步生成',
-    };
-    setMessages(prev => [...prev, userMessage]);
-    setLoading(true);
-    setActiveDirectionCard(null);
-
-    const requestData = {
-      step: 'title' as const,
-      context: {
-        initial_idea: initialIdea,
-        description: initialIdea,
-      }
-    };
-
-    try {
-      const response = await inspirationApi.generateOptions(requestData);
-
-      if (response.error || !response.options || response.options.length < 3) {
-        const errorMessage: Message = {
-          type: 'ai',
-          content: response.error
-            ? `生成书名时出错：${response.error}\n\n你可以选择：`
-            : `生成的选项格式不正确（至少需要3个有效选项）\n\n你可以选择：`,
-          options: response.options && response.options.length > 0 ? response.options : ['重新生成', '我自己输入书名']
-        };
-        setMessages(prev => [...prev, errorMessage]);
-        setLastFailedRequest(requestData);
-        return;
-      }
-
-      const aiMessage: Message = {
-        type: 'ai',
-        content: response.prompt || '请选择一个书名，或者输入你自己的：',
-        options: response.options,
-        canRefine: true,
-        step: 'title'
-      };
-      setMessages(prev => [...prev, aiMessage]);
-      setCurrentStep('title');
-      setLastFailedRequest(null);
-    } catch (error: unknown) {
-      console.error('经典逐步生成启动失败:', error);
-      const errMsg = error instanceof Error ? error.message : '生成失败，请重试';
-      const axiosError = error as { response?: { data?: { detail?: string } } };
-      message.error(axiosError.response?.data?.detail || errMsg);
-    } finally {
-      setLoading(false);
-    }
   };
 
   const continueWithDirectionCard = (card: InspirationDirectionCard) => {
@@ -1080,25 +840,6 @@ const InspirationImpl: React.FC = () => {
   };
 
   const handleSelectOption = async (option: string) => {
-    if (option === '重新生成' && lastFailedRequest) {
-      await handleRetry();
-      return;
-    }
-
-    if (option === '我自己输入书名' || option === '我自己输入') {
-      message.info('请在下方输入框中输入您的内容');
-      return;
-    }
-
-    // 对于多选类型，不立即禁用选项
-    if (currentStep === 'genre') {
-      const newSelected = selectedOptions.includes(option)
-        ? selectedOptions.filter(o => o !== option)
-        : [...selectedOptions, option];
-      setSelectedOptions(newSelected);
-      return;
-    }
-
     // 立即禁用当前消息的选项（单选场景）
     setMessages(prev => {
       const newMessages = [...prev];
@@ -1249,6 +990,10 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
             saveInspiration: saveInspirationDraftToStorage,
             createProjectDraft: projectApi.createProject,
           }) as Project;
+          if (!project.id) {
+            throw new Error('项目创建成功但未返回项目ID');
+          }
+
           clearCache();
           const aiMessage: Message = {
             type: 'ai',
@@ -1258,7 +1003,7 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
           setMessages(prev => [...prev, aiMessage]);
           setCreatedDraftProjectId(project.id);
           message.success('项目草稿已创建');
-          setTimeout(() => navigate(`/project/${project.id}`), 800);
+          setTimeout(() => navigate(buildProjectEntryPath(project.id)), 800);
         } catch (error) {
           console.error('创建项目草稿失败:', error);
           message.error('创建项目草稿失败，请重试');
@@ -1270,7 +1015,7 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
 
       if (option === '进入项目') {
         if (createdDraftProjectId) {
-          navigate(`/project/${createdDraftProjectId}`);
+          navigate(buildProjectEntryPath(createdDraftProjectId));
         }
         return;
       }
@@ -1303,41 +1048,7 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
       }
     }
 
-    const userMessage: Message = {
-      type: 'user',
-      content: option,
-    };
-    setMessages(prev => [...prev, userMessage]);
-    setLoading(true);
-
-    try {
-      const updatedData = { ...wizardData };
-      if (currentStep === 'title') {
-        updatedData.title = option;
-      } else if (currentStep === 'description') {
-        updatedData.description = option;
-      } else if (currentStep === 'theme') {
-        updatedData.theme = option;
-      } else if (currentStep === 'world_setting') {
-        updatedData.world_setting = option;
-      } else if (currentStep === 'core_conflict') {
-        updatedData.core_conflict = option;
-      } else if (currentStep === 'protagonist') {
-        updatedData.protagonist = option;
-      } else if (currentStep === 'golden_finger') {
-        updatedData.golden_finger = option === NO_GOLDEN_FINGER_OPTION ? null : option;
-      }
-      setWizardData(updatedData);
-
-      await generateNextStep(updatedData);
-    } catch (error: unknown) {
-      console.error('选择选项失败:', error);
-      const errMsg = error instanceof Error ? error.message : '生成失败，请重试';
-      const axiosError = error as { response?: { data?: { detail?: string } } };
-      message.error(axiosError.response?.data?.detail || errMsg);
-    } finally {
-      setLoading(false);
-    }
+    message.info('请按当前新版流程选择方向卡或确认操作');
   };
 
   const handleCustomInput = async (input: string) => {
@@ -1345,23 +1056,7 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
     try {
       const updatedData = { ...wizardData };
 
-      if (currentStep === 'title') {
-        updatedData.title = input;
-      } else if (currentStep === 'description') {
-        updatedData.description = input;
-      } else if (currentStep === 'theme') {
-        updatedData.theme = input;
-      } else if (currentStep === 'genre') {
-        updatedData.genre = [input];
-      } else if (currentStep === 'world_setting') {
-        updatedData.world_setting = input;
-      } else if (currentStep === 'core_conflict') {
-        updatedData.core_conflict = input;
-      } else if (currentStep === 'protagonist') {
-        updatedData.protagonist = input;
-      } else if (currentStep === 'golden_finger') {
-        updatedData.golden_finger = input === NO_GOLDEN_FINGER_OPTION ? null : input;
-      } else if (currentStep === 'perspective') {
+      if (currentStep === 'perspective') {
         updatedData.narrative_perspective = input;
         setWizardData(updatedData);
         
@@ -1388,8 +1083,7 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
         return;
       }
 
-      setWizardData(updatedData);
-      await generateNextStep(updatedData);
+      message.info('请按新版流程选择方向卡操作或确认选项');
     } catch (error: unknown) {
       console.error('处理自定义输入失败:', error);
       const errMsg = error instanceof Error ? error.message : '处理失败，请重试';
@@ -1397,92 +1091,6 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
       message.error(axiosError.response?.data?.detail || errMsg);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleConfirmGenres = async () => {
-    if (selectedOptions.length === 0) {
-      message.warning('请至少选择一个类型');
-      return;
-    }
-
-    // 禁用类型选择的选项
-    setMessages(prev => {
-      const newMessages = [...prev];
-      const lastAiMessageIndex = newMessages.map((m, i) => m.type === 'ai' && m.options ? i : -1).filter(i => i >= 0).pop();
-      if (lastAiMessageIndex !== undefined && lastAiMessageIndex >= 0) {
-        newMessages[lastAiMessageIndex] = {
-          ...newMessages[lastAiMessageIndex],
-          optionsDisabled: true
-        };
-      }
-      return newMessages;
-    });
-
-    const userMessage: Message = {
-      type: 'user',
-      content: selectedOptions.join('、'),
-    };
-    setMessages(prev => [...prev, userMessage]);
-
-    const updatedData = { ...wizardData, genre: selectedOptions };
-    setWizardData(updatedData);
-    setSelectedOptions([]);
-
-    setLoading(true);
-    try {
-      await generateNextStep(updatedData);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const generateNextStep = async (data: Partial<WizardData>) => {
-    const currentIndex = stepOrder.indexOf(currentStep);
-    const nextStep = stepOrder[currentIndex + 1];
-
-    if (nextStep === 'perspective') {
-      // 金手指步骤完成后，进入 perspective
-      const aiMessage: Message = {
-        type: 'ai',
-        content: '很好！接下来，请选择小说的叙事视角：',
-        options: ['第一人称', '第三人称', '全知视角']
-      };
-      setMessages(prev => [...prev, aiMessage]);
-      setCurrentStep('perspective');
-    } else if (isGeneratedOptionStep(nextStep)) {
-      const requestData = {
-        step: nextStep,
-        context: buildOptionsContext(data, initialIdea)
-      };
-      const response = await inspirationApi.generateOptions(requestData);
-      const options = withGoldenFingerNoneOption(nextStep, response.options);
-
-      if (response.error || options.length < 3) {
-        const errorMessage: Message = {
-          type: 'ai',
-          content: response.error
-            ? `生成${stepLabels[nextStep]}时出错：${response.error}\n\n你可以选择：`
-            : `生成的选项格式不正确（至少需要3个有效选项）\n\n你可以选择：`,
-          options: options.length > 0 ? options : ['重新生成', '我自己输入'],
-          isMultiSelect: false
-        };
-        setMessages(prev => [...prev, errorMessage]);
-        setLastFailedRequest(requestData);
-        return;
-      }
-
-      const aiMessage: Message = {
-        type: 'ai',
-        content: response.prompt || (nextStep === 'genre' ? '请选择类型标签（可多选）：' : `请选择一个${stepLabels[nextStep]}，或者输入你自己的：`),
-        options,
-        isMultiSelect: nextStep === 'genre',
-        canRefine: true,
-        step: nextStep
-      };
-      setMessages(prev => [...prev, aiMessage]);
-      setCurrentStep(nextStep);
-      setLastFailedRequest(null);
     }
   };
 
@@ -1499,7 +1107,6 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
     ]);
     setWizardData({});
     setInitialIdea('');
-    setSelectedOptions([]);
     setDirectionCards([]);
     setSelectedDirectionCardIds([]);
     setActiveDirectionCard(null);
@@ -1626,17 +1233,12 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
             <Text type="secondary">暂无可用方向卡。</Text>
           )}
 
-          <Space wrap style={{ width: '100%', justifyContent: 'space-between' }}>
-            <Space wrap>
-              <Button onClick={handleRegenerateDirectionCards} loading={loading}>
-                重新生成一批方向
-              </Button>
-              <Button onClick={handleMergeDirectionCards} loading={loading}>
-                合并方向
-              </Button>
-            </Space>
-            <Button type="link" onClick={startClassicFlow} disabled={loading}>
-              使用经典逐步生成
+          <Space wrap>
+            <Button onClick={handleRegenerateDirectionCards} loading={loading}>
+              重新生成一批方向
+            </Button>
+            <Button onClick={handleMergeDirectionCards} loading={loading}>
+              合并方向
             </Button>
           </Space>
         </Space>
@@ -1680,7 +1282,7 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
               type="info"
               showIcon
               message="尚未生成故事圣经草稿"
-              description="旧草稿和经典流程可以继续使用。需要时点击“生成故事圣经草稿”整理核心设定，并自动获取质量评估。"
+              description="需要时点击“生成故事圣经草稿”整理核心设定，并自动获取质量评估。"
             />
           ) : (
             <Space direction="vertical" size="middle" style={{ width: '100%' }}>
@@ -1854,14 +1456,10 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
                         onClick={() => !msg.optionsDisabled && !draftActionLoading && handleSelectOption(option)}
                         style={{
                           cursor: msg.optionsDisabled || draftActionLoading ? 'not-allowed' : 'pointer',
-                          border: msg.isMultiSelect && selectedOptions.includes(option)
-                            ? `2px solid ${token.colorPrimary}`
-                            : `1px solid ${token.colorBorder}`,
+                          border: `1px solid ${token.colorBorder}`,
                           background: msg.optionsDisabled
                             ? token.colorBgLayout
-                            : msg.isMultiSelect && selectedOptions.includes(option)
-                              ? token.colorPrimaryBg
-                              : token.colorBgContainer,
+                            : token.colorBgContainer,
                           opacity: msg.optionsDisabled || draftActionLoading ? 0.6 : 1,
                           animation: 'floatIn 0.6s ease-out',
                           animationDelay: `${optIndex * 0.1}s`,
@@ -1884,83 +1482,19 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
                         {option}
                       </Card>
                     ))}
-
-                    {msg.isMultiSelect && (
-                      <Button
-                        type="primary"
-                        block
-                        onClick={handleConfirmGenres}
-                        disabled={selectedOptions.length === 0}
-                      >
-                        确认选择 ({selectedOptions.length})
-                      </Button>
-                    )}
-
-                    {/* 反馈优化区域 - 新增 */}
-                    {msg.canRefine && !msg.optionsDisabled && !msg.isMultiSelect && (
-                      <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px dashed ${token.colorBorder}` }}>
-                        {showFeedbackInput === index ? (
-                          <Space direction="vertical" style={{ width: '100%' }} size="small">
-                            <TextArea
-                              value={feedbackValue}
-                              onChange={(e) => setFeedbackValue(e.target.value)}
-                              placeholder="例如：我想要更悲剧的主题、能不能更简短一些、偏向古风..."
-                              autoSize={{ minRows: 2, maxRows: 3 }}
-                              disabled={refining}
-                              onPressEnter={(e) => {
-                                if (!e.shiftKey && feedbackValue.trim()) {
-                                  e.preventDefault();
-                                  handleRefineOptions(index, feedbackValue);
-                                }
-                              }}
-                            />
-                            <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
-                              <Button
-                                size="small"
-                                onClick={() => {
-                                  setShowFeedbackInput(null);
-                                  setFeedbackValue('');
-                                }}
-                                disabled={refining}
-                              >
-                                取消
-                              </Button>
-                              <Button
-                                type="primary"
-                                size="small"
-                                onClick={() => handleRefineOptions(index, feedbackValue)}
-                                loading={refining}
-                                disabled={!feedbackValue.trim()}
-                              >
-                                重新生成
-                              </Button>
-                            </Space>
-                          </Space>
-                        ) : (
-                          <Button
-                            type="link"
-                            size="small"
-                            onClick={() => setShowFeedbackInput(index)}
-                            style={{ padding: 0, height: 'auto' }}
-                          >
-                            💡 不太满意？告诉我你的想法
-                          </Button>
-                        )}
-                      </div>
-                    )}
                   </Space>
                 )}
               </div>
             </div>
           ))}
 
-          {(loading || refining || draftActionLoading) && (
+          {(loading || draftActionLoading) && (
             <div style={{
               textAlign: 'center',
               padding: 20,
               animation: 'fadeIn 0.3s ease-in'
             }}>
-              <Spin tip={draftActionLoading ? "正在保存草稿..." : refining ? "正在根据您的反馈重新生成..." : "AI思考中..."} />
+              <Spin tip={draftActionLoading ? "正在保存草稿..." : "AI思考中..."} />
             </div>
           )}
 
@@ -1980,7 +1514,7 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
               currentStep === 'idea'
                 ? '例如：我想写一本关于时间旅行的科幻小说...'
                 : currentStep === 'direction_cards'
-                  ? '请选择方向卡操作，或使用经典逐步生成...'
+                  ? '请选择方向卡操作...'
                 : '输入自定义内容，或点击上方选项卡片...'
             }
             autoSize={{ minRows: 2, maxRows: 4 }}
@@ -2134,11 +1668,7 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
         margin: '0 auto',
         padding: isMobile ? '16px 12px' : '24px 24px',
       }}>
-        {(currentStep === 'idea' || currentStep === 'direction_cards' || currentStep === 'title' || currentStep === 'description' ||
-          currentStep === 'theme' || currentStep === 'genre' || currentStep === 'world_setting' ||
-          currentStep === 'core_conflict' || currentStep === 'protagonist' || currentStep === 'golden_finger' ||
-          currentStep === 'perspective' ||
-          currentStep === 'outline_mode' || currentStep === 'confirm') && renderChat()}
+        {restorableSteps.has(currentStep) && renderChat()}
         {(currentStep === 'generating' || currentStep === 'complete') && generationConfig && (
           <AIProjectGenerator
             config={generationConfig}
@@ -2158,6 +1688,7 @@ const Inspiration = InspirationImpl as InspirationComponent;
 Inspiration.__testUtils = {
   INSPIRATION_DRAFTS_KEY,
   buildProjectDraftPayload,
+  buildProjectEntryPath,
   normalizeWizardData,
   runInspirationDraftAction,
   saveInspirationDraftToStorage,

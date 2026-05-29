@@ -7,9 +7,6 @@ import type { InspirationDirectionCard, InspirationQualityReport, InspirationSto
 
 const mocks = vi.hoisted(() => ({
   createProject: vi.fn(),
-  generateOptions: vi.fn(),
-  refineOptions: vi.fn(),
-  quickGenerate: vi.fn(),
   generateCards: vi.fn(),
   mergeCards: vi.fn(),
   generateStoryBible: vi.fn(),
@@ -21,9 +18,6 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../../services/api', () => ({
   inspirationApi: {
-    generateOptions: mocks.generateOptions,
-    refineOptions: mocks.refineOptions,
-    quickGenerate: mocks.quickGenerate,
     generateCards: mocks.generateCards,
     mergeCards: mocks.mergeCards,
     generateStoryBible: mocks.generateStoryBible,
@@ -87,7 +81,6 @@ Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
 const CACHE_KEY = 'inspiration_conversation_cache';
 const DRAFTS_KEY = Inspiration.__testUtils.INSPIRATION_DRAFTS_KEY;
 const initialIdea = '星桥断裂后的归乡故事';
-const NO_GOLDEN_FINGER_OPTION = '无特殊金手指，仅保留普通优势';
 
 const legacyWizardData = {
   title: '星桥尽头',
@@ -277,8 +270,6 @@ function seedConfirmCache(
       wizardData: data,
       initialIdea,
       storyBibleDraft: storyBible,
-      selectedOptions: [],
-      lastFailedRequest: null,
       timestamp: Date.now(),
     }),
   );
@@ -416,9 +407,6 @@ beforeEach(() => {
   Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: storage });
   localStorage.clear();
   mocks.createProject.mockReset();
-  mocks.generateOptions.mockReset();
-  mocks.refineOptions.mockReset();
-  mocks.quickGenerate.mockReset();
   mocks.generateCards.mockReset();
   mocks.mergeCards.mockReset();
   mocks.generateStoryBible.mockReset();
@@ -470,7 +458,6 @@ describe('Inspiration optimization baseline action wiring', () => {
       });
 
       expect(mocks.createProject).not.toHaveBeenCalled();
-      expect(mocks.generateOptions).not.toHaveBeenCalled();
     } finally {
       await view.cleanup();
     }
@@ -672,7 +659,12 @@ describe('Inspiration optimization baseline action wiring', () => {
         expect(view.container.textContent).toContain('项目草稿《星桥尽头》已创建');
       });
 
-      expect(mocks.generateOptions).not.toHaveBeenCalled();
+      await act(async () => {
+        await delay(850);
+      });
+
+      expect(mocks.navigate).toHaveBeenCalledWith('/project/project-inspiration-draft/sponsor');
+
       expect(mocks.generatorProps).toHaveLength(0);
     } finally {
       await view.cleanup();
@@ -720,7 +712,6 @@ describe('Inspiration optimization baseline action wiring', () => {
       expect(generatorProps.config).not.toHaveProperty('inspiration_context');
       expect(typeof generatorProps.onComplete).toBe('function');
       expect(mocks.createProject).not.toHaveBeenCalled();
-      expect(mocks.generateOptions).not.toHaveBeenCalled();
     } finally {
       await view.cleanup();
     }
@@ -764,93 +755,7 @@ describe('Inspiration optimization baseline action wiring', () => {
     }
   });
 
-  it('routes the classic flow through hidden story steps before confirm', async () => {
-    const generatedOptions: Record<string, string[]> = {
-      title: ['星桥尽头', '归航税则', '残响之门'],
-      description: ['远航者在星桥断裂后寻找归途。', '税则锁住每一次跃迁。', '失忆者追索故乡坐标。'],
-      theme: ['流亡与归属', '记忆与代价', '牺牲与重建'],
-      genre: ['科幻', '冒险', '群像'],
-      world_setting: ['星桥税则限制航行，记忆可作为燃料。', '跃迁要缴纳真实记忆。', '故乡坐标会持续衰减。'],
-      core_conflict: ['修复星桥需要牺牲故乡的最后坐标。', '归乡会引爆星桥税务战争。', '保全舰队必须放弃个人记忆。'],
-      protagonist: ['失忆星图师', '逃税领航员', '旧舰队记录官'],
-      golden_finger: ['读取星桥残响', '同步舰队记忆', '预判航道裂隙'],
-    };
-
-    mocks.generateOptions.mockImplementation(async (data: { step: string }) => ({
-      prompt: `请选择${data.step}`,
-      options: generatedOptions[data.step] ?? [],
-    }));
-
-    const view = await renderInspiration();
-
-    try {
-      await sendText(view.container, initialIdea);
-      await waitForAssertion(() => expect(view.container.textContent).toContain('使用经典逐步生成'));
-      await clickButton(view.container, '使用经典逐步生成');
-
-      await waitForAssertion(() => expect(view.container.textContent).toContain('星桥尽头'));
-      await clickOption(view.container, '星桥尽头');
-
-      await waitForAssertion(() => expect(view.container.textContent).toContain('远航者在星桥断裂后寻找归途。'));
-      await clickOption(view.container, '远航者在星桥断裂后寻找归途。');
-
-      await waitForAssertion(() => expect(view.container.textContent).toContain('流亡与归属'));
-      await clickOption(view.container, '流亡与归属');
-
-      await waitForAssertion(() => expect(view.container.textContent).toContain('科幻'));
-      await clickOption(view.container, '科幻');
-      await clickOption(view.container, '冒险');
-      await clickButton(view.container, '确认选择');
-
-      await waitForAssertion(() => expect(view.container.textContent).toContain('星桥税则限制航行，记忆可作为燃料。'));
-      await clickOption(view.container, '星桥税则限制航行，记忆可作为燃料。');
-
-      await waitForAssertion(() => expect(view.container.textContent).toContain('修复星桥需要牺牲故乡的最后坐标。'));
-      await clickOption(view.container, '修复星桥需要牺牲故乡的最后坐标。');
-
-      await waitForAssertion(() => expect(view.container.textContent).toContain('失忆星图师'));
-      await clickOption(view.container, '失忆星图师');
-
-      await waitForAssertion(() => expect(view.container.textContent).toContain(NO_GOLDEN_FINGER_OPTION));
-      await clickOption(view.container, NO_GOLDEN_FINGER_OPTION);
-
-      await waitForAssertion(() => expect(view.container.textContent).toContain('第三人称'));
-      await clickOption(view.container, '第三人称');
-
-      await waitForAssertion(() => expect(view.container.textContent).toContain('📚 一对多模式'));
-      await clickOption(view.container, '📚 一对多模式');
-
-      await waitForAssertion(() => {
-        expect(view.container.textContent).toContain('📖 书名：星桥尽头');
-        expect(view.container.textContent).toContain('🌍 世界规则：星桥税则限制航行，记忆可作为燃料。');
-        expect(view.container.textContent).toContain('⚔️ 核心冲突：修复星桥需要牺牲故乡的最后坐标。');
-        expect(view.container.textContent).toContain('👤 主角原型：失忆星图师');
-        expect(view.container.textContent).toContain('保存灵感草稿');
-      });
-
-      expect(view.container.textContent).not.toContain('✨ 金手指：');
-      expect(view.container.textContent).not.toContain('null');
-      expect(mocks.generateOptions.mock.calls.map(call => call[0].step)).toEqual([
-        'title',
-        'description',
-        'theme',
-        'genre',
-        'world_setting',
-        'core_conflict',
-        'protagonist',
-        'golden_finger',
-      ]);
-      expect(mocks.generateOptions.mock.calls.at(-1)?.[0].context).toMatchObject({
-        world_setting: '星桥税则限制航行，记忆可作为燃料。',
-        core_conflict: '修复星桥需要牺牲故乡的最后坐标。',
-        protagonist: '失忆星图师',
-      });
-    } finally {
-      await view.cleanup();
-    }
-  });
-
-  it('keeps legacy confirm caches without hidden fields usable', async () => {
+  it('keeps existing confirm caches without optional direction fields usable', async () => {
     seedConfirmCache(legacyWizardData);
     const view = await renderInspiration();
 
@@ -917,8 +822,7 @@ describe('Inspiration optimization baseline action wiring', () => {
       expect(view.container.textContent).toContain('继续深化此方向');
       expect(view.container.textContent).toContain('重新生成一批方向');
       expect(view.container.textContent).toContain('合并方向');
-      expect(view.container.textContent).toContain('使用经典逐步生成');
-      expect(mocks.generateOptions).not.toHaveBeenCalled();
+      expect(view.container.textContent).not.toContain('使用经典逐步生成');
     } finally {
       await view.cleanup();
     }
