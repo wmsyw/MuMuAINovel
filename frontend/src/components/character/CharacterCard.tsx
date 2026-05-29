@@ -19,6 +19,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({ character, onEdit,
   const getRoleTypeColor = (roleType?: string) => {
     const roleColors: Record<string, string> = {
       'protagonist': 'blue',
+      'heroine': 'magenta',
       'supporting': 'green',
       'antagonist': 'red',
     };
@@ -27,7 +28,8 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({ character, onEdit,
 
   const getRoleTypeLabel = (roleType?: string) => {
     const roleLabels: Record<string, string> = {
-      'protagonist': '主角',
+      'protagonist': '男主/主角',
+      'heroine': '女主',
       'supporting': '配角',
       'antagonist': '反派',
     };

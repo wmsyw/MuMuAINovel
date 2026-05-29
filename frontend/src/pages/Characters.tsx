@@ -539,7 +539,8 @@ export default function Characters() {
             rules={[{ required: true, message: '请选择角色定位' }]}
           >
             <Select placeholder="选择角色定位">
-              <Select.Option value="protagonist">主角</Select.Option>
+              <Select.Option value="protagonist">男主/主角</Select.Option>
+              <Select.Option value="heroine">女主</Select.Option>
               <Select.Option value="supporting">配角</Select.Option>
               <Select.Option value="antagonist">反派</Select.Option>
             </Select>
@@ -1012,7 +1013,8 @@ export default function Characters() {
                 <Col span={6}>
                   <Form.Item label="角色定位" name="role_type" style={{ marginBottom: 12 }}>
                     <Select>
-                      <Select.Option value="protagonist">主角</Select.Option>
+                      <Select.Option value="protagonist">男主/主角</Select.Option>
+                      <Select.Option value="heroine">女主</Select.Option>
                       <Select.Option value="supporting">配角</Select.Option>
                       <Select.Option value="antagonist">反派</Select.Option>
                     </Select>
@@ -1340,7 +1342,8 @@ export default function Characters() {
                 <Col span={6}>
                   <Form.Item label="角色定位" name="role_type" initialValue="supporting" style={{ marginBottom: 12 }}>
                     <Select>
-                      <Select.Option value="protagonist">主角</Select.Option>
+                      <Select.Option value="protagonist">男主/主角</Select.Option>
+                      <Select.Option value="heroine">女主</Select.Option>
                       <Select.Option value="supporting">配角</Select.Option>
                       <Select.Option value="antagonist">反派</Select.Option>
                     </Select>
