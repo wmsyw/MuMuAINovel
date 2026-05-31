@@ -38,7 +38,7 @@ _email_service_stub = types.ModuleType("app.services.email_service")
 setattr(_email_service_stub, "email_service", _StubEmailService())
 _ = sys.modules.setdefault("app.services.email_service", _email_service_stub)
 
-from app.api import inspiration
+from app.api import inspiration, wizard_stream
 from app.services.prompt_service import PromptService
 
 
@@ -187,6 +187,33 @@ def test_direction_cards_prompt_renders_guidance_sections_by_bucket() -> None:
     assert "东方玄幻" in theme_section
     assert "天才" in character_section
     assert "升级流" in plot_section
+    assert "天才" not in theme_section
+    assert "升级流" not in character_section
+
+
+def test_direction_cards_prompt_renders_tags_only_guidance_without_plot_brief() -> None:
+    prompt = PromptService.format_prompt(
+        PromptService.INSPIRATION_DIRECTION_CARDS,
+        idea="基于这些灵感标签创作故事：男频频道；玄幻；主题逆袭；角色废柴少年；情节宗门试炼",
+        context_json=json.dumps({"source": "tag_guidance"}, ensure_ascii=False),
+        card_count=3,
+        guidance={
+            "channel": "男频",
+            "genre": "玄幻",
+            "themes": ["逆袭"],
+            "characters": ["废柴少年"],
+            "plots": ["宗门试炼"],
+        },
+    )
+
+    assert "【创作导向】" in prompt
+    assert "频道：\n- 男频" in prompt
+    assert "题材：\n- 玄幻" in prompt
+    assert "主题标签：\n- 逆袭" in prompt
+    assert "角色标签：\n- 废柴少年" in prompt
+    assert "情节标签：\n- 宗门试炼" in prompt
+    assert "剧情简述：" not in prompt
+    assert "只返回纯JSON" in prompt
 
 
 def test_direction_cards_prompt_without_guidance_keeps_idea_only_rendering() -> None:
@@ -204,6 +231,61 @@ def test_direction_cards_prompt_without_guidance_keeps_idea_only_rendering() -> 
     assert "主题标签：" not in prompt
     assert "角色标签：" not in prompt
     assert "情节标签：" not in prompt
+
+
+def test_wizard_inspiration_context_prompt_injects_guidance_downstream() -> None:
+    prompt = wizard_stream.build_inspiration_context_prompt(
+        {
+            "inspiration_context": {
+                "initial_idea": "一个修仙少年逆袭",
+                "confirmed_fields": {"title": "天梯逆命"},
+                "direction_card": _direction_card(),
+                "story_bible_draft": _story_bible(),
+                "guidance": {
+                    "channel": "男频",
+                    "genre": "玄幻",
+                    "themes": ["逆袭", "成长"],
+                    "characters": ["废柴少年", "隐世师父"],
+                    "plots": ["宗门试炼", "越级挑战"],
+                    "plot_brief": "少年在宗门压迫中觉醒失传阵法。",
+                },
+            }
+        }
+    )
+
+    assert "【灵感模式故事圣经草稿】" in prompt
+    assert "原始创意：一个修仙少年逆袭" in prompt
+    assert "核心创意：断裂星桥后的归乡故事" in prompt
+    assert "【创作导向】" in prompt
+    assert "频道：\n- 男频" in prompt
+    assert "题材：\n- 玄幻" in prompt
+    assert "主题标签：\n- 逆袭\n- 成长" in prompt
+    assert "角色标签：\n- 废柴少年\n- 隐世师父" in prompt
+    assert "情节标签：\n- 宗门试炼\n- 越级挑战" in prompt
+    assert "剧情简述：\n- 少年在宗门压迫中觉醒失传阵法。" in prompt
+
+
+def test_wizard_inspiration_context_prompt_injects_guidance_without_story_bible() -> None:
+    prompt = wizard_stream.build_inspiration_context_prompt(
+        {
+            "inspiration_context": {
+                "guidance": {
+                    "channel": "女频",
+                    "genre": "奇幻",
+                    "themes": ["治愈"],
+                    "plots": ["学院入学"],
+                }
+            }
+        }
+    )
+
+    assert "【灵感模式补充上下文】" in prompt
+    assert "【灵感模式故事圣经草稿】" not in prompt
+    assert "【创作导向】" in prompt
+    assert "频道：\n- 女频" in prompt
+    assert "题材：\n- 奇幻" in prompt
+    assert "主题标签：\n- 治愈" in prompt
+    assert "情节标签：\n- 学院入学" in prompt
 
 
 def test_template_with_fallback_returns_new_inspiration_template_without_db() -> None:

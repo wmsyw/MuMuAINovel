@@ -396,6 +396,34 @@ def _assert_direction_cards_shape(payload: dict[str, Any], expected_count: int =
     assert isinstance(payload["cards"], list)
     assert len(payload["cards"]) == expected_count
     assert isinstance(payload["warnings"], list)
+    required_card_fields = {
+        "id",
+        "title",
+        "hook",
+        "genre",
+        "world_setting",
+        "core_conflict",
+        "protagonist",
+        "opening_hook",
+        "selling_points",
+        "risks",
+    }
+    for card in payload["cards"]:
+        assert required_card_fields.issubset(card)
+        assert isinstance(card["id"], str) and card["id"]
+        assert isinstance(card["title"], str) and card["title"]
+        assert isinstance(card["hook"], str) and card["hook"]
+        assert isinstance(card["genre"], list) and card["genre"]
+        assert all(isinstance(item, str) and item for item in card["genre"])
+        assert isinstance(card["world_setting"], str) and card["world_setting"]
+        assert isinstance(card["core_conflict"], str) and card["core_conflict"]
+        assert isinstance(card["protagonist"], str) and card["protagonist"]
+        assert card.get("golden_finger") is None or isinstance(card.get("golden_finger"), str)
+        assert isinstance(card["opening_hook"], str) and card["opening_hook"]
+        assert isinstance(card["selling_points"], list) and card["selling_points"]
+        assert all(isinstance(item, str) and item for item in card["selling_points"])
+        assert isinstance(card["risks"], list) and card["risks"]
+        assert all(isinstance(item, str) and item for item in card["risks"])
 
 
 def _extract_guidance_value(prompt: str, label: str) -> str:
@@ -445,6 +473,7 @@ def test_generate_cards_guidance_request_accepts_and_legacy_idea_only_still_work
     guidance_prompt = fake_ai.calls[1]["system_prompt"]
     assert "一个修仙少年逆袭" in legacy_prompt
     assert "灵感引导" not in legacy_prompt
+    assert "基于这些灵感标签创作故事" not in legacy_prompt
     assert "灵感引导" in guidance_prompt
     assert "题材频道：男频" in guidance_prompt
     assert "类型标签：玄幻" in guidance_prompt
@@ -479,6 +508,40 @@ def test_generate_cards_guidance_only_request_succeeds(
     assert "女频" in system_prompt
     assert "奇幻" in system_prompt
     assert "失去魔法的少女" in system_prompt
+
+
+def test_generate_cards_tags_only_without_idea_or_plot_brief_succeeds(
+    api_client: tuple[TestClient, FakeAIService],
+) -> None:
+    client, fake_ai = api_client
+
+    response = client.post(
+        "/api/inspiration/generate-cards",
+        json={
+            "guidance": {
+                "channel": "男频",
+                "genre": "玄幻",
+                "themes": ["逆袭", "热血"],
+                "characters": ["废柴少年"],
+                "plots": ["宗门试炼"],
+            }
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    _assert_direction_cards_shape(response.json())
+    assert fake_ai.calls[-1]["step"] == "direction_cards"
+    system_prompt = fake_ai.calls[-1]["system_prompt"]
+    assert "基于这些灵感标签创作故事" in system_prompt
+    assert "男频频道" in system_prompt
+    assert "主题逆袭、热血" in system_prompt
+    assert "情节宗门试炼" in system_prompt
+    assert "剧情简述" not in system_prompt
+    assert "题材频道：男频" in system_prompt
+    assert "类型标签：玄幻" in system_prompt
+    assert "主题标签：逆袭、热血" in system_prompt
+    assert "角色标签：废柴少年" in system_prompt
+    assert "情节标签：宗门试炼" in system_prompt
 
 
 def test_generate_cards_guidance_sanitizes_oversized_tags_before_ai_call(
