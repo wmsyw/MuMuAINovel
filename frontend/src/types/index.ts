@@ -609,6 +609,15 @@ export interface InspirationOptionsContext {
   [key: string]: unknown;
 }
 
+export interface InspirationGuidance {
+  channel?: string;
+  genre?: string;
+  themes?: string[];
+  characters?: string[];
+  plots?: string[];
+  plot_brief?: string;
+}
+
 export interface InspirationDirectionCard {
   id: string;
   title: string;
@@ -677,7 +686,8 @@ export interface InspirationRepairResult {
 }
 
 export interface InspirationGenerateCardsRequest {
-  idea: string;
+  idea?: string;
+  guidance?: InspirationGuidance;
   context?: InspirationOptionsContext;
   card_count?: number;
 }

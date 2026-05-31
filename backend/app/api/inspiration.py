@@ -1,8 +1,8 @@
 """灵感模式API - 通过对话引导创建项目"""
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Dict, Any, Literal, TypeVar
+from typing import Dict, Any, Literal, TypeVar, Optional, List
 import json
 from uuid import uuid4
 
@@ -139,12 +139,146 @@ class InspirationDirectionCard(BaseModel):
         return value.strip()
 
 
+GUIDANCE_TAG_LIMIT = 5
+GUIDANCE_TAG_MAX_LENGTH = 30
+GUIDANCE_PLOT_BRIEF_MAX_LENGTH = 500
+
+
+def _sanitize_guidance_text(value: str | None, max_length: int) -> str | None:
+    if value is None:
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    return text[:max_length]
+
+
+class InspirationGuidance(BaseModel):
+    channel: Optional[str] = None
+    genre: Optional[str] = None
+    themes: Optional[List[str]] = None
+    characters: Optional[List[str]] = None
+    plots: Optional[List[str]] = None
+    plot_brief: Optional[str] = None
+
+    model_config = ConfigDict(extra="ignore")
+
+    @field_validator("channel", "genre")
+    @classmethod
+    def _sanitize_short_label(cls, value: Optional[str]) -> Optional[str]:
+        return _sanitize_guidance_text(value, GUIDANCE_TAG_MAX_LENGTH)
+
+    @field_validator("themes", "characters", "plots")
+    @classmethod
+    def _sanitize_tag_list(cls, value: Optional[List[str]]) -> Optional[List[str]]:
+        if value is None:
+            return None
+
+        normalized: list[str] = []
+        for item in value:
+            text = _sanitize_guidance_text(item, GUIDANCE_TAG_MAX_LENGTH)
+            if not text:
+                continue
+            normalized.append(text)
+            if len(normalized) >= GUIDANCE_TAG_LIMIT:
+                break
+
+        return normalized or None
+
+    @field_validator("plot_brief")
+    @classmethod
+    def _sanitize_plot_brief(cls, value: Optional[str]) -> Optional[str]:
+        return _sanitize_guidance_text(value, GUIDANCE_PLOT_BRIEF_MAX_LENGTH)
+
+    def has_content(self) -> bool:
+        return any(
+            (
+                self.channel,
+                self.genre,
+                self.themes,
+                self.characters,
+                self.plots,
+                self.plot_brief,
+            )
+        )
+
+
 class InspirationGenerateCardsRequest(BaseModel):
     """故事方向卡片生成请求契约。"""
 
-    idea: str = Field(..., min_length=1)
+    idea: Optional[str] = None
     context: Dict[str, Any] = Field(default_factory=dict)
     card_count: int = Field(default=3, ge=1, le=10)
+    guidance: Optional[InspirationGuidance] = None
+
+    @field_validator("idea")
+    @classmethod
+    def _sanitize_idea(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        text = value.strip()
+        return text or None
+
+    @model_validator(mode="after")
+    def _require_idea_or_guidance(self) -> "InspirationGenerateCardsRequest":
+        if self.idea:
+            return self
+        if self.guidance and self.guidance.has_content():
+            self.idea = _synthesize_idea_from_guidance(self.guidance)
+        if not self.idea:
+            raise ValueError("idea 或 guidance 至少需要提供一个非空内容")
+        return self
+
+
+def _synthesize_idea_from_guidance(guidance: InspirationGuidance) -> str:
+    parts: list[str] = []
+    if guidance.channel:
+        parts.append(f"{guidance.channel}频道")
+    if guidance.genre:
+        parts.append(guidance.genre)
+    if guidance.themes:
+        parts.append("主题" + "、".join(guidance.themes))
+    if guidance.characters:
+        parts.append("角色" + "、".join(guidance.characters))
+    if guidance.plots:
+        parts.append("情节" + "、".join(guidance.plots))
+    if guidance.plot_brief:
+        parts.append(guidance.plot_brief)
+
+    if not parts:
+        return ""
+    return "基于这些灵感标签创作故事：" + "；".join(parts)
+
+
+def build_inspiration_guidance_prompt(guidance: InspirationGuidance | None) -> str:
+    if guidance is None or not guidance.has_content():
+        return ""
+
+    lines: list[str] = []
+    if guidance.channel:
+        lines.append(f"题材频道：{guidance.channel}")
+    if guidance.genre:
+        lines.append(f"类型标签：{guidance.genre}")
+    if guidance.themes:
+        lines.append(f"主题标签：{'、'.join(guidance.themes)}")
+    if guidance.characters:
+        lines.append(f"角色标签：{'、'.join(guidance.characters)}")
+    if guidance.plots:
+        lines.append(f"情节标签：{'、'.join(guidance.plots)}")
+    if guidance.plot_brief:
+        lines.append(f"剧情简述：{guidance.plot_brief}")
+
+    if not lines:
+        return ""
+    rendered_lines = "\n".join(f"- {line}" for line in lines)
+    return f"【灵感引导】\n{rendered_lines}"
+
+
+def _merge_guidance_prompt(system_prompt: str, template: str, guidance_prompt: str) -> str:
+    if not guidance_prompt or "{guidance_prompt}" in template:
+        return system_prompt
+    return f"{system_prompt}\n\n{guidance_prompt}"
+
 
 
 class InspirationGenerateCardsResponse(BaseModel):
@@ -1106,12 +1240,15 @@ async def generate_cards(
             user_id,
             db,
         )
+        guidance_prompt = build_inspiration_guidance_prompt(data.guidance)
         system_prompt = PromptService.format_prompt(
             template,
-            idea=data.idea.strip(),
+            idea=data.idea or "",
             context_json=json.dumps(data.context, ensure_ascii=False, indent=2),
             card_count=data.card_count,
+            guidance_prompt=guidance_prompt,
         )
+        system_prompt = _merge_guidance_prompt(system_prompt, template, guidance_prompt)
         user_prompt = "请基于上述创意和上下文生成故事方向卡片。"
 
         logger.info("灵感模式：生成方向卡片 card_count=%s", data.card_count)

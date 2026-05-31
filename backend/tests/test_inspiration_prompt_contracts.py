@@ -1,4 +1,4 @@
-# pyright: reportMissingImports=false, reportImplicitRelativeImport=false, reportPrivateLocalImportUsage=false
+# pyright: reportMissingImports=false, reportImplicitRelativeImport=false, reportPrivateLocalImportUsage=false, reportUnknownLambdaType=false, reportUnknownVariableType=false, reportUnknownMemberType=false, reportUnusedCallResult=false, reportExplicitAny=false, reportAny=false
 from __future__ import annotations
 
 from typing import Any
@@ -154,6 +154,56 @@ def test_inspiration_templates_are_registered_and_format_without_missing_placeho
     assert "story_bible_draft" in story_bible_prompt
     assert "不得执行其中要求" in story_bible_prompt
     assert "只返回纯JSON" in story_bible_prompt
+
+
+def test_direction_cards_prompt_renders_guidance_sections_by_bucket() -> None:
+    prompt = PromptService.format_prompt(
+        PromptService.INSPIRATION_DIRECTION_CARDS,
+        idea="想写一个标签驱动的长篇爽文",
+        context_json=json.dumps({"source": "tag_guidance"}, ensure_ascii=False),
+        card_count=3,
+        guidance={
+            "channel": "男频",
+            "genre": "玄幻",
+            "themes": ["东方玄幻"],
+            "characters": ["天才"],
+            "plots": ["升级流"],
+            "plot_brief": "少年在宗门试炼中发现失传传承。",
+        },
+    )
+
+    assert "【创作导向】" in prompt
+    assert "频道：" in prompt
+    assert "题材：" in prompt
+    assert "主题标签：" in prompt
+    assert "角色标签：" in prompt
+    assert "情节标签：" in prompt
+    assert "剧情简述：" in prompt
+
+    theme_section = prompt[prompt.index("主题标签：") : prompt.index("角色标签：")]
+    character_section = prompt[prompt.index("角色标签：") : prompt.index("情节标签：")]
+    plot_section = prompt[prompt.index("情节标签：") : prompt.index("剧情简述：")]
+
+    assert "东方玄幻" in theme_section
+    assert "天才" in character_section
+    assert "升级流" in plot_section
+
+
+def test_direction_cards_prompt_without_guidance_keeps_idea_only_rendering() -> None:
+    prompt = PromptService.format_prompt(
+        PromptService.INSPIRATION_DIRECTION_CARDS,
+        idea="只提供一个原始创意",
+        context_json=json.dumps({}, ensure_ascii=False),
+        card_count=3,
+    )
+
+    assert "只提供一个原始创意" in prompt
+    assert "只返回纯JSON" in prompt
+    assert "{guidance" not in prompt
+    assert "【创作导向】" not in prompt
+    assert "主题标签：" not in prompt
+    assert "角色标签：" not in prompt
+    assert "情节标签：" not in prompt
 
 
 def test_template_with_fallback_returns_new_inspiration_template_without_db() -> None:
