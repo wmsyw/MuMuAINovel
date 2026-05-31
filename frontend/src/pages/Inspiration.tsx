@@ -151,23 +151,28 @@ function buildInspirationGenerationContext(
   activeDirectionCard?: InspirationDirectionCard | null,
   guidance?: InspirationGuidance,
 ): InspirationGenerationContext | undefined {
-  if (!storyBibleDraft) {
-    return undefined;
+  const context: Partial<InspirationGenerationContext> = {
+    source: 'inspiration_story_bible',
+    confirmed_fields: buildOptionsContext(data, initialIdea),
+  };
+
+  if (initialIdea) {
+    context.initial_idea = initialIdea;
   }
 
-  const context: InspirationGenerationContext = {
-    source: 'inspiration_story_bible',
-    initial_idea: initialIdea || undefined,
-    confirmed_fields: buildOptionsContext(data, initialIdea),
-    direction_card: activeDirectionCard || undefined,
-    story_bible_draft: storyBibleDraft,
-  };
+  if (activeDirectionCard) {
+    context.direction_card = activeDirectionCard;
+  }
+
+  if (storyBibleDraft) {
+    context.story_bible_draft = storyBibleDraft;
+  }
 
   if (guidance) {
     context.guidance = guidance;
   }
 
-  return context;
+  return context as InspirationGenerationContext;
 }
 
 function buildGenerationConfig(
