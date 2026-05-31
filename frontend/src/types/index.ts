@@ -652,7 +652,7 @@ export interface InspirationGenerationContext {
   initial_idea?: string;
   confirmed_fields?: InspirationOptionsContext;
   direction_card?: InspirationDirectionCard | null;
-  story_bible_draft: InspirationStoryBibleDraft;
+  story_bible_draft?: InspirationStoryBibleDraft;
   guidance?: InspirationGuidance;
 }
 
