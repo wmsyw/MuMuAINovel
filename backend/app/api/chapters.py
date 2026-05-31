@@ -3312,6 +3312,22 @@ async def trigger_chapter_analysis(
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
 
+    # 避免重复点击或状态轮询误判后创建并发分析任务。
+    existing_task_result = await db.execute(
+        select(AnalysisTask)
+        .where(AnalysisTask.chapter_id == chapter_id)
+        .order_by(AnalysisTask.created_at.desc())
+        .limit(1)
+    )
+    existing_task = existing_task_result.scalar_one_or_none()
+    if existing_task and existing_task.status in ("pending", "running"):
+        return {
+            "task_id": existing_task.id,
+            "chapter_id": chapter_id,
+            "status": existing_task.status,
+            "message": "已有分析任务正在执行"
+        }
+
     # 创建分析任务
     analysis_task = AnalysisTask(
         chapter_id=chapter_id,
