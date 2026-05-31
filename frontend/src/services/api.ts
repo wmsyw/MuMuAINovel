@@ -1357,8 +1357,14 @@ export const polishApi = {
 
 export const inspirationApi = {
   // 生成故事方向卡片
-  generateCards: (data: InspirationGenerateCardsRequest) =>
-    api.post<unknown, InspirationGenerateCardsResponse>('/inspiration/generate-cards', data),
+  generateCards: (data: InspirationGenerateCardsRequest) => {
+    const { guidance, ...payload } = data;
+
+    return api.post<unknown, InspirationGenerateCardsResponse>(
+      '/inspiration/generate-cards',
+      guidance === undefined ? payload : { ...payload, guidance },
+    );
+  },
 
   // 合并两个故事方向卡片
   mergeCards: (data: InspirationMergeCardsRequest) =>

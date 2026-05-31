@@ -82,6 +82,10 @@ def _format_context_value(value: Any) -> str:
     return str(value)
 
 
+def _format_context_guidance(guidance: Any) -> str:
+    return PromptService.format_inspiration_guidance_for_prompt(guidance).strip()
+
+
 def build_inspiration_context_prompt(data: Dict[str, Any]) -> str:
     """Build optional inspiration/story-bible prompt context without persisting it."""
     context = data.get("inspiration_context")
@@ -89,7 +93,15 @@ def build_inspiration_context_prompt(data: Dict[str, Any]) -> str:
         return ""
 
     story_bible = context.get("story_bible_draft")
+    guidance_prompt = _format_context_guidance(context.get("guidance"))
     if not isinstance(story_bible, dict):
+        if guidance_prompt:
+            return "\n".join([
+                "",
+                "【灵感模式补充上下文】",
+                "以下内容仅作为本次向导生成的补充提示上下文，不代表已写入项目规范数据；请优先保持与基础项目字段一致。",
+                guidance_prompt,
+            ])
         return ""
 
     lines = [
@@ -113,6 +125,9 @@ def build_inspiration_context_prompt(data: Dict[str, Any]) -> str:
     for field, label in STORY_BIBLE_CONTEXT_FIELD_LABELS.items():
         if field in story_bible:
             lines.append(f"{label}：{_format_context_value(story_bible.get(field))}")
+
+    if guidance_prompt:
+        lines.extend(["", guidance_prompt])
 
     return "\n".join(lines)
 
