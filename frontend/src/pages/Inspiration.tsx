@@ -1,18 +1,25 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Alert, Card, Input, Button, Space, Typography, message, Spin, Modal, theme, Checkbox, Tag } from 'antd';
+import { Alert, Card, Input, Button, Space, Typography, message, Spin, Modal, theme, Checkbox, Tag, Radio, Select } from 'antd';
 import { SendOutlined, ArrowLeftOutlined, ReloadOutlined } from '@ant-design/icons';
 import { inspirationApi, projectApi } from '../services/api';
 import { AIProjectGenerator, type GenerationConfig } from '../components/generation/AIProjectGenerator';
+import { CHANNELS, getGenresByChannel, THEME_TAGS, CHARACTER_TAGS, PLOT_TAGS, MAX_TAGS_PER_DIMENSION } from '../constants/novelTaxonomy';
 import { DIRECTION_CARD_LABELS } from '../types';
+import type { InspirationGuidance } from '../types';
 import type { InspirationDirectionCard, InspirationGenerationContext, InspirationOptionsContext, InspirationQualityReport, InspirationStoryBibleDraft, Project, ProjectCreate } from '../types';
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
 
-type Step = 'idea' | 'direction_cards' | 'perspective' | 'outline_mode' | 'confirm' | 'generating' | 'complete';
+type Step = 'channel_select' | 'genre_select' | 'tag_select' | 'plot_brief' | 'idea' | 'direction_cards' | 'perspective' | 'outline_mode' | 'confirm' | 'generating' | 'complete';
 
-const restorableSteps = new Set<Step>(['idea', 'direction_cards', 'perspective', 'outline_mode', 'confirm']);
+const entrySteps = new Set<Step>(['channel_select', 'genre_select', 'tag_select', 'plot_brief']);
+const restorableSteps = new Set<Step>(['channel_select', 'genre_select', 'tag_select', 'plot_brief', 'idea', 'direction_cards', 'perspective', 'outline_mode', 'confirm']);
+const TAG_COLLAPSED_VISIBLE_COUNT = 24;
+
+type TaxonomyTagOption = (typeof THEME_TAGS)[number];
+type TagDimension = 'theme' | 'character' | 'plot';
 
 interface Message {
   type: 'ai' | 'user';
@@ -358,7 +365,7 @@ type InspirationComponent = React.FC & {
 
 const InspirationImpl: React.FC = () => {
   const navigate = useNavigate();
-  const [currentStep, setCurrentStep] = useState<Step>('idea');
+  const [currentStep, setCurrentStep] = useState<Step>('channel_select');
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const { token } = theme.useToken();
 
@@ -394,7 +401,17 @@ const InspirationImpl: React.FC = () => {
   const [wizardData, setWizardData] = useState<Partial<WizardData>>({});
   // 保存用户的原始想法，用于保持上下文一致性
   const [initialIdea, setInitialIdea] = useState<string>('');
-  
+  const [selectedChannel, setSelectedChannel] = useState('');
+  const [selectedGenre, setSelectedGenre] = useState('');
+  const [selectedThemes, setSelectedThemes] = useState<string[]>([]);
+  const [selectedCharacters, setSelectedCharacters] = useState<string[]>([]);
+  const [selectedPlots, setSelectedPlots] = useState<string[]>([]);
+  const [plotBrief, setPlotBrief] = useState('');
+  const [guidanceEntryActive, setGuidanceEntryActive] = useState(false);
+  const [themeTagsExpanded, setThemeTagsExpanded] = useState(false);
+  const [characterTagsExpanded, setCharacterTagsExpanded] = useState(false);
+  const [plotTagsExpanded, setPlotTagsExpanded] = useState(false);
+   
   // 生成配置
   const [generationConfig, setGenerationConfig] = useState<InspirationGenerationConfig | null>(null);
 
@@ -429,6 +446,10 @@ const InspirationImpl: React.FC = () => {
         return;
       }
 
+      if (guidanceEntryActive) {
+        return;
+      }
+
       // 只有用户有输入时才保存（至少两条消息：AI问候+用户回复）
       if (messages.length <= 1) {
         return;
@@ -453,7 +474,7 @@ const InspirationImpl: React.FC = () => {
     } catch (error) {
       console.error('保存缓存失败:', error);
     }
-  }, [currentStep, messages, wizardData, initialIdea, directionCards, selectedDirectionCardIds, activeDirectionCard, storyBibleDraft, storyBibleQualityReport, storyBibleQualityError]);
+  }, [currentStep, messages, wizardData, initialIdea, directionCards, selectedDirectionCardIds, activeDirectionCard, storyBibleDraft, storyBibleQualityReport, storyBibleQualityError, guidanceEntryActive]);
 
   // 从缓存恢复
   const restoreFromCache = useCallback((): boolean => {
@@ -544,9 +565,154 @@ const InspirationImpl: React.FC = () => {
     scrollToBottom();
   }, [messages]);
 
-  const requestDirectionCards = async (idea: string) => {
+  const selectedChannelLabel = CHANNELS.find(channel => channel.id === selectedChannel)?.label || '';
+  const selectedGenreOptions = selectedChannel ? getGenresByChannel(selectedChannel) : [];
+
+  const resetGuidanceSelections = () => {
+    setSelectedChannel('');
+    setSelectedGenre('');
+    setSelectedThemes([]);
+    setSelectedCharacters([]);
+    setSelectedPlots([]);
+    setPlotBrief('');
+    setGuidanceEntryActive(false);
+    setThemeTagsExpanded(false);
+    setCharacterTagsExpanded(false);
+    setPlotTagsExpanded(false);
+  };
+
+  const handleChannelChange = (channelId: string) => {
+    setSelectedChannel(channelId);
+    setSelectedGenre('');
+    setSelectedThemes([]);
+    setSelectedCharacters([]);
+    setSelectedPlots([]);
+    setPlotBrief('');
+    setThemeTagsExpanded(false);
+    setCharacterTagsExpanded(false);
+    setPlotTagsExpanded(false);
+  };
+
+  const handleGenreChange = (genreLabel: string) => {
+    setSelectedGenre(genreLabel);
+  };
+
+  const handleSkipTagFlow = () => {
+    resetGuidanceSelections();
+    setInputValue('');
+    setMessages([
+      {
+        type: 'ai',
+        content: '你好！我是你的AI创作助手。让我们一起创作一部精彩的小说吧！\n\n请告诉我，你想写一本什么样的小说？',
+      }
+    ]);
+    setCurrentStep('idea');
+  };
+
+  const toggleTagSelection = (dimension: TagDimension, label: string, checked: boolean) => {
+    const dimensionConfig = {
+      theme: {
+        label: '主题标签',
+        selected: selectedThemes,
+        setSelected: setSelectedThemes,
+      },
+      character: {
+        label: '角色标签',
+        selected: selectedCharacters,
+        setSelected: setSelectedCharacters,
+      },
+      plot: {
+        label: '情节标签',
+        selected: selectedPlots,
+        setSelected: setSelectedPlots,
+      },
+    }[dimension];
+
+    const alreadySelected = dimensionConfig.selected.includes(label);
+    if (checked && !alreadySelected && dimensionConfig.selected.length >= MAX_TAGS_PER_DIMENSION) {
+      message.warning(`${dimensionConfig.label}最多选择 ${MAX_TAGS_PER_DIMENSION} 个`);
+      return;
+    }
+
+    if (checked) {
+      dimensionConfig.setSelected(alreadySelected ? dimensionConfig.selected : [...dimensionConfig.selected, label]);
+      return;
+    }
+
+    dimensionConfig.setSelected(dimensionConfig.selected.filter(item => item !== label));
+  };
+
+  const getVisibleTagOptions = (
+    options: TaxonomyTagOption[],
+    selectedValues: string[],
+    expanded: boolean,
+  ): TaxonomyTagOption[] => {
+    if (expanded || options.length <= TAG_COLLAPSED_VISIBLE_COUNT) {
+      return options;
+    }
+
+    const leadingOptions = options.slice(0, TAG_COLLAPSED_VISIBLE_COUNT);
+    const leadingIds = new Set(leadingOptions.map(option => option.id));
+    const selectedSet = new Set(selectedValues);
+    const selectedOverflowOptions = options.filter(option => selectedSet.has(option.label) && !leadingIds.has(option.id));
+
+    return [...leadingOptions, ...selectedOverflowOptions];
+  };
+
+  const buildCurrentGuidance = (): InspirationGuidance | undefined => {
+    const trimmedPlotBrief = plotBrief.trim();
+    const guidance: InspirationGuidance = {
+      channel: selectedChannelLabel || undefined,
+      genre: selectedGenre || undefined,
+      themes: selectedThemes,
+      characters: selectedCharacters,
+      plots: selectedPlots,
+      plot_brief: trimmedPlotBrief || undefined,
+    };
+
+    const hasGuidance = Boolean(
+      guidance.channel
+      || guidance.genre
+      || guidance.themes?.length
+      || guidance.characters?.length
+      || guidance.plots?.length
+      || guidance.plot_brief,
+    );
+
+    return hasGuidance ? guidance : undefined;
+  };
+
+  const buildSynthesizedIdeaFromGuidance = (guidance: InspirationGuidance): string => {
+    const categoryText = [
+      guidance.channel,
+      guidance.genre ? `${guidance.genre}题材` : undefined,
+    ].filter(Boolean).join(' ');
+    const tagParts = [
+      guidance.themes?.length ? `${guidance.themes.join('、')}主题` : undefined,
+      guidance.characters?.length ? `${guidance.characters.join('、')}角色` : undefined,
+      guidance.plots?.length ? `${guidance.plots.join('、')}情节` : undefined,
+    ].filter(Boolean);
+    const core = [categoryText, ...tagParts].filter(Boolean).join('，');
+
+    return `${core || '具有明确网文卖点'}的小说`;
+  };
+
+  const buildGuidanceMessage = (guidance: InspirationGuidance, idea: string): string => {
+    return [
+      '从标签导向生成故事方向：',
+      guidance.channel ? `频道：${guidance.channel}` : null,
+      guidance.genre ? `题材：${guidance.genre}` : null,
+      guidance.themes?.length ? `主题：${guidance.themes.join('、')}` : null,
+      guidance.characters?.length ? `角色：${guidance.characters.join('、')}` : null,
+      guidance.plots?.length ? `情节：${guidance.plots.join('、')}` : null,
+      guidance.plot_brief ? `剧情简述：${guidance.plot_brief}` : `自动补全创意：${idea}`,
+    ].filter(Boolean).join('\n');
+  };
+
+  const requestDirectionCards = async (idea: string, guidance?: InspirationGuidance) => {
     const response = await inspirationApi.generateCards({
       idea,
+      guidance,
       card_count: DIRECTION_CARD_COUNT,
       context: {
         initial_idea: idea,
@@ -578,6 +744,46 @@ const InspirationImpl: React.FC = () => {
     };
     setMessages(prev => [...prev, aiMessage]);
     setCurrentStep('direction_cards');
+  };
+
+  const handleGenerateGuidedCards = async () => {
+    if (submitInFlightRef.current || loading || draftActionLoading) {
+      return;
+    }
+
+    const guidance = buildCurrentGuidance();
+    if (!guidance?.channel || !guidance.genre) {
+      message.warning('请先选择频道和题材');
+      return;
+    }
+
+    const synthesizedIdea = guidance.plot_brief?.trim() || buildSynthesizedIdeaFromGuidance(guidance);
+    submitInFlightRef.current = true;
+    setGuidanceEntryActive(true);
+    setInitialIdea(synthesizedIdea);
+    setMessages([
+      {
+        type: 'ai',
+        content: '已收到你的标签导向，我会先生成三张故事方向卡供你比较。',
+      },
+      {
+        type: 'user',
+        content: buildGuidanceMessage(guidance, synthesizedIdea),
+      },
+    ]);
+    setLoading(true);
+
+    try {
+      await requestDirectionCards(synthesizedIdea, guidance);
+    } catch (error: unknown) {
+      console.error('生成标签导向故事方向失败:', error);
+      const errMsg = error instanceof Error ? error.message : '生成失败，请重试';
+      const axiosError = error as { response?: { data?: { detail?: string } } };
+      message.error(axiosError.response?.data?.detail || errMsg);
+    } finally {
+      submitInFlightRef.current = false;
+      setLoading(false);
+    }
   };
 
   const continueWithDirectionCard = (card: InspirationDirectionCard) => {
@@ -823,6 +1029,7 @@ const InspirationImpl: React.FC = () => {
 
     try {
       if (currentStep === 'idea') {
+        setGuidanceEntryActive(false);
         setInitialIdea(userInput);
         await requestDirectionCards(userInput);
       } else {
@@ -1098,7 +1305,7 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
     // 清除缓存
     clearCache();
 
-    setCurrentStep('idea');
+    setCurrentStep('channel_select');
     setMessages([
       {
         type: 'ai',
@@ -1107,6 +1314,8 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
     ]);
     setWizardData({});
     setInitialIdea('');
+    resetGuidanceSelections();
+    setInputValue('');
     setDirectionCards([]);
     setSelectedDirectionCardIds([]);
     setActiveDirectionCard(null);
@@ -1137,6 +1346,223 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
     setCurrentStep('idea');
     setGenerationConfig(null);
     handleRestart();
+  };
+
+  const renderGuidancePreview = () => {
+    const previewItems = [
+      selectedChannelLabel ? { label: '频道', value: selectedChannelLabel } : null,
+      selectedGenre ? { label: '题材', value: selectedGenre } : null,
+      selectedThemes.length ? { label: '主题', value: selectedThemes.join('、') } : null,
+      selectedCharacters.length ? { label: '角色', value: selectedCharacters.join('、') } : null,
+      selectedPlots.length ? { label: '情节', value: selectedPlots.join('、') } : null,
+    ].filter((item): item is { label: string; value: string } => Boolean(item));
+
+    if (previewItems.length === 0) {
+      return null;
+    }
+
+    return (
+      <Alert
+        type="info"
+        showIcon
+        message="当前创作导向"
+        description={(
+          <Space wrap size={[8, 8]}>
+            {previewItems.map(item => (
+              <Tag key={item.label} color="processing">
+                {item.label}：{item.value}
+              </Tag>
+            ))}
+          </Space>
+        )}
+      />
+    );
+  };
+
+  const renderTagPool = (
+    title: string,
+    options: TaxonomyTagOption[],
+    selectedValues: string[],
+    expanded: boolean,
+    setExpanded: (expanded: boolean) => void,
+    dimension: TagDimension,
+  ) => {
+    const visibleOptions = getVisibleTagOptions(options, selectedValues, expanded);
+    const hasOverflow = options.length > TAG_COLLAPSED_VISIBLE_COUNT;
+    const reachedLimit = selectedValues.length >= MAX_TAGS_PER_DIMENSION;
+
+    return (
+      <Card size="small" styles={{ body: { padding: 14 } }}>
+        <Space direction="vertical" size="small" style={{ width: '100%' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+            <Text strong>{title}</Text>
+            <Tag color={reachedLimit ? 'warning' : 'default'}>
+              已选 {selectedValues.length}/{MAX_TAGS_PER_DIMENSION}
+            </Tag>
+          </div>
+
+          <Space wrap size={[8, 8]}>
+            {visibleOptions.map(option => {
+              const checked = selectedValues.includes(option.label);
+              const selectionBlocked = !checked && reachedLimit;
+
+              return (
+                <Tag.CheckableTag
+                  key={option.id}
+                  checked={checked}
+                  onClick={(event) => {
+                    if (selectionBlocked) {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      message.warning(`${title}最多选择 ${MAX_TAGS_PER_DIMENSION} 个`);
+                    }
+                  }}
+                  onChange={(nextChecked) => {
+                    if (selectionBlocked && nextChecked) {
+                      return;
+                    }
+                    toggleTagSelection(dimension, option.label, nextChecked);
+                  }}
+                  style={{
+                    marginInlineEnd: 0,
+                    opacity: selectionBlocked ? 0.45 : 1,
+                    cursor: selectionBlocked ? 'not-allowed' : 'pointer',
+                  }}
+                  aria-disabled={selectionBlocked}
+                >
+                  {option.label}
+                </Tag.CheckableTag>
+              );
+            })}
+          </Space>
+
+          {hasOverflow && (
+            <Button type="link" size="small" onClick={() => setExpanded(!expanded)} style={{ alignSelf: 'flex-start', padding: 0 }}>
+              {expanded ? '收起 ▲' : `展开 ▼（共 ${options.length} 个）`}
+            </Button>
+          )}
+        </Space>
+      </Card>
+    );
+  };
+
+  const renderEntryStepPanel = () => {
+    const stepIndexMap: Record<Step, number> = {
+      channel_select: 1,
+      genre_select: 2,
+      tag_select: 3,
+      plot_brief: 4,
+      idea: 0,
+      direction_cards: 0,
+      perspective: 0,
+      outline_mode: 0,
+      confirm: 0,
+      generating: 0,
+      complete: 0,
+    };
+
+    if (!entrySteps.has(currentStep)) {
+      return null;
+    }
+
+    return (
+      <Card
+        style={{
+          marginBottom: 16,
+          borderColor: token.colorPrimaryBorder,
+          boxShadow: `0 8px 24px color-mix(in srgb, ${token.colorTextBase} 16%, transparent)`,
+        }}
+      >
+        <Space direction="vertical" size="large" style={{ width: '100%' }}>
+          <Space direction="vertical" size={4} style={{ width: '100%' }}>
+            <Text type="secondary">标签导向入口 · 第 {stepIndexMap[currentStep]}/4 步</Text>
+            <Title level={4} style={{ margin: 0 }}>先用频道、题材和标签收束灵感</Title>
+            <Text type="secondary">也可以跳过这些步骤，直接回到原来的自由输入模式。</Text>
+          </Space>
+
+          {currentStep !== 'channel_select' && renderGuidancePreview()}
+
+          {currentStep === 'channel_select' && (
+            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+              <Text strong>选择一个创作频道</Text>
+              <Radio.Group
+                optionType="button"
+                buttonStyle="solid"
+                size="large"
+                value={selectedChannel || undefined}
+                options={CHANNELS.map(channel => ({ label: channel.label, value: channel.id }))}
+                onChange={(event) => handleChannelChange(event.target.value)}
+              />
+              <Space wrap>
+                <Button type="primary" disabled={!selectedChannel} onClick={() => setCurrentStep('genre_select')}>
+                  下一步：选择题材
+                </Button>
+                <Button onClick={handleSkipTagFlow}>跳过标签选择，直接自由输入</Button>
+              </Space>
+            </Space>
+          )}
+
+          {currentStep === 'genre_select' && (
+            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+              <Text strong>选择一个题材</Text>
+              <Select
+                size="large"
+                placeholder="请选择题材"
+                value={selectedGenre || undefined}
+                options={selectedGenreOptions.map(genre => ({ label: genre.label, value: genre.label }))}
+                onChange={handleGenreChange}
+                style={{ width: '100%' }}
+              />
+              <Space wrap>
+                <Button onClick={() => setCurrentStep('channel_select')}>上一步</Button>
+                <Button type="primary" disabled={!selectedGenre} onClick={() => setCurrentStep('tag_select')}>
+                  下一步：选择标签
+                </Button>
+                <Button onClick={handleSkipTagFlow}>跳过标签选择，直接自由输入</Button>
+              </Space>
+            </Space>
+          )}
+
+          {currentStep === 'tag_select' && (
+            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+              {renderTagPool('主题标签', THEME_TAGS, selectedThemes, themeTagsExpanded, setThemeTagsExpanded, 'theme')}
+              {renderTagPool('角色标签', CHARACTER_TAGS, selectedCharacters, characterTagsExpanded, setCharacterTagsExpanded, 'character')}
+              {renderTagPool('情节标签', PLOT_TAGS, selectedPlots, plotTagsExpanded, setPlotTagsExpanded, 'plot')}
+              <Space wrap>
+                <Button onClick={() => setCurrentStep('genre_select')}>上一步</Button>
+                <Button type="primary" onClick={() => setCurrentStep('plot_brief')}>
+                  下一步：补充剧情简述
+                </Button>
+                <Button onClick={handleSkipTagFlow}>跳过标签选择，直接自由输入</Button>
+              </Space>
+            </Space>
+          )}
+
+          {currentStep === 'plot_brief' && (
+            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+              <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                <Text strong>补充剧情简述（可选）</Text>
+                <Text type="secondary">留空时会根据已选频道、题材和标签自动合成一句创意。</Text>
+              </Space>
+              <TextArea
+                value={plotBrief}
+                onChange={(event) => setPlotBrief(event.target.value)}
+                placeholder="例如：主角在灵气复苏后的废土城市中经营一家能连接诸天的旧书店……"
+                autoSize={{ minRows: 4, maxRows: 8 }}
+                disabled={loading}
+              />
+              <Space wrap>
+                <Button onClick={() => setCurrentStep('tag_select')} disabled={loading}>上一步</Button>
+                <Button type="primary" onClick={handleGenerateGuidedCards} loading={loading}>
+                  {plotBrief.trim() ? '生成故事方向' : '跳过简述并生成方向'}
+                </Button>
+                <Button onClick={handleSkipTagFlow} disabled={loading}>改用自由输入</Button>
+              </Space>
+            </Space>
+          )}
+        </Space>
+      </Card>
+    );
   };
 
   const renderDirectionCards = () => {
@@ -1394,8 +1820,13 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
   };
 
   // 渲染对话界面
-  const renderChat = () => (
-    <>
+  const renderChat = () => {
+    if (entrySteps.has(currentStep)) {
+      return renderEntryStepPanel();
+    }
+
+    return (
+      <>
       {renderDirectionCards()}
       {renderStoryBiblePanel()}
 
@@ -1541,8 +1972,9 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
           💡 提示：按 Enter 发送，Shift+Enter 换行
         </Text>
       </Card>
-    </>
-  );
+      </>
+    );
+  };
 
   return (
     <div style={{
@@ -1632,7 +2064,7 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
           </div>
 
           {/* 重新开始按钮 - 只在对话进行中显示 */}
-          {currentStep !== 'idea' && currentStep !== 'generating' && currentStep !== 'complete' ? (
+          {currentStep !== 'channel_select' && currentStep !== 'idea' && currentStep !== 'generating' && currentStep !== 'complete' ? (
             <Button
               icon={<ReloadOutlined />}
               onClick={() => {
