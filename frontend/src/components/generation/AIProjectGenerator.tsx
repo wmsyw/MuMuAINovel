@@ -165,7 +165,6 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
 
   const markCareersSkipped = (data: GenerationConfig) => {
     const genreString = formatGenre(data.genre);
-    console.log(`当前题材无需职业体系，已跳过：${genreString}`);
     setGenerationSteps(prev => ({ ...prev, careers: 'completed' }));
     setProgress(prev => Math.max(prev, 40));
     setProgressMessage(`当前题材（${genreString}）无需职业体系，已跳过`);
@@ -184,12 +183,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
           setProgress(prog);
           setProgressMessage(msg);
         },
-        onResult: (result) => {
-          if (result.career_skipped) {
-            console.log(result.message || '当前题材无需职业体系，后端已跳过');
-          } else {
-            console.log(`成功生成职业体系：主职业${result.main_careers_count}个，副职业${result.sub_careers_count}个`);
-          }
+        onResult: () => {
           setGenerationSteps(prev => ({ ...prev, careers: 'completed' }));
         },
         onError: (error) => {
@@ -199,9 +193,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
           setLoading(false);
           throw new Error(error);
         },
-        onComplete: () => {
-          console.log('职业体系生成完成');
-        }
+        onComplete: () => {},
       }
     );
   };
@@ -319,9 +311,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
           setLoading(false);
           throw new Error(error);
         },
-        onComplete: () => {
-          console.log('世界观生成完成');
-        }
+        onComplete: () => {},
       }
     );
 
@@ -368,8 +358,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
           setProgress(prog);
           setProgressMessage(msg);
         },
-        onResult: (result) => {
-          console.log(`成功生成${result.characters?.length || 0}个角色`);
+        onResult: () => {
           setGenerationSteps(prev => ({ ...prev, characters: 'completed' }));
         },
         onError: (error) => {
@@ -379,9 +368,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
           setLoading(false);
           throw new Error(error);
         },
-        onComplete: () => {
-          console.log('角色生成完成');
-        }
+        onComplete: () => {},
       }
     );
 
@@ -402,7 +389,6 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
           setProgressMessage(msg);
         },
         onResult: () => {
-          console.log('大纲生成完成');
           setGenerationSteps(prev => ({ ...prev, outline: 'completed' }));
         },
         onError: (error) => {
@@ -412,9 +398,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
           setLoading(false);
           throw new Error(error);
         },
-        onComplete: () => {
-          console.log('大纲生成完成');
-        }
+        onComplete: () => {},
       }
     );
 
@@ -467,9 +451,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
             setLoading(false);
             throw new Error(error);
           },
-          onComplete: () => {
-            console.log('世界观生成完成');
-          }
+          onComplete: () => {},
         }
       );
 
@@ -511,8 +493,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
             setProgress(prog);
             setProgressMessage(msg);
           },
-          onResult: (result) => {
-            console.log(`成功生成${result.characters?.length || 0}个角色`);
+          onResult: () => {
             setGenerationSteps(prev => ({ ...prev, characters: 'completed' }));
           },
           onError: (error) => {
@@ -522,9 +503,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
             setLoading(false);
             throw new Error(error);
           },
-          onComplete: () => {
-            console.log('角色生成完成');
-          }
+          onComplete: () => {},
         }
       );
 
@@ -541,7 +520,6 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
             setProgressMessage(msg);
           },
           onResult: () => {
-            console.log('大纲生成完成');
             setGenerationSteps(prev => ({ ...prev, outline: 'completed' }));
           },
           onError: (error) => {
@@ -551,9 +529,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
             setLoading(false);
             throw new Error(error);
           },
-          onComplete: () => {
-            console.log('大纲生成完成');
-          }
+          onComplete: () => {},
         }
       );
 
@@ -642,9 +618,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
           setLoading(false);
           throw new Error(error);
         },
-        onComplete: () => {
-          console.log('世界观重新生成完成');
-        }
+        onComplete: () => {},
       }
     );
 
@@ -719,8 +693,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
           setProgress(prog);
           setProgressMessage(msg);
         },
-        onResult: (result) => {
-          console.log(`成功生成${result.characters?.length || 0}个角色`);
+        onResult: () => {
           setGenerationSteps(prev => ({ ...prev, characters: 'completed' }));
         },
         onError: (error) => {
@@ -730,9 +703,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
           setLoading(false);
           throw new Error(error);
         },
-        onComplete: () => {
-          console.log('角色重新生成完成');
-        }
+        onComplete: () => {},
       }
     );
 
@@ -767,7 +738,6 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
           setProgressMessage(msg);
         },
         onResult: () => {
-          console.log('大纲生成完成');
           setGenerationSteps(prev => ({ ...prev, outline: 'completed' }));
         },
         onError: (error) => {
@@ -777,9 +747,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
           setLoading(false);
           throw new Error(error);
         },
-        onComplete: () => {
-          console.log('大纲重新生成完成');
-        }
+        onComplete: () => {},
       }
     );
 
@@ -843,8 +811,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
           setProgress(prog);
           setProgressMessage(msg);
         },
-        onResult: (result) => {
-          console.log(`成功生成${result.characters?.length || 0}个角色`);
+        onResult: () => {
           setGenerationSteps(prev => ({ ...prev, characters: 'completed' }));
         },
         onError: (error) => {
@@ -854,9 +821,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
           setLoading(false);
           throw new Error(error);
         },
-        onComplete: () => {
-          console.log('角色生成完成');
-        }
+        onComplete: () => {},
       }
     );
 
@@ -879,7 +844,6 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
           setProgressMessage(msg);
         },
         onResult: () => {
-          console.log('大纲生成完成');
           setGenerationSteps(prev => ({ ...prev, outline: 'completed' }));
         },
         onError: (error) => {
@@ -889,9 +853,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
           setLoading(false);
           throw new Error(error);
         },
-        onComplete: () => {
-          console.log('大纲生成完成');
-        }
+        onComplete: () => {},
       }
     );
 

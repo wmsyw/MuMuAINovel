@@ -440,7 +440,6 @@ const InspirationImpl: React.FC = () => {
   const clearCache = useCallback(() => {
     try {
       localStorage.removeItem(CACHE_KEY);
-      console.log('🗑️ 缓存已清除');
     } catch (error) {
       console.error('清除缓存失败:', error);
     }
@@ -478,7 +477,6 @@ const InspirationImpl: React.FC = () => {
       };
 
       localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
-      console.log('💾 对话已自动保存');
     } catch (error) {
       console.error('保存缓存失败:', error);
     }
@@ -497,7 +495,6 @@ const InspirationImpl: React.FC = () => {
 
       // 检查缓存是否过期
       if (age > CACHE_EXPIRY) {
-        console.log('⏰ 缓存已过期，清除');
         clearCache();
         return false;
       }
@@ -524,7 +521,6 @@ const InspirationImpl: React.FC = () => {
       setStoryBibleQualityReport(cacheData.storyBibleQualityReport || null);
       setStoryBibleQualityError(cacheData.storyBibleQualityError || null);
 
-      console.log('✅ 已恢复上次的对话进度');
       message.success('已恢复上次的对话进度', 2);
       return true;
     } catch (error) {
@@ -1342,8 +1338,8 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
   };
 
   // 生成完成回调
-  const handleComplete = (projectId: string) => {
-    console.log('灵感模式项目创建完成:', projectId);
+  const handleComplete = (_projectId: string) => {
+    void _projectId;
     // 确保清除缓存
     clearCache();
     setCurrentStep('complete');
