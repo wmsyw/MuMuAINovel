@@ -60,6 +60,12 @@ function formatGenre(genre: GenerationConfig['genre']): string {
   return Array.isArray(genre) ? genre.join('、') : genre;
 }
 
+function buildInspirationContextRequestPart(data: GenerationConfig) {
+  return data.inspiration_context
+    ? { inspiration_context: data.inspiration_context }
+    : {};
+}
+
 export function shouldGenerateCareerSystem(genre: GenerationConfig['genre']): boolean {
   const genreText = formatGenre(genre);
   const hasRequiredGenre = CAREER_SYSTEM_REQUIRED_GENRE_KEYWORDS.some(keyword => genreText.includes(keyword));
@@ -82,7 +88,7 @@ function buildWorldBuildingRequest(data: GenerationConfig, genre: string) {
     chapter_count: data.chapter_count,
     character_count: data.character_count,
     outline_mode: data.outline_mode || 'one-to-many',
-    ...(data.inspiration_context ? { inspiration_context: data.inspiration_context } : {}),
+    ...buildInspirationContextRequestPart(data),
   };
 }
 
@@ -92,7 +98,7 @@ function buildOutlineRequest(data: GenerationConfig, projectId: string) {
     chapter_count: data.chapter_count,
     narrative_perspective: data.narrative_perspective,
     target_words: data.target_words,
-    ...(data.inspiration_context ? { inspiration_context: data.inspiration_context } : {}),
+    ...buildInspirationContextRequestPart(data),
   };
 }
 

@@ -653,6 +653,7 @@ export interface InspirationGenerationContext {
   confirmed_fields?: InspirationOptionsContext;
   direction_card?: InspirationDirectionCard | null;
   story_bible_draft: InspirationStoryBibleDraft;
+  guidance?: InspirationGuidance;
 }
 
 export type InspirationQualityDimension =

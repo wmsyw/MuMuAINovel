@@ -149,18 +149,25 @@ function buildInspirationGenerationContext(
   initialIdea: string,
   storyBibleDraft?: InspirationStoryBibleDraft,
   activeDirectionCard?: InspirationDirectionCard | null,
+  guidance?: InspirationGuidance,
 ): InspirationGenerationContext | undefined {
   if (!storyBibleDraft) {
     return undefined;
   }
 
-  return {
+  const context: InspirationGenerationContext = {
     source: 'inspiration_story_bible',
     initial_idea: initialIdea || undefined,
     confirmed_fields: buildOptionsContext(data, initialIdea),
     direction_card: activeDirectionCard || undefined,
     story_bible_draft: storyBibleDraft,
   };
+
+  if (guidance) {
+    context.guidance = guidance;
+  }
+
+  return context;
 }
 
 function buildGenerationConfig(
@@ -168,6 +175,7 @@ function buildGenerationConfig(
   initialIdea: string = '',
   storyBibleDraft?: InspirationStoryBibleDraft,
   activeDirectionCard?: InspirationDirectionCard | null,
+  guidance?: InspirationGuidance,
 ): InspirationGenerationConfig {
   const config: InspirationGenerationConfig = {
     title: data.title,
@@ -194,7 +202,7 @@ function buildGenerationConfig(
     config.golden_finger = data.golden_finger;
   }
 
-  const inspirationContext = buildInspirationGenerationContext(data, initialIdea, storyBibleDraft, activeDirectionCard);
+  const inspirationContext = buildInspirationGenerationContext(data, initialIdea, storyBibleDraft, activeDirectionCard, guidance);
   if (inspirationContext) {
     config.inspiration_context = inspirationContext;
   }
@@ -1245,7 +1253,8 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
 
         // 开始生成项目
         const data = wizardData as WizardData;
-        const config = buildGenerationConfig(data, initialIdea, storyBibleDraft, activeDirectionCard);
+        const guidance = buildCurrentGuidance();
+        const config = buildGenerationConfig(data, initialIdea, storyBibleDraft, activeDirectionCard, guidance);
         setGenerationConfig(config);
         setCurrentStep('generating');
         return;
