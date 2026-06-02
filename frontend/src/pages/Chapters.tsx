@@ -520,7 +520,6 @@ export default function Chapters() {
               }
             }
           } catch {
-            console.log('获取模型列表失败，将使用默认模型');
           }
         }
       }
@@ -568,7 +567,6 @@ export default function Chapters() {
   const showBrowserNotification = (title: string, body: string, type: 'success' | 'error' | 'info' = 'info') => {
     // 检查浏览器是否支持通知
     if (!('Notification' in window)) {
-      console.log('浏览器不支持通知功能');
       return;
     }
 
@@ -1131,18 +1129,12 @@ export default function Chapters() {
   }) => {
     if (!currentProject?.id) return;
 
-    // 调试日志
-    console.log('[批量生成] 表单values:', values);
-    console.log('[批量生成] batchSelectedModel状态:', batchSelectedModel);
-
     // 使用批量生成对话框中选择的风格和字数，如果没有选择则使用默认值
     const styleId = values.styleId || selectedStyleId;
     const wordCount = values.targetWordCount || targetWordCount;
 
     // 使用批量生成专用的模型状态
     const model = batchSelectedModel;
-
-    console.log('[批量生成] 最终使用的model:', model);
 
     if (!styleId) {
       message.error('请选择写作风格');
@@ -1172,18 +1164,12 @@ export default function Chapters() {
       // 如果有模型参数，添加到请求体中
       if (model) {
         requestBody.model = model;
-        console.log('[批量生成] 请求体包含model:', model);
-      } else {
-        console.log('[批量生成] 请求体不包含model，使用后端默认模型');
       }
 
       // 如果有 Skill 参数，添加到请求体中
       if (batchSelectedSkillKey) {
         requestBody.skill_key = batchSelectedSkillKey;
-        console.log('[批量生成] 请求体包含skill_key:', batchSelectedSkillKey);
       }
-
-      console.log('[批量生成] 完整请求体:', JSON.stringify(requestBody, null, 2));
 
       const response = await fetch(`/api/chapters/project/${currentProject.id}/batch-generate`, {
         method: 'POST',
@@ -1373,9 +1359,6 @@ export default function Chapters() {
     // 打开对话框时加载模型列表和Skill列表，等待完成
     const defaultModel = await loadAvailableModels();
     loadAvailableSkills();
-
-    console.log('[打开批量生成] defaultModel:', defaultModel);
-    console.log('[打开批量生成] selectedStyleId:', selectedStyleId);
 
     // 设置批量生成的模型选择状态
     setBatchSelectedModel(defaultModel || undefined);

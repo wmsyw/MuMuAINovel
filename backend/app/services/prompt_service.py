@@ -4,7 +4,7 @@ from __future__ import annotations
 
 # pyright: reportAny=false, reportExplicitAny=false, reportArgumentType=false, reportReturnType=false, reportMissingImports=false, reportImplicitRelativeImport=false, reportMissingTypeArgument=false, reportUnknownArgumentType=false, reportUnknownMemberType=false, reportUnknownParameterType=false, reportUnknownVariableType=false, reportMissingParameterType=false, reportUnannotatedClassAttribute=false, reportDeprecated=false, reportUnusedImport=false, reportUnusedParameter=false, reportUnusedVariable=false, reportUnnecessaryIsInstance=false, reportUnnecessaryComparison=false
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 import hashlib
 import json
 from app.services.skill_loader import get_all_skills_cached

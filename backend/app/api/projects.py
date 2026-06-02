@@ -14,7 +14,7 @@ from app.models.outline import Outline
 from app.models.chapter import Chapter
 from app.models.generation_history import GenerationHistory
 from app.models.relationship import EntityRelationship, Organization, OrganizationMember
-from app.models.memory import StoryMemory, PlotAnalysis
+from app.models.memory import StoryMemory
 from app.models.foreshadow import Foreshadow
 from app.models.career import Career, CharacterCareer
 from app.models.analysis_task import AnalysisTask

@@ -79,12 +79,9 @@ const AnnotatedText: React.FC<AnnotatedTextProps> = ({
   // 处理标注重叠和排序
   const processedAnnotations = useMemo(() => {
     if (!annotations || annotations.length === 0) {
-      console.log('AnnotatedText: 没有标注数据');
       return [];
     }
-    
-    console.log(`AnnotatedText: 收到${annotations.length}个标注，内容长度${content.length}`);
-    
+
     // 过滤掉无效位置的标注
     const validAnnotations = annotations.filter(
       (a) => a.position >= 0 && a.position < content.length
@@ -93,7 +90,6 @@ const AnnotatedText: React.FC<AnnotatedTextProps> = ({
     const invalidCount = annotations.length - validAnnotations.length;
     if (invalidCount > 0) {
       console.warn(`AnnotatedText: ${invalidCount}个标注位置无效，有效标注${validAnnotations.length}个`);
-      console.log('无效标注:', annotations.filter(a => a.position < 0 || a.position >= content.length));
     }
     
     // 按位置排序
@@ -202,7 +198,6 @@ const AnnotatedText: React.FC<AnnotatedTextProps> = ({
       });
     }
 
-    console.log(`AnnotatedText: 处理${processedAnnotations.length}个标注，生成${result.length}个片段`);
     return result;
   }, [content, processedAnnotations]);
 

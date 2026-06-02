@@ -41,7 +41,6 @@ export default function ExpansionPlanEditor({
       setLoadingCharacters(true);
       setAvailableCharacters([]); // 重置为空数组
       const response = await characterApi.getCharacters(projectId);
-      console.log('加载到的角色数据:', response);
       
       // API返回的是 {total, items} 格式,需要提取items
       let chars: Character[] = [];
@@ -58,7 +57,6 @@ export default function ExpansionPlanEditor({
       }
       
       setAvailableCharacters(chars);
-      console.log('设置的角色列表:', chars);
     } catch (error: unknown) {
       console.error('加载角色列表失败:', error);
       setAvailableCharacters([]);

@@ -70,7 +70,6 @@ export default function ChapterAnalysis({ chapterId, visible, onClose }: Chapter
           chapter_number: chapterData.chapter_number,
           content: chapterData.content || ''
         });
-        console.log('✅ 已刷新章节内容，字数:', chapterData.content?.length || 0);
       }
     } catch (error) {
       console.error('❌ 加载章节信息失败:', error);

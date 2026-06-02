@@ -31,14 +31,11 @@ class SessionManager {
     
     const now = Date.now();
     const remaining = expireAt - now;
-    const remainingMinutes = Math.floor(remaining / 60000);
     
     // 如果会话已过期，不启动监控
     if (remaining <= 0) {
       return;
     }
-    
-    console.log(`✅ [会话] 启动监控，剩余 ${remainingMinutes} 分钟`);
     
     // 立即检查一次
     this.checkSession();
@@ -56,8 +53,6 @@ class SessionManager {
    * 停止会话监控
    */
   stop() {
-    console.log('[SessionManager] 停止会话监控');
-    
     if (this.checkInterval) {
       clearInterval(this.checkInterval);
       this.checkInterval = null;
@@ -90,9 +85,8 @@ class SessionManager {
       
       // 会话已过期
       if (remaining <= 0) {
-        console.log('⏰ [会话] 已过期，退出登录');
-        this.handleSessionExpired();
-        return;
+      this.handleSessionExpired();
+      return;
       }
       
       // 显示即将过期警告
@@ -123,10 +117,8 @@ class SessionManager {
    */
   private async refreshSession() {
     try {
-      const result = await authApi.refreshSession();
+      await authApi.refreshSession();
       this.warningShown = false; // 重置警告状态
-      
-      console.log(`🔄 [会话] 自动续期成功，延长 ${result.remaining_minutes} 分钟`);
       
       message.success({
         content: '登录状态已自动延长',

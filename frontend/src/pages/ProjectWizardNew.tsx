@@ -93,8 +93,7 @@ export default function ProjectWizardNew() {
   };
 
   // 生成完成回调
-  const handleComplete = (projectId: string) => {
-    console.log('项目创建完成:', projectId);
+  const handleComplete = () => {
   };
 
   // 返回表单页面

@@ -99,10 +99,6 @@ const ChapterReader: React.FC = () => {
         }),
       ]);
 
-      console.log('章节数据:', chapterData);
-      console.log('标注数据:', annotationsData);
-      console.log('导航数据:', navigationData);
-
       // 验证数据
       if (!chapterData || !chapterData.content) {
         throw new Error('章节数据无效：缺少内容');

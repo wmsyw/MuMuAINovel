@@ -157,8 +157,7 @@ export default function Characters() {
             setProgress(prog);
             setProgressMessage(msg);
           },
-          onResult: (data) => {
-            console.log('角色生成完成:', data);
+          onResult: () => {
           },
           onError: (error) => {
             message.error(`生成失败: ${error}`);
@@ -206,8 +205,7 @@ export default function Characters() {
             setProgress(prog);
             setProgressMessage(msg);
           },
-          onResult: (data) => {
-            console.log('组织生成完成:', data);
+          onResult: () => {
           },
           onError: (error) => {
             message.error(`生成失败: ${error}`);

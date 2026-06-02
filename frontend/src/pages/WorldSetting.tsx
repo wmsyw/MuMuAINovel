@@ -268,7 +268,6 @@ const WorldSettingImpl = ({ apiClient = defaultApiClient }: WorldSettingProps) =
                 setRegenerateMessage(msg);
               },
               onChunk: (chunk: string) => {
-                console.log('生成片段:', chunk);
               },
               onResult: (result) => {
                 setGeneratedDraft(buildGeneratedWorldDraft(currentProject.id, result));
