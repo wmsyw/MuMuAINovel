@@ -3,8 +3,10 @@ from __future__ import annotations
 # pyright: reportAny=false, reportExplicitAny=false, reportMissingImports=false, reportImplicitRelativeImport=false, reportUnknownArgumentType=false, reportUnknownMemberType=false, reportUnknownParameterType=false, reportUnknownVariableType=false, reportUntypedBaseClass=false, reportUntypedFunctionDecorator=false, reportPrivateLocalImportUsage=false
 
 import asyncio
+import json
 from collections.abc import AsyncIterator, Iterator
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -22,6 +24,16 @@ DEFAULT_TEST_PROJECT_ID = "project-test-default"
 DEFAULT_TEST_USERNAME = "测试作者"
 DEFAULT_TEST_DISPLAY_NAME = "测试作者"
 DEFAULT_TEST_PROJECT_TITLE = "测试项目"
+MOCK_AI_SERVICE_RESPONSE_JSON = json.dumps(
+    {
+        "fields": {
+            "name": "测试名称",
+            "summary": "测试摘要",
+        },
+        "reply": "mock-ai-service",
+    },
+    ensure_ascii=False,
+)
 
 
 def create_test_user(
@@ -53,6 +65,11 @@ def create_test_project(
     description: str | None = None,
     theme: str | None = None,
     genre: str | None = None,
+    world_time_period: str | None = None,
+    world_location: str | None = None,
+    world_atmosphere: str | None = None,
+    world_rules: str | None = None,
+    narrative_perspective: str | None = None,
 ) -> Project:
     return Project(
         id=project_id,
@@ -61,7 +78,23 @@ def create_test_project(
         description=description,
         theme=theme,
         genre=genre,
+        world_time_period=world_time_period,
+        world_location=world_location,
+        world_atmosphere=world_atmosphere,
+        world_rules=world_rules,
+        narrative_perspective=narrative_perspective,
     )
+
+
+@pytest.fixture()
+def mock_ai_service() -> Iterator[AsyncMock]:
+    from app.services.ai_service import AIService
+
+    mock_call = AsyncMock(return_value=json.loads(MOCK_AI_SERVICE_RESPONSE_JSON))
+    mock_call.fixed_json_response = MOCK_AI_SERVICE_RESPONSE_JSON  # type: ignore[attr-defined]
+
+    with patch.object(AIService, "call_with_json_retry", new=mock_call):
+        yield mock_call
 
 
 @pytest.fixture()

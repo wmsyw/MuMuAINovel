@@ -256,6 +256,38 @@ export interface ProjectWizardUpdate extends ProjectUpdate {
   wizard_step?: number;
 }
 
+export type OptimizableField =
+  | 'title'
+  | 'description'
+  | 'theme'
+  | 'genre'
+  | 'world_time_period'
+  | 'world_location'
+  | 'world_atmosphere'
+  | 'world_rules'
+  | 'narrative_perspective';
+
+export interface FieldSuggestion {
+  value: string;
+  reason: string;
+}
+
+export interface ProjectOptimizeResult {
+  fields: Partial<Record<OptimizableField, FieldSuggestion>>;
+  reply: string;
+}
+
+export interface OptimizeConversationTurn {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface ProjectOptimizeRequest {
+  requirement?: string;
+  conversation_history?: OptimizeConversationTurn[];
+  current_draft?: Partial<Record<OptimizableField, string>>;
+}
+
 // ==================== 项目本地资源 ====================
 
 export type ProjectAssetType = 'avatar' | 'background' | 'sprite';
