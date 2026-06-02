@@ -3,6 +3,8 @@ from copy import deepcopy
 import json
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
+import httpx
+
 from app.logger import get_logger
 from .base_client import BaseAIClient
 
@@ -11,6 +13,8 @@ logger = get_logger(__name__)
 
 class OpenAIClient(BaseAIClient):
     """OpenAI API 客户端"""
+
+    _MAX_ERROR_BODY_LOG_CHARS: int = 2000
 
     def _build_headers(self) -> Dict[str, str]:
         return {
@@ -97,6 +101,70 @@ class OpenAIClient(BaseAIClient):
             if actual_tool_choice:
                 payload["tool_choice"] = actual_tool_choice
         return payload
+
+    def _content_length(self, content: Any) -> int:
+        if isinstance(content, str):
+            return len(content)
+        if isinstance(content, list):
+            return sum(self._content_length(item.get("text") or item.get("content")) for item in content if isinstance(item, dict))
+        if content is None:
+            return 0
+        return len(str(content))
+
+    def _payload_summary(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        messages = payload.get("messages")
+        if not isinstance(messages, list):
+            messages = []
+        tools = payload.get("tools")
+        if not isinstance(tools, list):
+            tools = []
+        payload_keys = sorted(payload.keys())
+        standard_keys = {"model", "messages", "temperature", "max_tokens", "stream", "tools", "tool_choice"}
+
+        return {
+            "model": payload.get("model"),
+            "endpoint_payload_keys": payload_keys,
+            "nonstandard_payload_keys": [key for key in payload_keys if key not in standard_keys],
+            "stream": payload.get("stream", False),
+            "temperature": payload.get("temperature"),
+            "max_tokens": payload.get("max_tokens"),
+            "message_count": len(messages),
+            "message_roles": [message.get("role") for message in messages if isinstance(message, dict)],
+            "message_content_lengths": [
+                self._content_length(message.get("content"))
+                for message in messages
+                if isinstance(message, dict)
+            ],
+            "tool_count": len(tools),
+            "tool_choice": payload.get("tool_choice"),
+        }
+
+    async def _upstream_error_body(self, response: httpx.Response) -> str:
+        try:
+            await response.aread()
+        except Exception:
+            return "<无法读取上游错误响应体>"
+        body = response.text.strip()
+        if len(body) > self._MAX_ERROR_BODY_LOG_CHARS:
+            return f"{body[:self._MAX_ERROR_BODY_LOG_CHARS]}...(truncated)"
+        return body or "<空响应体>"
+
+    async def _log_upstream_http_error(
+        self,
+        exc: httpx.HTTPStatusError,
+        *,
+        endpoint: str,
+        payload: Dict[str, Any],
+    ) -> None:
+        body = await self._upstream_error_body(exc.response)
+        logger.error(
+            "OpenAI兼容上游HTTP错误｜端点=%s｜状态码=%s｜URL=%s｜响应体=%s｜payload摘要=%s",
+            endpoint,
+            exc.response.status_code,
+            exc.response.url,
+            body,
+            json.dumps(self._payload_summary(payload), ensure_ascii=False, separators=(",", ":")),
+        )
 
     def _build_response_input(self, messages: list) -> List[Dict[str, Any]]:
         input_items = []
@@ -236,7 +304,11 @@ class OpenAIClient(BaseAIClient):
         
         logger.debug(f"📤 OpenAI 请求 payload: {json.dumps(payload, ensure_ascii=False, indent=2)}")
         
-        data = await self._request_with_retry("POST", "/chat/completions", payload)
+        try:
+            data = await self._request_with_retry("POST", "/chat/completions", payload)
+        except httpx.HTTPStatusError as exc:
+            await self._log_upstream_http_error(exc, endpoint="/chat/completions", payload=payload)
+            raise
         
         # 调试日志：输出原始响应
         logger.debug(f"📥 OpenAI 原始响应: {json.dumps(data, ensure_ascii=False, indent=2)}")
@@ -280,7 +352,11 @@ class OpenAIClient(BaseAIClient):
         )
 
         logger.debug(f"📤 OpenAI Responses 请求 payload: {json.dumps(payload, ensure_ascii=False, indent=2)}")
-        data = await self._request_with_retry("POST", "/responses", payload)
+        try:
+            data = await self._request_with_retry("POST", "/responses", payload)
+        except httpx.HTTPStatusError as exc:
+            await self._log_upstream_http_error(exc, endpoint="/responses", payload=payload)
+            raise
         logger.debug(f"📥 OpenAI Responses 原始响应: {json.dumps(data, ensure_ascii=False, indent=2)}")
         return self._normalize_response(data)
 
@@ -320,7 +396,11 @@ class OpenAIClient(BaseAIClient):
         
         try:
             async with await self._request_with_retry("POST", "/chat/completions", payload, stream=True) as response:
-                response.raise_for_status()
+                try:
+                    response.raise_for_status()
+                except httpx.HTTPStatusError as exc:
+                    await self._log_upstream_http_error(exc, endpoint="/chat/completions", payload=payload)
+                    raise
                 try:
                     async for line in response.aiter_lines():
                         if line.startswith("data: "):
@@ -409,7 +489,11 @@ class OpenAIClient(BaseAIClient):
 
         try:
             async with await self._request_with_retry("POST", "/responses", payload, stream=True) as response:
-                response.raise_for_status()
+                try:
+                    response.raise_for_status()
+                except httpx.HTTPStatusError as exc:
+                    await self._log_upstream_http_error(exc, endpoint="/responses", payload=payload)
+                    raise
                 try:
                     async for line in response.aiter_lines():
                         if not line.startswith("data: "):

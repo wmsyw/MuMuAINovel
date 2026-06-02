@@ -34,7 +34,11 @@ class CapturingOpenAIClient(OpenAIClient):
         return self.chat_response
 
 
-def make_service(client: CapturingOpenAIClient, default_model: str) -> AIService:
+def make_service(
+    client: CapturingOpenAIClient,
+    default_model: str,
+    default_reasoning_intensity: str = "auto",
+) -> AIService:
     service = AIService(
         api_provider="mumu",
         api_key="test-key",
@@ -43,7 +47,7 @@ def make_service(client: CapturingOpenAIClient, default_model: str) -> AIService
         default_temperature=0.3,
         default_max_tokens=256,
         default_system_prompt="系统提示",
-        default_reasoning_intensity="auto",
+        default_reasoning_intensity=default_reasoning_intensity,
         enable_mcp=False,
     )
     service._openai_provider = OpenAIProvider(client)
@@ -108,3 +112,30 @@ def test_ai_service_routes_openai_reasoning_request_through_responses_without_pu
     ]
     assert client.calls[0]["payload"]["reasoning"] == {"effort": "high"}
     assert "messages" not in client.calls[0]["payload"]
+
+
+def test_ai_service_explicit_auto_suppresses_default_deepseek_reasoning_payload() -> None:
+    client = CapturingOpenAIClient()
+    service = make_service(
+        client,
+        default_model="deepseek-v4-flash",
+        default_reasoning_intensity="high",
+    )
+
+    result = asyncio.run(
+        service.generate_text(
+            prompt="生成JSON",
+            provider="openai",
+            model="deepseek-v4-flash",
+            reasoning_intensity="auto",
+            auto_mcp=False,
+            handle_tool_calls=False,
+        )
+    )
+
+    assert result["content"] == "legacy ok"
+    assert client.calls[0]["endpoint"] == "/chat/completions"
+    payload = client.calls[0]["payload"]
+    assert payload["model"] == "deepseek-v4-flash"
+    assert "thinking" not in payload
+    assert "reasoning_effort" not in payload

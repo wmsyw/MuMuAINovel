@@ -1,8 +1,12 @@
 import asyncio
 import ast
 import json
+import logging
 from pathlib import Path
 from typing import Any, Dict
+
+import httpx
+import pytest
 
 from app.services.ai_capabilities import build_reasoning_config
 from app.services.ai_clients.openai_client import OpenAIClient
@@ -62,6 +66,50 @@ class StreamingOpenAIClient(CapturingOpenAIClient):
         self.calls.append({"method": method, "endpoint": endpoint, "payload": payload, "stream": stream})
         assert stream is True
         return FakeStreamResponse(self.events)
+
+
+class FailingStreamResponse:
+    def __init__(self, *, status_code: int, body: str, url: str):
+        self.response = httpx.Response(
+            status_code,
+            content=body.encode("utf-8"),
+            request=httpx.Request("POST", url),
+        )
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, traceback):
+        return False
+
+    def raise_for_status(self) -> None:
+        self.response.raise_for_status()
+
+    async def aiter_lines(self):
+        for line in []:
+            yield line
+
+
+class FailingStreamingOpenAIClient(CapturingOpenAIClient):
+    def __init__(self, *, status_code: int, body: str):
+        super().__init__()
+        self.status_code = status_code
+        self.body = body
+
+    async def _request_with_retry(
+        self,
+        method: str,
+        endpoint: str,
+        payload: Dict[str, Any],
+        stream: bool = False,
+    ) -> Any:
+        self.calls.append({"method": method, "endpoint": endpoint, "payload": payload, "stream": stream})
+        assert stream is True
+        return FailingStreamResponse(
+            status_code=self.status_code,
+            body=self.body,
+            url=f"https://api.openai.test/v1{endpoint}",
+        )
 
 
 def collect_async(async_iterable):
@@ -324,6 +372,31 @@ def test_openai_provider_streams_deepseek_v4_through_chat_completions_with_compa
     assert payload["thinking"] == {"type": "enabled"}
     assert payload["reasoning_effort"] == "high"
     assert payload["tool_choice"] == "auto"
+
+
+def test_chat_stream_logs_upstream_400_body_and_safe_payload_summary(caplog: pytest.LogCaptureFixture) -> None:
+    client = FailingStreamingOpenAIClient(
+        status_code=400,
+        body='{"error":{"message":"reasoning_content must be passed back","type":"invalid_request_error"}}',
+    )
+    caplog.set_level(logging.ERROR, logger="app.services.ai_clients.openai_client")
+
+    with pytest.raises(httpx.HTTPStatusError):
+        _ = collect_async(
+            client.chat_completion_stream(
+                messages=[{"role": "user", "content": "敏感提示词内容"}],
+                model="deepseek-v4-flash",
+                temperature=0.3,
+                max_tokens=256,
+                reasoning_payload={"thinking": {"type": "enabled"}, "reasoning_effort": "high"},
+            )
+        )
+
+    assert "reasoning_content must be passed back" in caplog.text
+    assert "invalid_request_error" in caplog.text
+    assert "deepseek-v4-flash" in caplog.text
+    assert '"nonstandard_payload_keys":["reasoning_effort","thinking"]' in caplog.text
+    assert "敏感提示词内容" not in caplog.text
 
 
 def test_generate_with_tools_keeps_responses_reasoning_on_responses_endpoint() -> None:
