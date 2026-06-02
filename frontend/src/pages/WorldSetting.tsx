@@ -19,12 +19,15 @@ import {
   message,
   theme,
 } from 'antd';
-import { CheckOutlined, CloseOutlined, EditOutlined, FormOutlined, GlobalOutlined, ReloadOutlined, RollbackOutlined, SyncOutlined } from '@ant-design/icons';
+import { CheckOutlined, CloseOutlined, EditOutlined, FormOutlined, GlobalOutlined, ReloadOutlined, RollbackOutlined, SyncOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { useStore } from '../store';
+import { useProjectSync } from '../store/hooks';
 import { worldSettingCardStyles } from '../components/common/CardStyles';
+import ProjectOptimizeModal from '../components/ProjectOptimizeModal';
 import { projectApi, wizardStreamApi, worldSettingResultApi } from '../services/api';
 import { SSELoadingOverlay } from '../components/progress/SSELoadingOverlay';
 import type {
+  OptimizableField,
   Project,
   ProjectWorldSnapshot,
   WorldBuildingDraftResponse,
@@ -45,6 +48,7 @@ const WORLD_FIELD_CONFIG = [
 
 type WorldFieldKey = typeof WORLD_FIELD_CONFIG[number]['key'];
 type WorldSettingAction = 'accept' | 'reject' | 'rollback';
+type OptimizableProject = Pick<Project, OptimizableField>;
 
 interface GeneratedWorldDraft {
   project_id: string;
@@ -167,12 +171,14 @@ type WorldSettingComponent = ((props: WorldSettingProps) => JSX.Element | null) 
 
 const WorldSettingImpl = ({ apiClient = defaultApiClient }: WorldSettingProps) => {
   const { currentProject, setCurrentProject } = useStore();
+  const { updateProject: updateProjectSync } = useProjectSync();
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [editForm] = Form.useForm();
   const [isSaving, setIsSaving] = useState(false);
   const [isEditProjectModalVisible, setIsEditProjectModalVisible] = useState(false);
   const [editProjectForm] = Form.useForm();
   const [isSavingProject, setIsSavingProject] = useState(false);
+  const [isOptimizeModalVisible, setIsOptimizeModalVisible] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [regenerateProgress, setRegenerateProgress] = useState(0);
   const [regenerateMessage, setRegenerateMessage] = useState('');
@@ -366,6 +372,14 @@ const WorldSettingImpl = ({ apiClient = defaultApiClient }: WorldSettingProps) =
     }
   };
 
+  const handleOptimizeApply = async (acceptedFields: Partial<Record<OptimizableField, string>>) => {
+    if (!currentProject) return;
+
+    await updateProjectSync(currentProject.id, acceptedFields);
+    setIsOptimizeModalVisible(false);
+    message.success('项目优化应用成功');
+  };
+
   const handleCopyDraftToManualEdit = () => {
     if (!generatedDraft) return;
     editForm.setFieldsValue({
@@ -546,6 +560,18 @@ const WorldSettingImpl = ({ apiClient = defaultApiClient }: WorldSettingProps) =
 
   if (!currentProject) return null;
 
+  const optimizeCurrentProject: OptimizableProject = {
+    title: currentProject.title || '',
+    description: currentProject.description || '',
+    theme: currentProject.theme || '',
+    genre: currentProject.genre || '',
+    world_time_period: currentProject.world_time_period || '',
+    world_location: currentProject.world_location || '',
+    world_atmosphere: currentProject.world_atmosphere || '',
+    world_rules: currentProject.world_rules || '',
+    narrative_perspective: currentProject.narrative_perspective || '',
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {contextHolder}
@@ -568,6 +594,9 @@ const WorldSettingImpl = ({ apiClient = defaultApiClient }: WorldSettingProps) =
           </div>
           <Flex gap={8} wrap="wrap" style={{ flex: '0 1 auto' }}>
             <Button icon={<ReloadOutlined />} onClick={loadWorldResults} loading={resultsLoading}>刷新结果</Button>
+            <Button icon={<ThunderboltOutlined />} onClick={() => setIsOptimizeModalVisible(true)}>
+              AI 优化项目
+            </Button>
             <Button icon={<SyncOutlined />} onClick={handleRegenerate} disabled={isRegenerating}>
               AI生成结果
             </Button>
@@ -714,6 +743,14 @@ const WorldSettingImpl = ({ apiClient = defaultApiClient }: WorldSettingProps) =
           </Form.Item>
         </Form>
       </Modal>
+
+      <ProjectOptimizeModal
+        visible={isOptimizeModalVisible}
+        onCancel={() => setIsOptimizeModalVisible(false)}
+        onApply={handleOptimizeApply}
+        projectId={currentProject.id}
+        currentProject={optimizeCurrentProject}
+      />
 
       <SSELoadingOverlay loading={isRegenerating} progress={regenerateProgress} message={regenerateMessage} />
 
