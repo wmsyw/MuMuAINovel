@@ -103,12 +103,14 @@ class FakeAIService:
         prompt: str,
         system_prompt: str,
         temperature: float,
+        auto_mcp: bool = True,
     ) -> AsyncIterator[str]:
         self.calls.append(
             {
                 "prompt": prompt,
                 "system_prompt": system_prompt,
                 "temperature": temperature,
+                "auto_mcp": auto_mcp,
             }
         )
         assert self.responses, "测试没有预置AI响应"
@@ -273,6 +275,7 @@ def test_generate_story_bible_success_accepts_null_golden_finger_and_does_not_pe
     assert len(api_client.fake_ai.calls) == 1
     call = api_client.fake_ai.calls[0]
     assert call["temperature"] == pytest.approx(0.55)
+    assert call["auto_mcp"] is False
     assert "INSPIRATION_STORY_BIBLE" in call["system_prompt"]
     assert "星桥断裂后的归乡故事" in call["system_prompt"]
     assert "card-star-bridge" in call["system_prompt"]
@@ -369,6 +372,7 @@ def test_evaluate_story_bible_returns_quality_report_without_persistence(api_cli
 
     call = api_client.fake_ai.calls[0]
     assert call["temperature"] == pytest.approx(0.35)
+    assert call["auto_mcp"] is False
     assert "INSPIRATION_QUALITY_CHECK" in call["system_prompt"]
     assert "星桥断裂后的归乡故事" in call["system_prompt"]
 

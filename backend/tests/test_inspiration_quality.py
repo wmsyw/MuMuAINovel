@@ -103,12 +103,14 @@ class FakeAIService:
         prompt: str,
         system_prompt: str,
         temperature: float,
+        auto_mcp: bool = True,
     ) -> AsyncIterator[str]:
         self.calls.append(
             {
                 "prompt": prompt,
                 "system_prompt": system_prompt,
                 "temperature": temperature,
+                "auto_mcp": auto_mcp,
             }
         )
         assert self.responses, "测试没有预置AI响应"
@@ -261,6 +263,7 @@ def test_evaluate_accepts_null_golden_finger_without_persistence(api_client: Api
     assert len(api_client.fake_ai.calls) == 1
     call = api_client.fake_ai.calls[0]
     assert call["temperature"] == pytest.approx(0.35)
+    assert call["auto_mcp"] is False
     assert "INSPIRATION_QUALITY_CHECK" in call["system_prompt"]
     assert '"golden_finger": null' in call["system_prompt"]
 
@@ -299,6 +302,7 @@ def test_repair_story_bible_once_and_does_not_persist(api_client: ApiHarness) ->
     assert len(api_client.fake_ai.calls) == 1
     call = api_client.fake_ai.calls[0]
     assert call["temperature"] == pytest.approx(0.45)
+    assert call["auto_mcp"] is False
     assert "INSPIRATION_REPAIR" in call["system_prompt"]
     assert "opening-hook-1" in call["system_prompt"]
     assert "只强化开篇钩子" in call["system_prompt"]

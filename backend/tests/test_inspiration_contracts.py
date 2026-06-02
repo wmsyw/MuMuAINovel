@@ -295,6 +295,7 @@ class FakeAIService:
         prompt: str,
         system_prompt: str,
         temperature: float,
+        auto_mcp: bool = True,
     ) -> AsyncIterator[str]:
         step = self._detect_step(prompt, system_prompt)
         self.calls.append(
@@ -303,6 +304,7 @@ class FakeAIService:
                 "system_prompt": system_prompt,
                 "temperature": temperature,
                 "step": step,
+                "auto_mcp": auto_mcp,
             }
         )
         response_payload = (
@@ -469,6 +471,7 @@ def test_generate_cards_guidance_request_accepts_and_legacy_idea_only_still_work
     _assert_direction_cards_shape(guidance_response.json())
 
     assert [call["step"] for call in fake_ai.calls] == ["direction_cards", "direction_cards"]
+    assert all(call["auto_mcp"] is False for call in fake_ai.calls)
     legacy_prompt = fake_ai.calls[0]["system_prompt"]
     guidance_prompt = fake_ai.calls[1]["system_prompt"]
     assert "一个修仙少年逆袭" in legacy_prompt
@@ -504,6 +507,7 @@ def test_generate_cards_guidance_only_request_succeeds(
     assert response.status_code == 200, response.text
     _assert_direction_cards_shape(response.json())
     assert fake_ai.calls[-1]["step"] == "direction_cards"
+    assert fake_ai.calls[-1]["auto_mcp"] is False
     system_prompt = fake_ai.calls[-1]["system_prompt"]
     assert "女频" in system_prompt
     assert "奇幻" in system_prompt
@@ -531,6 +535,7 @@ def test_generate_cards_tags_only_without_idea_or_plot_brief_succeeds(
     assert response.status_code == 200, response.text
     _assert_direction_cards_shape(response.json())
     assert fake_ai.calls[-1]["step"] == "direction_cards"
+    assert fake_ai.calls[-1]["auto_mcp"] is False
     system_prompt = fake_ai.calls[-1]["system_prompt"]
     assert "基于这些灵感标签创作故事" in system_prompt
     assert "男频频道" in system_prompt
@@ -599,6 +604,7 @@ def test_generate_options_legacy_steps_keep_prompt_options_shape(
     for call in fake_ai.calls:
         step = call["step"]
         assert call["temperature"] == pytest.approx(GENERATE_TEMPERATURES[step])
+        assert call["auto_mcp"] is False
 
 
 def test_refine_options_legacy_steps_keep_prompt_options_shape_and_feedback_context(
@@ -624,6 +630,7 @@ def test_refine_options_legacy_steps_keep_prompt_options_shape_and_feedback_cont
     for call in fake_ai.calls:
         step = call["step"]
         assert call["temperature"] == pytest.approx(min(GENERATE_TEMPERATURES[step] + 0.1, 0.9))
+        assert call["auto_mcp"] is False
         assert "更偏向史诗感" in call["system_prompt"]
         for previous_option in LEGACY_RESPONSES[step]["options"]:
             assert previous_option in call["system_prompt"]
@@ -647,6 +654,7 @@ def test_generate_options_accepts_all_backend_supported_inspiration_steps(
     for call in fake_ai.calls:
         step = call["step"]
         assert call["temperature"] == pytest.approx(GENERATE_TEMPERATURES[step])
+        assert call["auto_mcp"] is False
 
 
 def test_unknown_inspiration_step_is_rejected_before_ai_call(

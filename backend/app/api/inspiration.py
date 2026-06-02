@@ -597,6 +597,7 @@ async def _collect_ai_text(
         prompt=prompt,
         system_prompt=system_prompt,
         temperature=temperature,
+        auto_mcp=False,
     ):
         accumulated_text += chunk
     return accumulated_text
@@ -958,7 +959,8 @@ async def generate_options(
             async for chunk in ai_service.generate_text_stream(
                 prompt=user_prompt,
                 system_prompt=system_prompt,
-                temperature=temperature
+                temperature=temperature,
+                auto_mcp=False,
             ):
                 accumulated_text += chunk
 
@@ -1158,7 +1160,8 @@ async def refine_options(
             async for chunk in ai_service.generate_text_stream(
                 prompt=user_prompt,
                 system_prompt=system_prompt,
-                temperature=temperature
+                temperature=temperature,
+                auto_mcp=False,
             ):
                 accumulated_text += chunk
 
@@ -1557,7 +1560,8 @@ async def quick_generate(
         async for chunk in ai_service.generate_text_stream(
             prompt=prompts["user"],
             system_prompt=prompts["system"],
-            temperature=0.7
+            temperature=0.7,
+            auto_mcp=False,
         ):
             accumulated_text += chunk
 

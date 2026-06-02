@@ -107,12 +107,14 @@ class FakeAIService:
         prompt: str,
         system_prompt: str,
         temperature: float,
+        auto_mcp: bool = True,
     ) -> AsyncIterator[str]:
         self.calls.append(
             {
                 "prompt": prompt,
                 "system_prompt": system_prompt,
                 "temperature": temperature,
+                "auto_mcp": auto_mcp,
             }
         )
         assert self.responses, "测试没有预置AI响应"
@@ -245,6 +247,7 @@ def test_generate_cards_success_assigns_fresh_backend_uuids(
     assert len(fake_ai.calls) == 1
     call = fake_ai.calls[0]
     assert call["temperature"] == pytest.approx(0.7)
+    assert call["auto_mcp"] is False
     assert "INSPIRATION_DIRECTION_CARDS" in call["system_prompt"]
     assert "星桥断裂后的归乡故事" in call["system_prompt"]
     assert "card_count=3" in call["system_prompt"]
@@ -405,6 +408,7 @@ def test_merge_cards_success_assigns_new_uuid_and_preserves_warnings(
     assert len(fake_ai.calls) == 1
     call = fake_ai.calls[0]
     assert call["temperature"] == pytest.approx(0.6)
+    assert call["auto_mcp"] is False
     assert "INSPIRATION_MERGE_CARDS" in call["system_prompt"]
     assert "source_card_1" in call["system_prompt"]
     assert "保留记忆燃料" in call["system_prompt"]
