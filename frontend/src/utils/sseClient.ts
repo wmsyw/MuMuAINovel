@@ -18,6 +18,7 @@ export interface SSEClientOptions {
   onError?: (error: string, code?: number) => void;
   onComplete?: () => void;
   onConnectionError?: (error: Event) => void;
+  signal?: AbortSignal;
 }
 
 export class SSEClient {
@@ -143,8 +144,19 @@ export class SSEPostClient {
   }
 
   private async connectInternal(resolve: (value: any) => void, reject: (reason?: any) => void) {
+      let externalAbortHandler: (() => void) | null = null;
       try {
         this.abortController = new AbortController();
+        const externalSignal = this.options.signal;
+
+        if (externalSignal) {
+          if (externalSignal.aborted) {
+            this.abortController.abort();
+          } else {
+            externalAbortHandler = () => this.abortController?.abort();
+            externalSignal.addEventListener('abort', externalAbortHandler, { once: true });
+          }
+        }
 
         const response = await fetch(this.url, {
           method: 'POST',
@@ -210,6 +222,10 @@ export class SSEPostClient {
             this.options.onError(error.message || '请求失败');
           }
           reject(error);
+        }
+      } finally {
+        if (externalAbortHandler) {
+          this.options.signal?.removeEventListener('abort', externalAbortHandler);
         }
       }
   }
