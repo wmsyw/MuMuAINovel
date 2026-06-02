@@ -10,6 +10,7 @@ import pytest
 
 from app.services.ai_capabilities import build_reasoning_config
 from app.services.ai_clients.openai_client import OpenAIClient
+from app.services.ai_token_limits import OPENAI_COMPATIBLE_MAX_TOKENS
 from app.services.ai_providers.openai_provider import OpenAIProvider
 
 
@@ -397,6 +398,49 @@ def test_chat_stream_logs_upstream_400_body_and_safe_payload_summary(caplog: pyt
     assert "deepseek-v4-flash" in caplog.text
     assert '"nonstandard_payload_keys":["reasoning_effort","thinking"]' in caplog.text
     assert "敏感提示词内容" not in caplog.text
+
+
+def test_chat_stream_clamps_oversized_openai_compatible_max_tokens() -> None:
+    client = StreamingOpenAIClient(
+        [
+            {"choices": [{"delta": {"content": "好"}}]},
+            "[DONE]",
+        ]
+    )
+
+    chunks = collect_async(
+        client.chat_completion_stream(
+            messages=[{"role": "user", "content": "问题"}],
+            model="deepseek-v4-flash",
+            temperature=0.7,
+            max_tokens=1_000_000,
+        )
+    )
+
+    assert chunks == [{"content": "好"}, {"done": True}]
+    assert client.calls[0]["payload"]["max_tokens"] == OPENAI_COMPATIBLE_MAX_TOKENS
+
+
+def test_responses_payload_clamps_oversized_openai_compatible_max_tokens() -> None:
+    client = CapturingOpenAIClient(
+        {
+            "id": "resp_clamped",
+            "status": "completed",
+            "output": [{"type": "message", "content": [{"type": "output_text", "text": "ok"}]}],
+        }
+    )
+
+    result = asyncio.run(
+        client.create_response(
+            messages=[{"role": "user", "content": "问题"}],
+            model="gpt-5-preview",
+            temperature=0.7,
+            max_tokens=1_000_000,
+        )
+    )
+
+    assert result["content"] == "ok"
+    assert client.calls[0]["payload"]["max_output_tokens"] == OPENAI_COMPATIBLE_MAX_TOKENS
 
 
 def test_generate_with_tools_keeps_responses_reasoning_on_responses_endpoint() -> None:

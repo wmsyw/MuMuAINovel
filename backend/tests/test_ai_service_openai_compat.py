@@ -4,6 +4,7 @@ from typing import Any, Dict
 from app.services.ai_clients.openai_client import OpenAIClient
 from app.services.ai_providers.openai_provider import OpenAIProvider
 from app.services.ai_service import AIService
+from app.services.ai_token_limits import OPENAI_COMPATIBLE_MAX_TOKENS
 
 
 class CapturingOpenAIClient(OpenAIClient):
@@ -38,6 +39,7 @@ def make_service(
     client: CapturingOpenAIClient,
     default_model: str,
     default_reasoning_intensity: str = "auto",
+    default_max_tokens: int = 256,
 ) -> AIService:
     service = AIService(
         api_provider="mumu",
@@ -45,7 +47,7 @@ def make_service(
         api_base_url="https://api.openai.test/v1",
         default_model=default_model,
         default_temperature=0.3,
-        default_max_tokens=256,
+        default_max_tokens=default_max_tokens,
         default_system_prompt="系统提示",
         default_reasoning_intensity=default_reasoning_intensity,
         enable_mcp=False,
@@ -139,3 +141,25 @@ def test_ai_service_explicit_auto_suppresses_default_deepseek_reasoning_payload(
     assert payload["model"] == "deepseek-v4-flash"
     assert "thinking" not in payload
     assert "reasoning_effort" not in payload
+
+
+def test_ai_service_clamps_oversized_user_default_max_tokens_for_openai_compat() -> None:
+    client = CapturingOpenAIClient()
+    service = make_service(
+        client,
+        default_model="deepseek-v4-flash",
+        default_max_tokens=1_000_000,
+    )
+
+    result = asyncio.run(
+        service.generate_text(
+            prompt="生成JSON",
+            provider="openai",
+            model="deepseek-v4-flash",
+            auto_mcp=False,
+            handle_tool_calls=False,
+        )
+    )
+
+    assert result["content"] == "legacy ok"
+    assert client.calls[0]["payload"]["max_tokens"] == OPENAI_COMPATIBLE_MAX_TOKENS

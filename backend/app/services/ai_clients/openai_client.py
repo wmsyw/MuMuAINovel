@@ -6,6 +6,7 @@ from typing import Any, AsyncGenerator, Dict, List, Optional
 import httpx
 
 from app.logger import get_logger
+from app.services.ai_token_limits import OPENAI_COMPATIBLE_MAX_TOKENS, clamp_openai_compatible_max_tokens
 from .base_client import BaseAIClient
 
 logger = get_logger(__name__)
@@ -72,6 +73,17 @@ class OpenAIClient(BaseAIClient):
                 return replacement
         return tool_choice
 
+    def _normalize_max_tokens(self, max_tokens: int) -> int:
+        normalized = clamp_openai_compatible_max_tokens(max_tokens)
+        if normalized != max_tokens:
+            logger.warning(
+                "OpenAI兼容请求 max_tokens=%s 超出上游有效范围，已调整为 %s（上限=%s）",
+                max_tokens,
+                normalized,
+                OPENAI_COMPATIBLE_MAX_TOKENS,
+            )
+        return normalized
+
     def _build_payload(
         self,
         messages: list,
@@ -84,11 +96,12 @@ class OpenAIClient(BaseAIClient):
         reasoning_payload: Optional[Dict[str, Any]] = None,
         provider_compatibility: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
+        normalized_max_tokens = self._normalize_max_tokens(max_tokens)
         payload = {
             "model": model,
             "messages": messages,
             "temperature": temperature,
-            "max_tokens": max_tokens,
+            "max_tokens": normalized_max_tokens,
         }
         if stream:
             payload["stream"] = True
@@ -189,11 +202,12 @@ class OpenAIClient(BaseAIClient):
         stream: bool = False,
         reasoning_payload: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
+        normalized_max_tokens = self._normalize_max_tokens(max_tokens)
         payload: Dict[str, Any] = {
             "model": model,
             "input": self._build_response_input(messages),
             "temperature": temperature,
-            "max_output_tokens": max_tokens,
+            "max_output_tokens": normalized_max_tokens,
         }
         if stream:
             payload["stream"] = True
