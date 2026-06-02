@@ -17,9 +17,22 @@ type Step = 'channel_select' | 'genre_select' | 'tag_select' | 'plot_brief' | 'i
 const entrySteps = new Set<Step>(['channel_select', 'genre_select', 'tag_select', 'plot_brief']);
 const restorableSteps = new Set<Step>(['channel_select', 'genre_select', 'tag_select', 'plot_brief', 'idea', 'direction_cards', 'perspective', 'outline_mode', 'confirm']);
 const TAG_COLLAPSED_VISIBLE_COUNT = 24;
+const CUSTOM_TAG_MAX_LENGTH = 30;
 
 type TaxonomyTagOption = (typeof THEME_TAGS)[number];
 type TagDimension = 'theme' | 'character' | 'plot';
+type CustomTagInputs = Record<TagDimension, string>;
+
+interface DirectionCardRequestOptions {
+  extraRequirement?: string;
+  previousCards?: InspirationDirectionCard[];
+}
+
+const emptyCustomTagInputs: CustomTagInputs = {
+  theme: '',
+  character: '',
+  plot: '',
+};
 
 interface Message {
   type: 'ai' | 'user';
@@ -303,6 +316,10 @@ function isStoryBibleDraft(draft: InspirationStoryBibleDraft | InspirationDirect
   return 'core_idea' in draft && 'story_promise' in draft;
 }
 
+function isDirectionCard(draft: InspirationStoryBibleDraft | InspirationDirectionCard): draft is InspirationDirectionCard {
+  return 'id' in draft && 'hook' in draft && 'opening_hook' in draft;
+}
+
 function formatQualityDimensionLabel(dimension: keyof InspirationQualityReport['dimensions']): string {
   const labels: Record<keyof InspirationQualityReport['dimensions'], string> = {
     novelty: '新颖度',
@@ -424,6 +441,7 @@ const InspirationImpl: React.FC = () => {
   const [themeTagsExpanded, setThemeTagsExpanded] = useState(false);
   const [characterTagsExpanded, setCharacterTagsExpanded] = useState(false);
   const [plotTagsExpanded, setPlotTagsExpanded] = useState(false);
+  const [customTagInputs, setCustomTagInputs] = useState<CustomTagInputs>(emptyCustomTagInputs);
    
   // 生成配置
   const [generationConfig, setGenerationConfig] = useState<InspirationGenerationConfig | null>(null);
@@ -588,6 +606,7 @@ const InspirationImpl: React.FC = () => {
     setThemeTagsExpanded(false);
     setCharacterTagsExpanded(false);
     setPlotTagsExpanded(false);
+    setCustomTagInputs(emptyCustomTagInputs);
   };
 
   const handleChannelChange = (channelId: string) => {
@@ -600,6 +619,7 @@ const InspirationImpl: React.FC = () => {
     setThemeTagsExpanded(false);
     setCharacterTagsExpanded(false);
     setPlotTagsExpanded(false);
+    setCustomTagInputs(emptyCustomTagInputs);
   };
 
   const handleGenreChange = (genreLabel: string) => {
@@ -649,6 +669,52 @@ const InspirationImpl: React.FC = () => {
     }
 
     dimensionConfig.setSelected(dimensionConfig.selected.filter(item => item !== label));
+  };
+
+  const normalizeCustomTagLabel = (value: string) => value.trim().slice(0, CUSTOM_TAG_MAX_LENGTH);
+
+  const updateCustomTagInput = (dimension: TagDimension, value: string) => {
+    setCustomTagInputs(prev => ({ ...prev, [dimension]: value }));
+  };
+
+  const addCustomTag = (dimension: TagDimension, rawValue: string): boolean => {
+    const dimensionConfig = {
+      theme: {
+        label: '主题标签',
+        selected: selectedThemes,
+        setSelected: setSelectedThemes,
+      },
+      character: {
+        label: '角色标签',
+        selected: selectedCharacters,
+        setSelected: setSelectedCharacters,
+      },
+      plot: {
+        label: '情节标签',
+        selected: selectedPlots,
+        setSelected: setSelectedPlots,
+      },
+    }[dimension];
+    const label = normalizeCustomTagLabel(rawValue);
+
+    if (!label) {
+      message.warning('请输入自定义标签');
+      return false;
+    }
+
+    if (dimensionConfig.selected.includes(label)) {
+      message.warning(`${label} 已在${dimensionConfig.label}中`);
+      return false;
+    }
+
+    if (dimensionConfig.selected.length >= MAX_TAGS_PER_DIMENSION) {
+      message.warning(`${dimensionConfig.label}最多选择 ${MAX_TAGS_PER_DIMENSION} 个`);
+      return false;
+    }
+
+    dimensionConfig.setSelected([...dimensionConfig.selected, label]);
+    setCustomTagInputs(prev => ({ ...prev, [dimension]: '' }));
+    return true;
   };
 
   const getVisibleTagOptions = (
@@ -718,7 +784,11 @@ const InspirationImpl: React.FC = () => {
     ].filter(Boolean).join('\n');
   };
 
-  const requestDirectionCards = async (idea: string, guidance?: InspirationGuidance) => {
+  const requestDirectionCards = async (
+    idea: string,
+    guidance?: InspirationGuidance,
+    options: DirectionCardRequestOptions = {},
+  ) => {
     const response = await inspirationApi.generateCards({
       idea,
       guidance,
@@ -726,6 +796,8 @@ const InspirationImpl: React.FC = () => {
       context: {
         initial_idea: idea,
         description: idea,
+        ...(options.extraRequirement ? { extra_requirement: options.extraRequirement } : {}),
+        ...(options.previousCards?.length ? { previous_direction_cards: options.previousCards } : {}),
       },
     });
 
@@ -895,6 +967,57 @@ const InspirationImpl: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleAppendDirectionRequirement = async (requirement: string) => {
+    const selectedCards = selectedDirectionCardIds
+      .map(id => directionCards.find(card => card.id === id))
+      .filter((card): card is InspirationDirectionCard => Boolean(card));
+
+    if (selectedCards.length > 1) {
+      message.warning('追加要求时请只选择一张方向卡；不选择则会重新生成一批方向');
+      return;
+    }
+
+    if (selectedCards.length === 0) {
+      if (!initialIdea.trim()) {
+        message.warning('缺少原始创意，无法根据追加要求重新生成方向');
+        return;
+      }
+
+      await requestDirectionCards(initialIdea, buildCurrentGuidance() || undefined, {
+        extraRequirement: requirement,
+        previousCards: directionCards,
+      });
+      message.success('已根据追加要求重新生成故事方向');
+      return;
+    }
+
+    const [selectedCard] = selectedCards;
+    const result = await inspirationApi.repair({
+      draft: selectedCard,
+      issues: [],
+      issue_ids: [],
+      instructions: `请基于用户追加要求修改这张故事方向卡。追加要求：${requirement}。保留原方向的核心辨识度，只调整必要字段，并返回完整故事方向卡 JSON。`,
+    });
+
+    if (!result.repaired || !isDirectionCard(result.draft)) {
+      message.warning(result.warnings?.[0] || '本次追加未能修改方向卡，已保留原方向');
+      return;
+    }
+
+    const revisedCard = result.draft;
+    setDirectionCards(prev => prev.map(card => card.id === selectedCard.id ? revisedCard : card));
+    setSelectedDirectionCardIds([revisedCard.id]);
+    setActiveDirectionCard(revisedCard);
+    setStoryBibleDraft(undefined);
+    setStoryBibleQualityReport(null);
+    setStoryBibleQualityError(null);
+    setMessages(prev => [...prev, {
+      type: 'ai',
+      content: `已根据追加要求修改方向「${revisedCard.title}」。你可以继续补充要求，或继续深化此方向。`,
+    }]);
+    message.success('已修改选中的故事方向');
   };
 
   const updateStoryBibleField = (field: StoryBibleField, value: string) => {
@@ -1298,6 +1421,10 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
         message.warning('请从选项中选择一个大纲模式');
         setLoading(false);
         return;
+      } else if (currentStep === 'direction_cards') {
+        await handleAppendDirectionRequirement(input.trim());
+        setLoading(false);
+        return;
       }
 
       message.info('请按新版流程选择方向卡操作或确认选项');
@@ -1398,8 +1525,12 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
     dimension: TagDimension,
   ) => {
     const visibleOptions = getVisibleTagOptions(options, selectedValues, expanded);
+    const presetLabels = new Set(options.map(option => option.label));
+    const customSelectedValues = selectedValues.filter(value => !presetLabels.has(value));
     const hasOverflow = options.length > TAG_COLLAPSED_VISIBLE_COUNT;
     const reachedLimit = selectedValues.length >= MAX_TAGS_PER_DIMENSION;
+    const customInputValue = customTagInputs[dimension];
+    const customPlaceholder = `自定义${title.replace('标签', '')}标签，回车添加`;
 
     return (
       <Card size="small" styles={{ body: { padding: 14 } }}>
@@ -1410,6 +1541,22 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
               已选 {selectedValues.length}/{MAX_TAGS_PER_DIMENSION}
             </Tag>
           </div>
+
+          {customSelectedValues.length > 0 && (
+            <Space wrap size={[8, 8]}>
+              {customSelectedValues.map(value => (
+                <Tag
+                  key={value}
+                  color="processing"
+                  closable={!loading}
+                  onClose={() => toggleTagSelection(dimension, value, false)}
+                  style={{ marginInlineEnd: 0 }}
+                >
+                  {value}
+                </Tag>
+              ))}
+            </Space>
+          )}
 
           <Space wrap size={[8, 8]}>
             {visibleOptions.map(option => {
@@ -1451,6 +1598,17 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
               {expanded ? '收起 ▲' : `展开 ▼（共 ${options.length} 个）`}
             </Button>
           )}
+
+          <Input.Search
+            size="small"
+            value={customInputValue}
+            placeholder={reachedLimit ? `已达上限，最多 ${MAX_TAGS_PER_DIMENSION} 个` : customPlaceholder}
+            maxLength={CUSTOM_TAG_MAX_LENGTH}
+            enterButton="添加"
+            disabled={reachedLimit || loading}
+            onChange={(event) => updateCustomTagInput(dimension, event.target.value)}
+            onSearch={(value) => addCustomTag(dimension, value)}
+          />
         </Space>
       </Card>
     );
@@ -1591,7 +1749,7 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
           <Space direction="vertical" size={4} style={{ width: '100%' }}>
             <Title level={4} style={{ margin: 0 }}>故事方向</Title>
-            <Text type="secondary">默认先比较三张方向卡；选中两个时，先点选的方向会作为合并主方向。</Text>
+            <Text type="secondary">默认先比较三张方向卡；在下方输入追加要求时，不选卡会重新生成，选中一张会修改该方向，选中两个仍用于合并。</Text>
           </Space>
 
           {directionCards.length > 0 ? (
@@ -1955,7 +2113,7 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
               currentStep === 'idea'
                 ? '例如：我想写一本关于时间旅行的科幻小说...'
                 : currentStep === 'direction_cards'
-                  ? '请选择方向卡操作...'
+                  ? '输入追加要求：不选卡片重新生成，选一张则修改该方向...'
                 : '输入自定义内容，或点击上方选项卡片...'
             }
             autoSize={{ minRows: 2, maxRows: 4 }}
@@ -1965,14 +2123,14 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
                 handleSendMessage();
               }
             }}
-            disabled={loading || Boolean(draftActionLoading) || currentStep === 'direction_cards'}
+            disabled={loading || Boolean(draftActionLoading)}
           />
           <Button
             type="primary"
             icon={<SendOutlined />}
             onClick={handleSendMessage}
             loading={loading || Boolean(draftActionLoading)}
-            disabled={currentStep === 'direction_cards'}
+            disabled={loading || Boolean(draftActionLoading)}
             style={{ height: 'auto' }}
           >
             发送
