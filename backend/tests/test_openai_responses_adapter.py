@@ -10,7 +10,7 @@ import pytest
 
 from app.services.ai_capabilities import build_reasoning_config
 from app.services.ai_clients.openai_client import OpenAIClient
-from app.services.ai_token_limits import OPENAI_COMPATIBLE_MAX_TOKENS
+from app.services import ai_token_limits
 from app.services.ai_providers.openai_provider import OpenAIProvider
 
 
@@ -129,6 +129,12 @@ def _sample_tool() -> Dict[str, Any]:
             "parameters": {"type": "object", "$schema": "http://json-schema.org/draft-07/schema#"},
         },
     }
+
+
+def seed_models_dev_limit(*, model: str, output: int) -> None:
+    ai_token_limits.prime_models_dev_catalog(
+        {"llmgateway": {"models": {model: {"id": model, "limit": {"context": 1_000_000, "output": output}}}}},
+    )
 
 
 def test_create_response_uses_responses_endpoint_and_normalizes_output() -> None:
@@ -401,6 +407,7 @@ def test_chat_stream_logs_upstream_400_body_and_safe_payload_summary(caplog: pyt
 
 
 def test_chat_stream_clamps_oversized_openai_compatible_max_tokens() -> None:
+    seed_models_dev_limit(model="deepseek-v4-flash", output=384_000)
     client = StreamingOpenAIClient(
         [
             {"choices": [{"delta": {"content": "好"}}]},
@@ -418,10 +425,11 @@ def test_chat_stream_clamps_oversized_openai_compatible_max_tokens() -> None:
     )
 
     assert chunks == [{"content": "好"}, {"done": True}]
-    assert client.calls[0]["payload"]["max_tokens"] == OPENAI_COMPATIBLE_MAX_TOKENS
+    assert client.calls[0]["payload"]["max_tokens"] == 384_000
 
 
 def test_responses_payload_clamps_oversized_openai_compatible_max_tokens() -> None:
+    seed_models_dev_limit(model="gpt-5-preview", output=128_000)
     client = CapturingOpenAIClient(
         {
             "id": "resp_clamped",
@@ -440,7 +448,7 @@ def test_responses_payload_clamps_oversized_openai_compatible_max_tokens() -> No
     )
 
     assert result["content"] == "ok"
-    assert client.calls[0]["payload"]["max_output_tokens"] == OPENAI_COMPATIBLE_MAX_TOKENS
+    assert client.calls[0]["payload"]["max_output_tokens"] == 128_000
 
 
 def test_generate_with_tools_keeps_responses_reasoning_on_responses_endpoint() -> None:

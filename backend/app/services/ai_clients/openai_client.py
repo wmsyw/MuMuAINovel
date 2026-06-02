@@ -6,7 +6,7 @@ from typing import Any, AsyncGenerator, Dict, List, Optional
 import httpx
 
 from app.logger import get_logger
-from app.services.ai_token_limits import OPENAI_COMPATIBLE_MAX_TOKENS, clamp_openai_compatible_max_tokens
+from app.services.ai_token_limits import resolve_openai_compatible_max_tokens
 from .base_client import BaseAIClient
 
 logger = get_logger(__name__)
@@ -73,16 +73,19 @@ class OpenAIClient(BaseAIClient):
                 return replacement
         return tool_choice
 
-    def _normalize_max_tokens(self, max_tokens: int) -> int:
-        normalized = clamp_openai_compatible_max_tokens(max_tokens)
-        if normalized != max_tokens:
+    async def _normalize_max_tokens(self, model: str, max_tokens: int) -> int:
+        resolution = await resolve_openai_compatible_max_tokens(model=model, max_tokens=max_tokens)
+        if resolution.normalized != max_tokens:
             logger.warning(
-                "OpenAI兼容请求 max_tokens=%s 超出上游有效范围，已调整为 %s（上限=%s）",
+                "OpenAI兼容请求 max_tokens=%s 超出模型输出上限，已调整为 %s（上限=%s｜来源=%s｜匹配=%s/%s）",
                 max_tokens,
-                normalized,
-                OPENAI_COMPATIBLE_MAX_TOKENS,
+                resolution.normalized,
+                resolution.limit,
+                resolution.source,
+                resolution.matched_provider,
+                resolution.matched_model,
             )
-        return normalized
+        return resolution.normalized
 
     def _build_payload(
         self,
@@ -96,12 +99,11 @@ class OpenAIClient(BaseAIClient):
         reasoning_payload: Optional[Dict[str, Any]] = None,
         provider_compatibility: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        normalized_max_tokens = self._normalize_max_tokens(max_tokens)
         payload = {
             "model": model,
             "messages": messages,
             "temperature": temperature,
-            "max_tokens": normalized_max_tokens,
+            "max_tokens": max_tokens,
         }
         if stream:
             payload["stream"] = True
@@ -202,12 +204,11 @@ class OpenAIClient(BaseAIClient):
         stream: bool = False,
         reasoning_payload: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        normalized_max_tokens = self._normalize_max_tokens(max_tokens)
         payload: Dict[str, Any] = {
             "model": model,
             "input": self._build_response_input(messages),
             "temperature": temperature,
-            "max_output_tokens": normalized_max_tokens,
+            "max_output_tokens": max_tokens,
         }
         if stream:
             payload["stream"] = True
@@ -305,11 +306,12 @@ class OpenAIClient(BaseAIClient):
         reasoning_payload: Optional[Dict[str, Any]] = None,
         provider_compatibility: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
+        normalized_max_tokens = await self._normalize_max_tokens(model, max_tokens)
         payload = self._build_payload(
             messages,
             model,
             temperature,
-            max_tokens,
+            normalized_max_tokens,
             tools,
             tool_choice,
             reasoning_payload=reasoning_payload,
@@ -355,11 +357,12 @@ class OpenAIClient(BaseAIClient):
         tool_choice: Optional[str] = None,
         reasoning_payload: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
+        normalized_max_tokens = await self._normalize_max_tokens(model, max_tokens)
         payload = self._build_response_payload(
             messages,
             model,
             temperature,
-            max_tokens,
+            normalized_max_tokens,
             tools,
             tool_choice,
             reasoning_payload=reasoning_payload,
@@ -394,11 +397,12 @@ class OpenAIClient(BaseAIClient):
             - tool_calls: list - 工具调用列表（如果有）
             - done: bool - 是否结束
         """
+        normalized_max_tokens = await self._normalize_max_tokens(model, max_tokens)
         payload = self._build_payload(
             messages,
             model,
             temperature,
-            max_tokens,
+            normalized_max_tokens,
             tools,
             tool_choice,
             stream=True,
@@ -488,11 +492,12 @@ class OpenAIClient(BaseAIClient):
         tool_choice: Optional[str] = None,
         reasoning_payload: Optional[Dict[str, Any]] = None,
     ) -> AsyncGenerator[Dict[str, Any], None]:
+        normalized_max_tokens = await self._normalize_max_tokens(model, max_tokens)
         payload = self._build_response_payload(
             messages,
             model,
             temperature,
-            max_tokens,
+            normalized_max_tokens,
             tools,
             tool_choice,
             stream=True,

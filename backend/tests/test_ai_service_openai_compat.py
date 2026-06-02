@@ -1,10 +1,10 @@
 import asyncio
 from typing import Any, Dict
 
+from app.services import ai_token_limits
 from app.services.ai_clients.openai_client import OpenAIClient
 from app.services.ai_providers.openai_provider import OpenAIProvider
 from app.services.ai_service import AIService
-from app.services.ai_token_limits import OPENAI_COMPATIBLE_MAX_TOKENS
 
 
 class CapturingOpenAIClient(OpenAIClient):
@@ -33,6 +33,12 @@ class CapturingOpenAIClient(OpenAIClient):
         if endpoint == "/responses":
             return self.responses_response
         return self.chat_response
+
+
+def seed_models_dev_limit(*, model: str, output: int) -> None:
+    ai_token_limits.prime_models_dev_catalog(
+        {"llmgateway": {"models": {model: {"id": model, "limit": {"context": 1_000_000, "output": output}}}}},
+    )
 
 
 def make_service(
@@ -144,6 +150,7 @@ def test_ai_service_explicit_auto_suppresses_default_deepseek_reasoning_payload(
 
 
 def test_ai_service_clamps_oversized_user_default_max_tokens_for_openai_compat() -> None:
+    seed_models_dev_limit(model="deepseek-v4-flash", output=384_000)
     client = CapturingOpenAIClient()
     service = make_service(
         client,
@@ -162,4 +169,4 @@ def test_ai_service_clamps_oversized_user_default_max_tokens_for_openai_compat()
     )
 
     assert result["content"] == "legacy ok"
-    assert client.calls[0]["payload"]["max_tokens"] == OPENAI_COMPATIBLE_MAX_TOKENS
+    assert client.calls[0]["payload"]["max_tokens"] == 384_000
