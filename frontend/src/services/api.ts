@@ -8,6 +8,8 @@ import type {
   Project,
   ProjectCreate,
   ProjectUpdate,
+  ProjectOptimizeRequest,
+  ProjectOptimizeResult,
   ProjectAsset,
   ProjectAssetListResponse,
   ProjectAssetType,
@@ -452,6 +454,13 @@ export const projectApi = {
 
   updateProject: (id: string, data: ProjectUpdate) =>
     api.put<unknown, Project>(`/projects/${id}`, data),
+
+  optimizeProjectStream: (
+    projectId: string,
+    payload: ProjectOptimizeRequest,
+    handlers: SSEClientOptions
+  ): Promise<ProjectOptimizeResult> =>
+    ssePost<ProjectOptimizeResult>(`/api/projects/${projectId}/optimize-stream`, payload, handlers),
 
   deleteProject: (id: string) => api.delete(`/projects/${id}`),
 
