@@ -3,7 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, delete
-from typing import List
+from collections.abc import AsyncGenerator, Mapping
+from typing import cast
 import json
 from urllib.parse import quote
 from app.database import get_db
@@ -37,9 +38,191 @@ from app.utils.data_consistency import (
     fix_missing_organization_records,
     fix_organization_member_counts
 )
+from app.api.common import verify_project_access
+from app.api.settings import get_user_ai_service_from_db
+from app.schemas.project_optimize import (
+    FieldSuggestion,
+    ProjectOptimizeRequest,
+    ProjectOptimizeResult,
+    filter_and_validate_suggestions,
+)
+from app.services.ai_service import AIService
+from app.services.json_helper import loads_json
+from app.services.prompt_service import PromptService
+from app.utils.sse_response import SSEResponse, create_sse_response
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/projects", tags=["项目管理"])
+
+
+PROJECT_OPTIMIZE_CONTEXT_LIMIT = 10
+PROJECT_OPTIMIZE_OUTLINE_TEXT_LIMIT = 100
+PROJECT_OPTIMIZE_CHARACTER_TEXT_LIMIT = 50
+
+
+def _truncate_for_optimize_prompt(value: object, max_length: int) -> str:
+    text = "" if value is None else str(value).strip()
+    if len(text) <= max_length:
+        return text
+    return text[:max_length].rstrip() + "…"
+
+
+def _json_for_optimize_prompt(value: object) -> str:
+    if value in (None, [], {}):
+        return "无"
+    return json.dumps(value, ensure_ascii=False, default=str)
+
+
+def _project_optimize_field_value(project: Project, field_name: str) -> str:
+    return "" if getattr(project, field_name, None) is None else str(getattr(project, field_name))
+
+
+async def _build_project_optimize_context(project_id: str, db: AsyncSession) -> tuple[str, str]:
+    outlines_result = await db.execute(
+        select(Outline)
+        .where(Outline.project_id == project_id)
+        .order_by(Outline.order_index)
+        .limit(PROJECT_OPTIMIZE_CONTEXT_LIMIT)
+    )
+    outlines = outlines_result.scalars().all()
+    if outlines:
+        outline_lines = []
+        for index, outline in enumerate(outlines, start=1):
+            summary_source = outline.content or outline.structure or ""
+            summary = _truncate_for_optimize_prompt(summary_source, PROJECT_OPTIMIZE_OUTLINE_TEXT_LIMIT)
+            title = _truncate_for_optimize_prompt(outline.title, 40) or f"大纲{index}"
+            outline_lines.append(f"{index}. {title}: {summary or '暂无摘要'}")
+        outline_summary = "\n".join(outline_lines)
+    else:
+        outline_summary = "暂无大纲"
+
+    characters_result = await db.execute(
+        select(Character)
+        .where(Character.project_id == project_id)
+        .order_by(Character.created_at, Character.id)
+        .limit(PROJECT_OPTIMIZE_CONTEXT_LIMIT)
+    )
+    characters = characters_result.scalars().all()
+    if characters:
+        character_lines = []
+        for index, character in enumerate(characters, start=1):
+            parts = [
+                character.role_type,
+                character.personality,
+                character.background,
+                character.motivations,
+                character.arc_summary,
+                character.current_state,
+            ]
+            summary_source = "；".join(str(part).strip() for part in parts if part)
+            summary = _truncate_for_optimize_prompt(summary_source, PROJECT_OPTIMIZE_CHARACTER_TEXT_LIMIT)
+            name = _truncate_for_optimize_prompt(character.name, 30) or f"角色{index}"
+            character_lines.append(f"{index}. {name}: {summary or '暂无摘要'}")
+        character_summary = "\n".join(character_lines)
+    else:
+        character_summary = "暂无角色"
+
+    return outline_summary, character_summary
+
+
+def _parse_project_optimize_ai_response(ai_response: object) -> dict[str, object]:
+    if isinstance(ai_response, str):
+        response_text = ai_response
+    else:
+        response_text = json.dumps(ai_response, ensure_ascii=False, default=str)
+
+    cleaned_response = AIService._clean_json_response(response_text)
+    parsed = loads_json(cleaned_response)
+    if not isinstance(parsed, dict):
+        raise ValueError("项目优化AI响应必须是JSON对象")
+    return cast(dict[str, object], parsed)
+
+
+def _build_project_optimize_result(parsed_response: Mapping[str, object]) -> ProjectOptimizeResult:
+    raw_fields = parsed_response.get("fields")
+    if not isinstance(raw_fields, Mapping):
+        raw_fields = {}
+
+    raw_values: dict[str, object] = {}
+    raw_reasons: dict[str, str] = {}
+    for field_name, suggestion in raw_fields.items():
+        if isinstance(suggestion, Mapping):
+            raw_values[str(field_name)] = suggestion.get("value")
+            reason = suggestion.get("reason")
+            raw_reasons[str(field_name)] = "" if reason is None else str(reason)
+        else:
+            raw_values[str(field_name)] = suggestion
+            raw_reasons[str(field_name)] = ""
+
+    filtered_values = filter_and_validate_suggestions(raw_values)
+    fields = {
+        field_name: FieldSuggestion(
+            value=value,
+            reason=raw_reasons.get(field_name) or "基于项目设定、大纲与角色上下文的优化建议。",
+        )
+        for field_name, value in filtered_values.items()
+    }
+
+    reply = parsed_response.get("reply")
+    reply_text = str(reply).strip() if reply is not None else ""
+    if not reply_text:
+        reply_text = "已完成项目设定分析，请查看字段优化建议。" if fields else "当前项目设定已较一致，暂时不需要调整项目字段。"
+
+    return ProjectOptimizeResult(fields=fields, reply=reply_text)
+
+
+async def _project_optimize_generator(
+    project_id: str,
+    project: Project,
+    data: ProjectOptimizeRequest,
+    user_id: str,
+    db: AsyncSession,
+) -> AsyncGenerator[str, None]:
+    try:
+        yield await SSEResponse.send_progress("正在分析项目设定…", 10, "processing")
+
+        outline_summary, character_summary = await _build_project_optimize_context(project_id, db)
+
+        yield await SSEResponse.send_progress("正在整理大纲与角色摘要…", 35, "processing")
+
+        template = await PromptService.get_template("PROJECT_OPTIMIZE", user_id, db)
+        prompt = PromptService.format_prompt(
+            template,
+            title=_project_optimize_field_value(project, "title"),
+            description=_project_optimize_field_value(project, "description"),
+            theme=_project_optimize_field_value(project, "theme"),
+            genre=_project_optimize_field_value(project, "genre"),
+            world_time_period=_project_optimize_field_value(project, "world_time_period"),
+            world_location=_project_optimize_field_value(project, "world_location"),
+            world_atmosphere=_project_optimize_field_value(project, "world_atmosphere"),
+            world_rules=_project_optimize_field_value(project, "world_rules"),
+            narrative_perspective=_project_optimize_field_value(project, "narrative_perspective"),
+            outline_summary=outline_summary,
+            character_summary=character_summary,
+            requirement=data.requirement or "",
+            conversation_history=_json_for_optimize_prompt(data.conversation_history),
+            current_draft=_json_for_optimize_prompt(data.current_draft),
+        )
+
+        yield await SSEResponse.send_progress("正在生成优化建议…", 60, "processing")
+
+        user_ai_service = await get_user_ai_service_from_db(user_id, db)
+        ai_response = await user_ai_service.call_with_json_retry(
+            prompt=prompt,
+            expected_type="object",
+            auto_mcp=False,
+        )
+
+        yield await SSEResponse.send_progress("正在校验优化建议…", 85, "processing")
+
+        parsed_response = _parse_project_optimize_ai_response(ai_response)
+        result = _build_project_optimize_result(parsed_response)
+
+        yield await SSEResponse.send_result(result.model_dump())
+        yield await SSEResponse.send_done()
+    except Exception as e:
+        logger.error(f"项目设定优化失败: project_id={project_id}, error={str(e)}", exc_info=True)
+        yield await SSEResponse.send_error(str(e), 500)
 
 
 @router.post("", response_model=ProjectResponse, summary="创建项目")
@@ -151,6 +334,27 @@ async def get_project(
     except Exception as e:
         logger.error(f"获取项目详情失败: {str(e)}", exc_info=True)
         raise
+
+
+@router.post("/{project_id}/optimize-stream", summary="AI优化项目设定(SSE)")
+async def optimize_project_stream(
+    project_id: str,
+    data: ProjectOptimizeRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    user_id = getattr(request.state, "user_id", None)
+    project = await verify_project_access(project_id, user_id, db)
+
+    return create_sse_response(
+        _project_optimize_generator(
+            project_id=project_id,
+            project=project,
+            data=data,
+            user_id=str(user_id),
+            db=db,
+        )
+    )
 
 
 @router.put("/{project_id}", response_model=ProjectResponse, summary="更新项目")
