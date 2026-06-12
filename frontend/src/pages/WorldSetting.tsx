@@ -267,7 +267,7 @@ const WorldSettingImpl = ({ apiClient = defaultApiClient }: WorldSettingProps) =
                 setRegenerateProgress(progress);
                 setRegenerateMessage(msg);
               },
-              onChunk: (chunk: string) => {
+              onChunk: (_chunk: string) => {
               },
               onResult: (result) => {
                 setGeneratedDraft(buildGeneratedWorldDraft(currentProject.id, result));
