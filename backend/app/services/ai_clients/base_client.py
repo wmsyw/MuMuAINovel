@@ -3,7 +3,7 @@ import asyncio
 import hashlib
 import json
 from abc import ABC, abstractmethod
-from typing import Any, AsyncGenerator, Dict, Optional
+from typing import Any, AsyncGenerator, Dict, List, Optional
 
 import httpx
 
@@ -346,11 +346,11 @@ class BaseAIClient(ABC):
     @abstractmethod
     async def chat_completion(
         self,
-        messages: list,
+        messages: List[Dict[str, Any]],
         model: str,
         temperature: float,
         max_tokens: int,
-        tools: Optional[list] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[str] = None,
     ) -> Dict[str, Any]:
         """聊天补全"""
@@ -359,13 +359,14 @@ class BaseAIClient(ABC):
     @abstractmethod
     async def chat_completion_stream(
         self,
-        messages: list,
+        messages: List[Dict[str, Any]],
         model: str,
         temperature: float,
         max_tokens: int,
-    ) -> AsyncGenerator[str, None]:
+    ) -> AsyncGenerator[Dict[str, Any], None]:
         """流式聊天补全"""
-        pass
+        if False:
+            yield {}
 
 
 async def cleanup_all_clients():

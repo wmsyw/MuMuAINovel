@@ -1,0 +1,7 @@
+{
+  "include": ["backend/app"],
+  "exclude": ["backend/.venv", "backend/.pytest_cache", "backend/data", "backend/embedding", "backend/logs", "backend/static", "backend/storage", "frontend/node_modules"],
+  "venvPath": "backend",
+  "venv": ".venv",
+  "extraPaths": ["backend"]
+}

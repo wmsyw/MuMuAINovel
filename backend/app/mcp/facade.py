@@ -407,7 +407,8 @@ class MCPClientFacade:
         key = self._get_key(user_id, plugin_name)
         user_lock = await self._get_user_lock(user_id)
 
-        old_status = self._sessions.get(key, SessionInfo(session=None, url="")).status if key in self._sessions else "active"
+        existing_info = self._sessions.get(key)
+        old_status = existing_info.status if existing_info else "active"
 
         async with user_lock:
             await self._close_session_unsafe(key)
@@ -697,13 +698,8 @@ class MCPClientFacade:
                 session = await self._get_session(user_id, plugin_name)
 
                 logger.info(f"调用工具: {tool_key}")
-<<<<<<< HEAD
-                logger.debug(f"  参数: {arguments}")
-
-=======
                 logger.debug(f"  参数摘要: {summarize_log_value(arguments)}")
-                
->>>>>>> upstream/main
+
                 # 带超时调用
                 result = await asyncio.wait_for(
                     session.call_tool(tool_name, arguments),

@@ -6,6 +6,7 @@ from typing import Any, AsyncGenerator, Dict, List, Optional
 import httpx
 
 from app.logger import get_logger, summarize_log_value
+from app.services.ai_token_limits import resolve_openai_compatible_max_tokens
 from .base_client import BaseAIClient
 
 logger = get_logger(__name__)
@@ -61,7 +62,7 @@ class OpenAIClient(BaseAIClient):
             "Content-Type": "application/json",
         }
 
-    def _clean_chat_tools(self, tools: Optional[list]) -> Optional[List[Dict[str, Any]]]:
+    def _clean_chat_tools(self, tools: Optional[List[Dict[str, Any]]]) -> Optional[List[Dict[str, Any]]]:
         if not tools:
             return None
 
@@ -77,7 +78,7 @@ class OpenAIClient(BaseAIClient):
             cleaned.append(tool_copy)
         return cleaned
 
-    def _clean_response_tools(self, tools: Optional[list]) -> Optional[List[Dict[str, Any]]]:
+    def _clean_response_tools(self, tools: Optional[List[Dict[str, Any]]]) -> Optional[List[Dict[str, Any]]]:
         """将现有 Chat Completions function tool 形状转换为 Responses tool 形状。"""
         if not tools:
             return None
@@ -127,11 +128,11 @@ class OpenAIClient(BaseAIClient):
 
     def _build_payload(
         self,
-        messages: list,
+        messages: List[Dict[str, Any]],
         model: str,
         temperature: float,
         max_tokens: int,
-        tools: Optional[list] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[str] = None,
         stream: bool = False,
         reasoning_payload: Optional[Dict[str, Any]] = None,
@@ -219,7 +220,7 @@ class OpenAIClient(BaseAIClient):
             json.dumps(self._payload_summary(payload), ensure_ascii=False, separators=(",", ":")),
         )
 
-    def _build_response_input(self, messages: list) -> List[Dict[str, Any]]:
+    def _build_response_input(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         input_items = []
         for message in messages:
             role = message.get("role") or "user"
@@ -233,11 +234,11 @@ class OpenAIClient(BaseAIClient):
 
     def _build_response_payload(
         self,
-        messages: list,
+        messages: List[Dict[str, Any]],
         model: str,
         temperature: float,
         max_tokens: int,
-        tools: Optional[list] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[str] = None,
         stream: bool = False,
         reasoning_payload: Optional[Dict[str, Any]] = None,
@@ -273,7 +274,7 @@ class OpenAIClient(BaseAIClient):
             "total_tokens": total_tokens,
         }
 
-    def _extract_response_text_and_tools(self, output_items: list) -> tuple[str, Optional[List[Dict[str, Any]]]]:
+    def _extract_response_text_and_tools(self, output_items: List[Dict[str, Any]]) -> tuple[str, Optional[List[Dict[str, Any]]]]:
         content_parts: List[str] = []
         tool_calls: List[Dict[str, Any]] = []
 
@@ -335,11 +336,11 @@ class OpenAIClient(BaseAIClient):
 
     async def chat_completion(
         self,
-        messages: list,
+        messages: List[Dict[str, Any]],
         model: str,
         temperature: float,
         max_tokens: int,
-        tools: Optional[list] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[str] = None,
         reasoning_payload: Optional[Dict[str, Any]] = None,
         provider_compatibility: Optional[Dict[str, Any]] = None,
@@ -386,11 +387,11 @@ class OpenAIClient(BaseAIClient):
 
     async def create_response(
         self,
-        messages: list,
+        messages: List[Dict[str, Any]],
         model: str,
         temperature: float,
         max_tokens: int,
-        tools: Optional[list] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[str] = None,
         reasoning_payload: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
@@ -416,11 +417,11 @@ class OpenAIClient(BaseAIClient):
 
     async def chat_completion_stream(
         self,
-        messages: list,
+        messages: List[Dict[str, Any]],
         model: str,
         temperature: float,
         max_tokens: int,
-        tools: Optional[list] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[str] = None,
         reasoning_payload: Optional[Dict[str, Any]] = None,
         provider_compatibility: Optional[Dict[str, Any]] = None,
@@ -518,15 +519,14 @@ class OpenAIClient(BaseAIClient):
         except Exception as e:
             logger.error(f"流式请求出错: {str(e)}")
             raise
-<<<<<<< HEAD
 
     async def create_response_stream(
         self,
-        messages: list,
+        messages: List[Dict[str, Any]],
         model: str,
         temperature: float,
         max_tokens: int,
-        tools: Optional[list] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[str] = None,
         reasoning_payload: Optional[Dict[str, Any]] = None,
     ) -> AsyncGenerator[Dict[str, Any], None]:
@@ -627,5 +627,3 @@ class OpenAIClient(BaseAIClient):
         except Exception as e:
             logger.error(f"OpenAI Responses 流式请求出错: {str(e)}")
             raise
-=======
->>>>>>> upstream/main
