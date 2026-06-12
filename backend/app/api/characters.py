@@ -26,7 +26,7 @@ from app.services.import_export_service import ImportExportService
 from app.services.character_card_service import character_card_field_values, normalize_character_card_fields
 from app.services.relationship_merge_service import RelationshipMergeService
 from app.schemas.import_export import CharactersExportRequest, CharactersImportResult
-from app.logger import get_logger
+from app.logger import get_logger, safe_preview
 from app.api.settings import get_user_ai_service
 from app.api.common import verify_project_access
 from app.api.entity_compat import build_optional_entity_enrichment, candidate_policy_payload, normalized_name, safe_json_loads
@@ -1109,7 +1109,7 @@ async def generate_character_stream(
                 logger.info(f"✅ 角色JSON解析成功")
             except json.JSONDecodeError as e:
                 logger.error(f"❌ 角色JSON解析失败: {e}")
-                logger.error(f"   原始响应预览: {ai_response[:200]}")
+                logger.debug(f"   原始响应预览: {safe_preview(ai_response, 200)}")
                 yield await tracker.error(f"AI返回的内容无法解析为JSON：{str(e)}")
                 return
 

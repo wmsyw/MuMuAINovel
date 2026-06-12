@@ -13,7 +13,6 @@ import json
 import time
 
 from app.database import get_db
-from app import feature_flags
 from app.models.settings import Settings
 from app.services.cover_generation_service import cover_generation_service
 from app.schemas.settings import (
@@ -21,15 +20,12 @@ from app.schemas.settings import (
     APIKeyPreset, APIKeyPresetConfig, PresetCreateRequest,
     PresetUpdateRequest, PresetResponse, PresetListResponse,
     ChapterAnalysisPresetSelectionRequest,
-    SystemSMTPSettingsResponse, SystemSMTPSettingsUpdate, SMTPTestRequest,
-    ReasoningCapabilitiesResponse,
-    FeatureFlagsResponse,
+    SystemSMTPSettingsResponse, SystemSMTPSettingsUpdate, SMTPTestRequest
 )
 from app.user_manager import User
-from app.logger import get_logger
+from app.logger import get_logger, safe_preview
 from app.config import settings as app_settings, PROJECT_ROOT
 from app.services.ai_service import AIService, create_user_ai_service, create_user_ai_service_with_mcp, normalize_provider
-from app.services.ai_capabilities import get_reasoning_registry_metadata
 from app.services.email_service import email_service
 from app.security import validate_public_http_url
 
@@ -56,9 +52,6 @@ def read_env_defaults() -> Dict[str, Any]:
         "llm_model": app_settings.default_model,
         "temperature": app_settings.default_temperature,
         "max_tokens": app_settings.default_max_tokens,
-        "default_reasoning_intensity": app_settings.default_reasoning_intensity,
-        "reasoning_overrides": app_settings.reasoning_overrides,
-        "allow_ai_entity_generation": app_settings.allow_ai_entity_generation,
     }
 
 
@@ -222,18 +215,18 @@ async def get_user_ai_service(
 ) -> AIService:
     """
     依赖：获取当前用户的AI服务实例（支持MCP工具自动加载）
-
+    
     从数据库读取用户设置并创建对应的AI服务。
     自动传递 user_id 和 db_session，使得 AIService 能够加载用户配置的MCP工具。
     根据用户的所有MCP插件状态决定是否启用MCP：如果有启用的插件则启用，否则禁用。
     """
     from app.models.mcp_plugin import MCPPlugin
-
+    
     result = await db.execute(
         select(Settings).where(Settings.user_id == user.user_id)
     )
     settings = result.scalar_one_or_none()
-
+    
     if not settings:
         # 如果用户没有设置，从.env读取并保存
         env_defaults = read_env_defaults()
@@ -245,22 +238,22 @@ async def get_user_ai_service(
         await db.commit()
         await db.refresh(settings)
         logger.info(f"用户 {user.user_id} 首次使用AI服务，已从.env同步设置到数据库")
-
+    
     # 查询用户的所有MCP插件状态
     mcp_result = await db.execute(
         select(MCPPlugin).where(MCPPlugin.user_id == user.user_id)
     )
     mcp_plugins = mcp_result.scalars().all()
-
+    
     # 检查是否有启用的MCP插件
     enable_mcp = any(plugin.enabled for plugin in mcp_plugins) if mcp_plugins else False
-
+    
     if mcp_plugins:
         enabled_count = sum(1 for p in mcp_plugins if p.enabled)
         logger.info(f"用户 {user.user_id} 有 {len(mcp_plugins)} 个MCP插件，{enabled_count} 个启用，{enable_mcp} 决定使用MCP")
     else:
         logger.debug(f"用户 {user.user_id} 没有配置MCP插件，禁用MCP")
-
+    
     # ✅ 使用支持MCP的工厂函数创建AI服务实例
     # 传递 user_id 和 db_session，使得 AIService 能够自动加载用户配置的MCP工具
     resolved_settings = resolve_runtime_ai_config(settings.api_provider, settings.api_key, settings.api_base_url)
@@ -275,8 +268,6 @@ async def get_user_ai_service(
         db_session=db,                 # ✅ 传递 db_session
         system_prompt=settings.system_prompt,
         enable_mcp=enable_mcp,         # 根据MCP插件状态动态决定
-        default_reasoning_intensity=settings.default_reasoning_intensity,
-        reasoning_overrides=settings.reasoning_overrides,
     )
 
 
@@ -358,12 +349,12 @@ async def get_settings(
         select(Settings).where(Settings.user_id == user.user_id)
     )
     settings = result.scalar_one_or_none()
-
+    
     if not settings:
         # 如果用户没有保存过设置，从.env读取默认配置并保存到数据库
         env_defaults = read_env_defaults()
         logger.info(f"用户 {user.user_id} 首次获取设置，自动从.env同步到数据库")
-
+        
         # 创建新设置并保存到数据库
         settings = Settings(
             user_id=user.user_id,
@@ -373,18 +364,9 @@ async def get_settings(
         await db.commit()
         await db.refresh(settings)
         logger.info(f"用户 {user.user_id} 的设置已从.env同步到数据库")
-
+    
     logger.info(f"用户 {user.user_id} 获取已保存的设置")
     return settings
-
-
-@router.get("/feature-flags", response_model=FeatureFlagsResponse)
-async def get_feature_flags(user: User = Depends(require_login)):
-    """获取前端所需的最小特性开关。"""
-    _ = user
-    return {
-        "local_assets_enabled": feature_flags.is_enabled("local_assets_enabled"),
-    }
 
 
 @router.post("/cover/test")
@@ -404,12 +386,6 @@ async def test_cover_settings(
         "provider": result.provider,
         "model": result.model,
     }
-
-
-@router.get("/reasoning-capabilities", response_model=ReasoningCapabilitiesResponse)
-async def get_reasoning_capabilities(user: User = Depends(require_login)):
-    """获取规范化推理强度与 provider/model 能力元数据。"""
-    return get_reasoning_registry_metadata()
 
 
 @router.get("/system/smtp", response_model=SystemSMTPSettingsResponse)
@@ -531,7 +507,7 @@ async def save_settings(
     创建或更新当前用户的设置（Upsert）
     如果设置已存在则更新，否则创建新设置
     仅保存到数据库
-
+    
     注意：手动保存配置后会自动取消之前激活的预设状态，
     因为手动修改的配置可能与预设不一致
     """
@@ -540,22 +516,22 @@ async def save_settings(
         select(Settings).where(Settings.user_id == user.user_id)
     )
     settings = result.scalar_one_or_none()
-
+    
     # 准备数据
     settings_dict = data.model_dump(exclude_unset=True)
-
+    
     if settings:
         # 更新现有设置
         for key, value in settings_dict.items():
             setattr(settings, key, value)
-
+        
         # 检查并取消预设激活状态
         # 因为用户手动修改了配置，可能与之前激活的预设不一致
         try:
             prefs = json.loads(settings.preferences or '{}')
             api_presets = prefs.get('api_presets', {'presets': [], 'version': '1.0'})
             presets = api_presets.get('presets', [])
-
+            
             # 找到激活的预设并检查是否与当前保存的配置一致
             active_preset = next((p for p in presets if p.get('is_active')), None)
             if active_preset:
@@ -567,10 +543,9 @@ async def save_settings(
                     preset_config.get('api_base_url') != settings_dict.get('api_base_url', settings.api_base_url) or
                     preset_config.get('llm_model') != settings_dict.get('llm_model', settings.llm_model) or
                     preset_config.get('temperature') != settings_dict.get('temperature', settings.temperature) or
-                    preset_config.get('max_tokens') != settings_dict.get('max_tokens', settings.max_tokens) or
-                    preset_config.get('default_reasoning_intensity') != settings_dict.get('default_reasoning_intensity', settings.default_reasoning_intensity)
+                    preset_config.get('max_tokens') != settings_dict.get('max_tokens', settings.max_tokens)
                 )
-
+                
                 if config_changed:
                     # 取消激活状态
                     active_preset['is_active'] = False
@@ -579,7 +554,7 @@ async def save_settings(
                     logger.info(f"用户 {user.user_id} 手动修改配置，已取消预设 {active_preset.get('name')} 的激活状态")
         except (json.JSONDecodeError, TypeError) as e:
             logger.warning(f"解析用户 {user.user_id} 的preferences失败: {e}")
-
+        
         await db.commit()
         await db.refresh(settings)
         logger.info(f"用户 {user.user_id} 更新设置")
@@ -593,7 +568,7 @@ async def save_settings(
         await db.commit()
         await db.refresh(settings)
         logger.info(f"用户 {user.user_id} 创建设置")
-
+    
     return settings
 
 
@@ -611,19 +586,19 @@ async def update_settings(
         select(Settings).where(Settings.user_id == user.user_id)
     )
     settings = result.scalar_one_or_none()
-
+    
     if not settings:
         raise HTTPException(status_code=404, detail="设置不存在，请先创建设置")
-
+    
     # 更新设置
     update_data = data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(settings, key, value)
-
+    
     await db.commit()
     await db.refresh(settings)
     logger.info(f"用户 {user.user_id} 更新设置")
-
+    
     return settings
 
 
@@ -639,14 +614,14 @@ async def delete_settings(
         select(Settings).where(Settings.user_id == user.user_id)
     )
     settings = result.scalar_one_or_none()
-
+    
     if not settings:
         raise HTTPException(status_code=404, detail="设置不存在")
-
+    
     await db.delete(settings)
     await db.commit()
     logger.info(f"用户 {user.user_id} 删除设置")
-
+    
     return {"message": "设置已删除", "user_id": user.user_id}
 
 
@@ -659,12 +634,12 @@ async def get_available_models(
 ):
     """
     从配置的 API 获取可用的模型列表
-
+    
     Args:
         api_key: API 密钥
         api_base_url: API 基础 URL
         provider: API 提供商 (openai, anthropic, azure, custom)
-
+    
     Returns:
         模型列表
     """
@@ -682,14 +657,14 @@ async def get_available_models(
                     "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json"
                 }
-
+                
                 logger.info(f"正在从 {url} 获取模型列表")
                 response = await client.get(url, headers=headers)
                 response.raise_for_status()
-
+                
                 data = response.json()
                 models = []
-
+                
                 if "data" in data and isinstance(data["data"], list):
                     for model in data["data"]:
                         model_id = model.get("id", "")
@@ -700,20 +675,20 @@ async def get_available_models(
                                 "label": model_id,
                                 "description": model.get("description", "") or f"Created: {model.get('created', 'N/A')}"
                             })
-
+                
                 if not models:
                     raise HTTPException(
                         status_code=404,
                         detail="未能从 API 获取到可用的模型列表"
                     )
-
+                
                 logger.info(f"成功获取 {len(models)} 个模型")
                 return {
                     "provider": provider,
                     "models": models,
                     "count": len(models)
                 }
-
+                
             elif provider == "anthropic":
                 # Anthropic models API
                 url = f"{api_base_url.rstrip('/')}/v1/models"
@@ -723,7 +698,7 @@ async def get_available_models(
                 data = response.json()
                 models = [{"value": m["id"], "label": m["id"], "description": m.get("display_name", "")} for m in data.get("data", [])]
                 return {"provider": provider, "models": models, "count": len(models)}
-
+            
             elif provider == "gemini":
                 # Gemini models API
                 url = f"{api_base_url.rstrip('/')}/models?key={api_key}"
@@ -736,12 +711,12 @@ async def get_available_models(
                         mid = m.get("name", "").replace("models/", "")
                         models.append({"value": mid, "label": m.get("displayName", mid), "description": ""})
                 return {"provider": provider, "models": models, "count": len(models)}
-
+            
             else:
                 raise HTTPException(status_code=400, detail=f"不支持的提供商: {provider}")
-
+            
     except httpx.HTTPStatusError as e:
-        logger.error(f"获取模型列表失败 (HTTP {e.response.status_code}): {e.response.text}")
+        logger.error(f"获取模型列表失败 (HTTP {e.response.status_code}): {safe_preview(e.response.text, 500)}")
         if e.response.status_code == 404:
             raise HTTPException(
                 status_code=400,
@@ -781,15 +756,15 @@ class ApiTestRequest(BaseModel):
 async def check_function_calling_support(data: ApiTestRequest):
     """
     检查模型是否支持 Function Calling（工具调用）
-
+    
     基于业界最佳实践的测试方法：
     1. 发送包含工具定义的请求
     2. 检查响应的 finish_reason 是否为 "tool_calls"
     3. 验证响应中是否包含有效的 tool_calls 数据
-
+    
     Args:
         data: 包含 API 配置的请求数据
-
+    
     Returns:
         检测结果包含支持状态、详细信息和建议
     """
@@ -799,10 +774,10 @@ async def check_function_calling_support(data: ApiTestRequest):
     api_base_url = resolved_config["api_base_url"]
     provider = resolved_config["api_provider"]
     llm_model = data.llm_model
-
+    
     try:
         start_time = time.time()
-
+        
         # 定义一个简单的测试工具（天气查询）
         test_tools = [{
             "type": "function",
@@ -826,15 +801,15 @@ async def check_function_calling_support(data: ApiTestRequest):
                 }
             }
         }]
-
+        
         # 测试提示：故意设计一个需要调用工具的问题
         test_prompt = "请告诉我北京现在的天气情况如何？"
-
+        
         logger.info(f"🧪 开始检测 Function Calling 支持")
         logger.info(f"  - 提供商: {provider}")
         logger.info(f"  - 模型: {llm_model}")
         logger.info(f"  - 测试工具: get_weather")
-
+        
         # 创建临时 AI 服务实例进行测试
         test_service = AIService(
             api_provider=provider,
@@ -844,7 +819,7 @@ async def check_function_calling_support(data: ApiTestRequest):
             default_temperature=0.3,  # 使用较低温度以获得更确定的行为
             default_max_tokens=200
         )
-
+        
         # 发送带工具的测试请求
         response = await test_service.generate_text(
             prompt=test_prompt,
@@ -856,37 +831,37 @@ async def check_function_calling_support(data: ApiTestRequest):
             tool_choice="auto",  # 让模型自动决定是否使用工具
             auto_mcp=False  # 禁用 MCP 自动加载
         )
-
+        
         end_time = time.time()
         response_time = round((end_time - start_time) * 1000, 2)
-
+        
         # 分析响应以确定是否支持 Function Calling
         supported = False
         finish_reason = None
         tool_calls = None
         response_content = None
-
+        
         if isinstance(response, dict):
             # 检查 finish_reason（OpenAI 标准）
             finish_reason = response.get("finish_reason")
-
+            
             # 检查是否有 tool_calls
             if "tool_calls" in response and response["tool_calls"]:
                 supported = True
                 tool_calls = response["tool_calls"]
                 logger.info(f"✅ 检测到工具调用: {len(tool_calls)} 个")
-
+            
             # 记录返回的内容（如果有）
             if "content" in response:
                 response_content = response["content"]
         elif isinstance(response, str):
             # 如果只返回字符串，说明不支持工具调用
             response_content = response
-
+        
         logger.info(f"  - 响应时间: {response_time}ms")
         logger.info(f"  - finish_reason: {finish_reason}")
         logger.info(f"  - 支持状态: {'✅ 支持' if supported else '❌ 不支持'}")
-
+        
         # 构建详细的返回信息
         result = {
             "success": True,
@@ -904,7 +879,7 @@ async def check_function_calling_support(data: ApiTestRequest):
                 "response_type": "tool_calls" if supported else "text"
             }
         }
-
+        
         # 添加工具调用详情
         if tool_calls:
             result["tool_calls"] = tool_calls
@@ -921,9 +896,9 @@ async def check_function_calling_support(data: ApiTestRequest):
                 "推荐模型：GPT-4 系列、GPT-4-turbo、Claude 3 Opus/Sonnet、Gemini 1.5 Pro 等",
                 "说明：模型返回了文本回复而非工具调用，表明不支持该功能"
             ]
-
+        
         return result
-
+        
     except ValueError as e:
         error_msg = str(e)
         logger.error(f"❌ Function Calling 检测配置错误: {error_msg}")
@@ -939,7 +914,7 @@ async def check_function_calling_support(data: ApiTestRequest):
                 "请验证所选提供商与配置是否匹配"
             ]
         }
-
+        
     except TimeoutError as e:
         error_msg = str(e)
         logger.error(f"❌ Function Calling 检测超时: {error_msg}")
@@ -955,14 +930,14 @@ async def check_function_calling_support(data: ApiTestRequest):
                 "建议：稍后重试或使用其他网络环境"
             ]
         }
-
+        
     except Exception as e:
         error_msg = str(e)
         error_type = type(e).__name__
-
+        
         logger.error(f"❌ Function Calling 检测失败: {error_msg}")
         logger.error(f"  - 错误类型: {error_type}")
-
+        
         # 智能分析错误原因
         suggestions = []
         if "tool" in error_msg.lower() or "function" in error_msg.lower():
@@ -989,7 +964,7 @@ async def check_function_calling_support(data: ApiTestRequest):
                 "建议：检查所有配置参数是否正确",
                 "提示：查看详细错误信息以获取更多线索"
             ]
-
+        
         return {
             "success": False,
             "supported": False,
@@ -1004,10 +979,10 @@ async def check_function_calling_support(data: ApiTestRequest):
 async def test_api_connection(data: ApiTestRequest):
     """
     测试 API 连接和配置是否正确
-
+    
     Args:
         data: 包含 API 配置的请求数据（包括 temperature 和 max_tokens）
-
+    
     Returns:
         测试结果包含状态、响应时间和详细信息
     """
@@ -1021,10 +996,10 @@ async def test_api_connection(data: ApiTestRequest):
     temperature = data.temperature if data.temperature is not None else 0.7
     max_tokens = data.max_tokens if data.max_tokens is not None else 2000
     import time
-
+    
     try:
         start_time = time.time()
-
+        
         # 创建临时 AI 服务实例，使用前端传递的参数
         test_service = AIService(
             api_provider=provider,
@@ -1034,17 +1009,17 @@ async def test_api_connection(data: ApiTestRequest):
             default_temperature=temperature,
             default_max_tokens=max_tokens
         )
-
+        
         # 发送简单的测试请求
         test_prompt = "请用一句话回复：测试成功"
-
+        
         logger.info(f"🧪 开始测试 API 连接")
         logger.info(f"  - 提供商: {provider}")
         logger.info(f"  - 模型: {llm_model}")
         logger.info(f"  - Base URL: {api_base_url}")
         logger.info(f"  - Temperature: {temperature}")
         logger.info(f"  - Max Tokens: {max_tokens}")
-
+        
         response = await test_service.generate_text(
             prompt=test_prompt,
             provider=provider,
@@ -1053,17 +1028,17 @@ async def test_api_connection(data: ApiTestRequest):
             max_tokens=max_tokens,
             auto_mcp=False  # 测试时不加载MCP工具
         )
-
+        
         end_time = time.time()
         response_time = round((end_time - start_time) * 1000, 2)  # 转换为毫秒
-
+        
         logger.info(f"✅ API 测试成功")
         logger.info(f"  - 响应时间: {response_time}ms")
-
+        
         # 安全地处理响应内容（确保是字符串）
         response_str = str(response) if response else 'N/A'
-        logger.info(f"  - 响应内容: {response_str[:100]}")
-
+        logger.info(f"  - 响应内容长度: {len(response_str)}")
+        
         return {
             "success": True,
             "message": "API 连接测试成功",
@@ -1078,6 +1053,23 @@ async def test_api_connection(data: ApiTestRequest):
                 "temperature": temperature,
                 "max_tokens": max_tokens
             }
+        }
+        
+    except json.JSONDecodeError as e:
+        # 上游接口返回了 HTTP 成功状态，但响应体不是合法 JSON。
+        error_msg = str(e)
+        logger.error(f"❌ API 响应解析失败: {error_msg}")
+        logger.error(f"  - 错误类型: {type(e).__name__}")
+        return {
+            "success": False,
+            "message": "API 响应解析失败",
+            "error": error_msg,
+            "error_type": "JSONDecodeError",
+            "suggestions": [
+                "上游服务可能返回了空响应、HTML 错误页或非 OpenAI 兼容 JSON",
+                "请查看后端日志中的 AI HTTP 响应 JSON 解析失败，确认 status、content-type 和 body_preview",
+                "请确认 API Base URL 是否指向正确的 OpenAI 兼容 /v1 接口"
+            ]
         }
 
     except ValueError as e:
@@ -1095,7 +1087,7 @@ async def test_api_connection(data: ApiTestRequest):
                 "请验证所选提供商是否匹配"
             ]
         }
-
+        
     except TimeoutError as e:
         # 超时错误
         error_msg = str(e)
@@ -1111,15 +1103,15 @@ async def test_api_connection(data: ApiTestRequest):
                 "如果使用代理，请检查代理设置"
             ]
         }
-
+        
     except Exception as e:
         # 其他错误
         error_msg = str(e)
         error_type = type(e).__name__
-
+        
         logger.error(f"❌ API 测试失败: {error_msg}")
         logger.error(f"  - 错误类型: {error_type}")
-
+        
         # 分析错误原因并提供建议
         suggestions = []
         if "blocked" in error_msg.lower():
@@ -1159,7 +1151,7 @@ async def test_api_connection(data: ApiTestRequest):
                 "请确认网络连接正常",
                 "请查看详细错误信息"
             ]
-
+        
         return {
             "success": False,
             "message": "API 测试失败",
@@ -1177,7 +1169,7 @@ async def get_user_settings(user_id: str, db: AsyncSession) -> Settings:
         select(Settings).where(Settings.user_id == user_id)
     )
     settings = result.scalar_one_or_none()
-
+    
     if not settings:
         # 创建默认设置
         env_defaults = read_env_defaults()
@@ -1190,7 +1182,7 @@ async def get_user_settings(user_id: str, db: AsyncSession) -> Settings:
         await db.commit()
         await db.refresh(settings)
         logger.info(f"用户 {user_id} 首次访问，已创建默认设置")
-
+    
     return settings
 
 
@@ -1201,32 +1193,32 @@ async def get_presets(
 ):
     """
     获取所有API配置预设
-
+    
     从preferences字段读取预设列表
     """
     settings = await get_user_settings(user.user_id, db)
-
+    
     # 解析preferences
     try:
         prefs = json.loads(settings.preferences or '{}')
     except json.JSONDecodeError:
         logger.warning(f"用户 {user.user_id} 的preferences字段JSON格式错误，重置为空")
         prefs = {}
-
+    
     api_presets = _get_api_presets_payload(prefs)
     presets = api_presets.get('presets', [])
     chapter_analysis_preset_id = _get_chapter_analysis_preset_id(prefs)
     if chapter_analysis_preset_id and not any(p.get('id') == chapter_analysis_preset_id for p in presets):
         chapter_analysis_preset_id = None
-
+    
     # 找到激活的预设
     active_preset_id = next(
         (p['id'] for p in presets if p.get('is_active')),
         None
     )
-
+    
     logger.info(f"用户 {user.user_id} 获取预设列表，共 {len(presets)} 个")
-
+    
     return {
         "presets": presets,
         "total": len(presets),
@@ -1243,20 +1235,20 @@ async def create_preset(
 ):
     """
     创建新预设
-
+    
     将预设添加到preferences字段的JSON中
     """
     settings = await get_user_settings(user.user_id, db)
-
+    
     # 解析preferences
     try:
         prefs = json.loads(settings.preferences or '{}')
     except json.JSONDecodeError:
         prefs = {}
-
+    
     api_presets = prefs.get('api_presets', {'presets': [], 'version': '1.0'})
     presets = api_presets.get('presets', [])
-
+    
     # 创建新预设
     new_preset = {
         "id": f"preset_{int(datetime.now().timestamp() * 1000)}",
@@ -1269,16 +1261,16 @@ async def create_preset(
             "api_provider": _normalize_raw_provider(data.config.api_provider)
         }
     }
-
+    
     presets.append(new_preset)
-
+    
     # 保存回preferences
     api_presets['presets'] = presets
     prefs['api_presets'] = api_presets
     settings.preferences = json.dumps(prefs, ensure_ascii=False)
-
+    
     await db.commit()
-
+    
     logger.info(f"用户 {user.user_id} 创建预设: {data.name}")
     return new_preset
 
@@ -1292,25 +1284,25 @@ async def update_preset(
 ):
     """
     更新预设
-
+    
     在preferences字段的JSON中更新指定预设
     """
     settings = await get_user_settings(user.user_id, db)
-
+    
     # 解析preferences
     try:
         prefs = json.loads(settings.preferences or '{}')
     except json.JSONDecodeError:
         raise HTTPException(status_code=500, detail="配置数据格式错误")
-
+    
     api_presets = prefs.get('api_presets', {'presets': [], 'version': '1.0'})
     presets = api_presets.get('presets', [])
-
+    
     # 找到并更新预设
     target_preset = next((p for p in presets if p['id'] == preset_id), None)
     if not target_preset:
         raise HTTPException(status_code=404, detail="预设不存在")
-
+    
     # 更新字段
     if data.name is not None:
         target_preset['name'] = data.name
@@ -1321,13 +1313,13 @@ async def update_preset(
             **data.config.model_dump(),
             'api_provider': _normalize_raw_provider(data.config.api_provider)
         }
-
+    
     # 保存回preferences
     prefs['api_presets'] = api_presets
     settings.preferences = json.dumps(prefs, ensure_ascii=False)
-
+    
     await db.commit()
-
+    
     logger.info(f"用户 {user.user_id} 更新预设: {preset_id}")
     return target_preset
 
@@ -1340,41 +1332,41 @@ async def delete_preset(
 ):
     """
     删除预设
-
+    
     从preferences字段的JSON中删除指定预设
     """
     settings = await get_user_settings(user.user_id, db)
-
+    
     # 解析preferences
     try:
         prefs = json.loads(settings.preferences or '{}')
     except json.JSONDecodeError:
         raise HTTPException(status_code=500, detail="配置数据格式错误")
-
+    
     api_presets = _get_api_presets_payload(prefs)
     presets = api_presets.get('presets', [])
-
+    
     # 找到预设
     target_preset = next((p for p in presets if p['id'] == preset_id), None)
     if not target_preset:
         raise HTTPException(status_code=404, detail="预设不存在")
-
+    
     # 检查是否是激活的预设
     if target_preset.get('is_active'):
         raise HTTPException(status_code=400, detail="无法删除激活中的预设，请先激活其他预设")
-
+    
     # 删除预设
     presets = [p for p in presets if p['id'] != preset_id]
     if prefs.get('chapter_analysis_preset_id') == preset_id:
         prefs.pop('chapter_analysis_preset_id', None)
-
+    
     # 保存回preferences
     api_presets['presets'] = presets
     prefs['api_presets'] = api_presets
     settings.preferences = json.dumps(prefs, ensure_ascii=False)
-
+    
     await db.commit()
-
+    
     logger.info(f"用户 {user.user_id} 删除预设: {preset_id}")
     return {"message": "预设已删除", "preset_id": preset_id}
 
@@ -1387,25 +1379,25 @@ async def activate_preset(
 ):
     """
     激活预设
-
+    
     将预设的配置应用到Settings主字段
     """
     settings = await get_user_settings(user.user_id, db)
-
+    
     # 解析preferences
     try:
         prefs = json.loads(settings.preferences or '{}')
     except json.JSONDecodeError:
         raise HTTPException(status_code=500, detail="配置数据格式错误")
-
+    
     api_presets = prefs.get('api_presets', {'presets': [], 'version': '1.0'})
     presets = api_presets.get('presets', [])
-
+    
     # 找到目标预设
     target_preset = next((p for p in presets if p['id'] == preset_id), None)
     if not target_preset:
         raise HTTPException(status_code=404, detail="预设不存在")
-
+    
     # 应用配置到Settings主字段
     config = target_preset['config']
     resolved_config = _apply_provider_defaults(config.get('api_provider'), config.get('api_key'), config.get('api_base_url'))
@@ -1416,18 +1408,17 @@ async def activate_preset(
     settings.temperature = config['temperature']
     settings.max_tokens = config['max_tokens']
     settings.system_prompt = config.get('system_prompt')
-    settings.default_reasoning_intensity = config.get('default_reasoning_intensity', settings.default_reasoning_intensity)
-
+    
     # 更新所有预设的is_active状态
     for preset in presets:
         preset['is_active'] = (preset['id'] == preset_id)
-
+    
     # 保存回preferences
     prefs['api_presets'] = api_presets
     settings.preferences = json.dumps(prefs, ensure_ascii=False)
-
+    
     await db.commit()
-
+    
     logger.info(f"用户 {user.user_id} 激活预设: {target_preset['name']}")
     return {
         "message": "预设已激活",
@@ -1481,21 +1472,21 @@ async def test_preset(
     测试预设的API连接
     """
     settings = await get_user_settings(user.user_id, db)
-
+    
     # 解析preferences
     try:
         prefs = json.loads(settings.preferences or '{}')
     except json.JSONDecodeError:
         raise HTTPException(status_code=500, detail="配置数据格式错误")
-
+    
     api_presets = prefs.get('api_presets', {'presets': [], 'version': '1.0'})
     presets = api_presets.get('presets', [])
-
+    
     # 找到预设
     target_preset = next((p for p in presets if p['id'] == preset_id), None)
     if not target_preset:
         raise HTTPException(status_code=404, detail="预设不存在")
-
+    
     # 使用现有的test_api_connection逻辑
     # 确保传递完整参数，与当前配置测试保持一致
     config = target_preset['config']
@@ -1507,7 +1498,7 @@ async def test_preset(
         temperature=config.get('temperature'),   # 使用预设中的温度参数
         max_tokens=config.get('max_tokens')      # 使用预设中的最大tokens参数
     )
-
+    
     logger.info(f"用户 {user.user_id} 测试预设: {target_preset['name']}")
     return await test_api_connection(test_request)
 
@@ -1521,11 +1512,11 @@ async def create_preset_from_current(
 ):
     """
     从当前配置创建新预设
-
+    
     快捷方式：将当前激活的配置保存为新预设
     """
     settings = await get_user_settings(user.user_id, db)
-
+    
     # 从当前Settings主字段读取配置
     current_config = APIKeyPresetConfig(
         api_provider=_normalize_raw_provider(settings.api_provider),
@@ -1534,16 +1525,15 @@ async def create_preset_from_current(
         llm_model=settings.llm_model,
         temperature=settings.temperature,
         max_tokens=settings.max_tokens,
-        system_prompt=settings.system_prompt,
-        default_reasoning_intensity=settings.default_reasoning_intensity,
+        system_prompt=settings.system_prompt
     )
-
+    
     # 创建预设
     create_request = PresetCreateRequest(
         name=name,
         description=description,
         config=current_config
     )
-
+    
     logger.info(f"用户 {user.user_id} 从当前配置创建预设: {name}")
     return await create_preset(create_request, user, db)

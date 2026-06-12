@@ -2,7 +2,7 @@
 import json
 import re
 from typing import Any, Dict, List, Union
-from app.logger import get_logger
+from app.logger import get_logger, safe_preview
 
 try:
     import json5
@@ -29,27 +29,27 @@ _QUOTE_MAP = {
 def _is_content_quote(text: str, pos: int) -> bool:
     """
     判断字符串值内的 '"' 是否为内容引号（需转义）而非 JSON 结束引号。
-
+    
     合法 JSON 中，字符串结束引号之后的非空白字符必须是：
     ',' (值分隔) / '}' (关闭对象) / ']' (关闭数组)
-
+    
     如果 '"' 后面不符合这些模式，则是 AI 写入的内容引号，需要转义。
     """
     j = pos + 1
-
+    
     # 跳过空格和制表符
     while j < len(text) and text[j] in ' \t':
         j += 1
-
+    
     if j >= len(text):
         return False  # 文本末尾，视为结束引号
-
+    
     ch = text[j]
-
+    
     # } 或 ] → 结束引号
     if ch in ('}', ']'):
         return False
-
+    
     # 换行 → 检查下一行开头判断
     if ch == '\n' or ch == '\r':
         k = j + (2 if (ch == '\r' and j + 1 < len(text) and text[j + 1] == '\n') else 1)
@@ -61,16 +61,16 @@ def _is_content_quote(text: str, pos: int) -> bool:
         if text[k] == '"' or text[k] in ('}', ']'):
             return False
         return True
-
+    
     # , → 需要检查逗号后面是什么
     if ch == ',':
         k = j + 1
         while k < len(text) and text[k] in ' \t':
             k += 1
-
+        
         if k >= len(text):
             return False
-
+        
         # 逗号后跟换行 → 检查下一行
         if text[k] in ('\n', '\r'):
             k2 = k + (2 if (text[k] == '\r' and k + 1 < len(text) and text[k + 1] == '\n') else 1)
@@ -81,9 +81,9 @@ def _is_content_quote(text: str, pos: int) -> bool:
             if text[k2] == '"' or text[k2] in ('}', ']'):
                 return False
             return True
-
+        
         after_comma = text[k]
-
+        
         # 结构性逗号后应为 JSON 值的开头
         if after_comma == '"':
             return False  # 字符串值或 key
@@ -95,14 +95,14 @@ def _is_content_quote(text: str, pos: int) -> bool:
             return False
         if text[k:k+5] == 'false':
             return False
-
+        
         # 逗号后不是 JSON 值开头 → 内容逗号，引号是内容引号
         return True
-
+    
     # : → 通常在字符串结束后不可能出现，保守处理为结束引号
     if ch == ':':
         return False
-
+    
     # 其他字符（中文、字母等）→ 内容引号
     return True
 
@@ -110,13 +110,13 @@ def _is_content_quote(text: str, pos: int) -> bool:
 def _fix_json_string_values(text: str) -> str:
     """
     上下文感知的 JSON 修复，区分字符串内外分别处理。
-
+    
     字符串值内：
     1. 裸换行符/制表符 → 转义
     2. 中文引号（""等） → 转义为 \\"
     3. 未转义的 ASCII 双引号 → 智能检测：内容引号转义，结束引号保留
     4. 中文逗号/冒号 → 保留原样（是内容字符）
-
+    
     结构位置（字符串外）：
     1. 中文引号 → ASCII 引号
     2. 中文逗号 → ASCII 逗号
@@ -124,15 +124,15 @@ def _fix_json_string_values(text: str) -> str:
     """
     if not text or '"' not in text:
         return text
-
+    
     result = []
     i = 0
     in_string = False
     fixed_count = 0
-
+    
     while i < len(text):
         c = text[i]
-
+        
         # === 非字符串内（结构位置）===
         if not in_string:
             # 结构位置的中文标点 → ASCII
@@ -151,20 +151,20 @@ def _fix_json_string_values(text: str) -> str:
                 fixed_count += 1
                 i += 1
                 continue
-
+            
             # ASCII 双引号 → 进入字符串
             if c == '"':
                 in_string = True
                 result.append(c)
                 i += 1
                 continue
-
+            
             result.append(c)
             i += 1
             continue
-
+        
         # === 字符串值内 ===
-
+        
         # 转义字符处理
         if c == '\\':
             if i + 1 < len(text):
@@ -193,7 +193,7 @@ def _fix_json_string_values(text: str) -> str:
                 fixed_count += 1
                 i += 1
                 continue
-
+        
         # ASCII 双引号 → 智能判断是结束引号还是内容引号
         if c == '"':
             if _is_content_quote(text, i):
@@ -209,7 +209,7 @@ def _fix_json_string_values(text: str) -> str:
                 result.append(c)
                 i += 1
                 continue
-
+        
         # 裸换行符 → 转义
         if c == '\n':
             result.append('\\')
@@ -217,7 +217,7 @@ def _fix_json_string_values(text: str) -> str:
             fixed_count += 1
             i += 1
             continue
-
+        
         if c == '\r':
             if i + 1 < len(text) and text[i + 1] == '\n':
                 result.append('\\')
@@ -230,14 +230,14 @@ def _fix_json_string_values(text: str) -> str:
                 fixed_count += 1
                 i += 1
             continue
-
+        
         if c == '\t':
             result.append('\\')
             result.append('t')
             fixed_count += 1
             i += 1
             continue
-
+        
         # 中文引号处理
         if c in _QUOTE_MAP:
             mapped = _QUOTE_MAP[c]
@@ -251,34 +251,34 @@ def _fix_json_string_values(text: str) -> str:
             fixed_count += 1
             i += 1
             continue
-
+        
         # 其他字符（包括中文逗号、中文冒号）→ 保留原样
         result.append(c)
         i += 1
-
+    
     if fixed_count > 0:
         logger.debug(f"✅ 修复了{fixed_count}个JSON问题（引号/控制字符/中文标点）")
-
+    
     return ''.join(result)
 
 
 def _fix_all_invalid_escapes(text: str) -> str:
     """
     兜底修复：扫描整个文本中的无效JSON转义序列。
-
+    
     当 _fix_json_string_values 因字符串边界追踪错误而遗漏某些无效转义时，
     此函数作为兜底，不依赖字符串状态追踪，扫描整个文本修复所有无效转义。
-
+    
     有效JSON转义：\\" \\\\ \\/ \\b \\f \\n \\r \\t \\uXXXX
     其他 \\X 均为无效转义，修复方式为去掉反斜杠只保留字符。
     """
     if '\\' not in text:
         return text
-
+    
     result = []
     i = 0
     fixed = 0
-
+    
     while i < len(text):
         if text[i] == '\\' and i + 1 < len(text):
             next_c = text[i + 1]
@@ -291,7 +291,7 @@ def _fix_all_invalid_escapes(text: str) -> str:
             elif next_c == 'u':
                 # Unicode 转义，检查是否有4个十六进制字符
                 if i + 5 < len(text) and all(
-                    text[i + 2 + k] in '0123456789abcdefABCDEF'
+                    text[i + 2 + k] in '0123456789abcdefABCDEF' 
                     for k in range(4)
                 ):
                     result.append(text[i:i + 6])
@@ -312,41 +312,41 @@ def _fix_all_invalid_escapes(text: str) -> str:
         else:
             result.append(text[i])
             i += 1
-
+    
     if fixed > 0:
         logger.info(f"✅ 兜底修复了{fixed}个无效JSON转义序列")
-
+    
     return ''.join(result)
 
 
 def _fix_multiple_objects_as_value(text: str) -> str:
     """
     修复AI生成的JSON中，多个对象作为属性值但未合并的问题。
-
+    
     示例：
         "key": {"a": "1"}, {"b": "2"}  →  "key": {"a": "1", "b": "2"}
-
+    
     AI有时在输出对象类型的属性值时，输出了多个独立的对象而不是合并为一个。
     例如 relationship_changes 字段输出多个角色关系变化时可能出现此问题。
     此函数检测并合并这些对象。
     """
     if '{' not in text or '}' not in text:
         return text
-
+    
     # 匹配嵌套层级不超过2的对象: { ... } 其中 ... 不含 { 或仅含单层嵌套
     nested_obj = r'\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}'
-
+    
     # 模式：属性冒号后跟一个对象，然后逗号和另一个对象（没有属性名）
     # 即 "key": {obj1}, {obj2} → "key": {obj1, obj2}
     pattern = r'(":)\s*(' + nested_obj + r')\s*,\s*(' + nested_obj + r')'
-
+    
     def merge_objects(match):
         colon = match.group(1)
         obj1_content = match.group(2)[1:-1]  # 去掉外层的 { }
         obj2_content = match.group(3)[1:-1]  # 去掉外层的 { }
         # 合并为一个对象
         return f'{colon} {{{obj1_content}, {obj2_content}}}'
-
+    
     prev = None
     count = 0
     max_iterations = 10
@@ -354,10 +354,10 @@ def _fix_multiple_objects_as_value(text: str) -> str:
         prev = text
         text = re.sub(pattern, merge_objects, text)
         count += 1
-
+    
     if count > 1:
         logger.info(f"✅ 修复了{count - 1}处多对象属性值合并")
-
+    
     return text
 
 
@@ -367,23 +367,23 @@ def clean_json_response(text: str) -> str:
         if not text:
             logger.warning("⚠️ clean_json_response: 输入为空")
             return text
-
+        
         original_length = len(text)
         logger.debug(f"🔍 开始清洗JSON，原始长度: {original_length}")
-
+        
         # 上下文感知修复：中文引号/逗号/冒号、裸控制字符、未转义的内容引号
         # （区分字符串内外：结构位置替换为ASCII，字符串内保留或转义）
         text = _fix_json_string_values(text)
-
+        
         # 去除 markdown 代码块
         text = re.sub(r'^```json\s*\n?', '', text, flags=re.MULTILINE | re.IGNORECASE)
         text = re.sub(r'^```\s*\n?', '', text, flags=re.MULTILINE)
         text = re.sub(r'\n?```\s*$', '', text, flags=re.MULTILINE)
         text = text.strip()
-
+        
         if len(text) != original_length:
             logger.debug(f"   移除markdown后长度: {len(text)}")
-
+        
         # 尝试直接解析（快速路径）
         try:
             json.loads(text)
@@ -391,32 +391,32 @@ def clean_json_response(text: str) -> str:
             return text
         except Exception:
             pass
-
+        
         # 找到第一个 { 或 [
         start = -1
         for i, c in enumerate(text):
             if c in ('{', '['):
                 start = i
                 break
-
+        
         if start == -1:
             logger.warning(f"⚠️ 未找到JSON起始符号 {{ 或 [")
-            logger.debug(f"   文本预览: {text[:200]}")
+            logger.debug(f"   文本预览: {safe_preview(text, 200)}")
             return text
-
+        
         if start > 0:
             logger.debug(f"   跳过前{start}个字符")
             text = text[start:]
-
+        
         # 改进的括号匹配算法（更严格的字符串处理）
         stack = []
         i = 0
         end = -1
         in_string = False
-
+        
         while i < len(text):
             c = text[i]
-
+            
             # 处理字符串状态
             if c == '"':
                 if not in_string:
@@ -429,19 +429,19 @@ def clean_json_response(text: str) -> str:
                     while j >= 0 and text[j] == '\\':
                         num_backslashes += 1
                         j -= 1
-
+                    
                     # 偶数个反斜杠表示引号未被转义，字符串结束
                     if num_backslashes % 2 == 0:
                         in_string = False
-
+                
                 i += 1
                 continue
-
+            
             # 在字符串内部，跳过所有字符
             if in_string:
                 i += 1
                 continue
-
+            
             # 处理括号（只有在字符串外部才有效）
             if c == '{' or c == '[':
                 stack.append(c)
@@ -471,13 +471,13 @@ def clean_json_response(text: str) -> str:
                 else:
                     # 栈为空遇到 ]，忽略多余的闭合括号
                     logger.warning(f"⚠️ 遇到多余的 ]，忽略")
-
+            
             i += 1
-
+        
         # 检查未闭合的字符串
         if in_string:
             logger.warning(f"⚠️ 字符串未闭合，JSON可能不完整")
-
+        
         # 提取结果
         if end > 0:
             result = text[:end]
@@ -486,17 +486,17 @@ def clean_json_response(text: str) -> str:
             result = text
             logger.warning(f"⚠️ 未找到JSON结束位置，返回全部内容（长度: {len(result)}）")
             logger.debug(f"   栈状态: {stack}")
-
+        
         # 验证清洗后的结果
         try:
             json.loads(result)
             logger.debug(f"✅ 清洗后JSON验证成功")
         except json.JSONDecodeError as e:
             logger.warning(f"⚠️ 清洗后JSON仍然无效: {e}，尝试修复结构性问题...")
-
+            
             # 修复1：合并多对象属性值（AI可能输出 "key": {a:1}, {b:2} ）
             result = _fix_multiple_objects_as_value(result)
-
+            
             try:
                 json.loads(result)
                 logger.info(f"✅ 修复多对象属性值后JSON验证成功")
@@ -504,7 +504,7 @@ def clean_json_response(text: str) -> str:
                 pass  # 继续尝试其他修复
             else:
                 return result
-
+            
             # 修复2：兜底修复无效转义序列（不依赖字符串边界追踪）
             logger.warning(f"⚠️ 继续尝试兜底修复无效转义...")
             result = _fix_all_invalid_escapes(result)
@@ -519,28 +519,28 @@ def clean_json_response(text: str) -> str:
                     logger.info(f"✅ 二次修复后JSON验证成功")
                 except json.JSONDecodeError as e3:
                     logger.error(f"❌ 所有修复后JSON仍然无效: {e3}")
-                    logger.debug(f"   结果预览: {result[:500]}")
-                    logger.debug(f"   结果结尾: ...{result[-200:]}")
-
+                    logger.debug(f"   结果预览: {safe_preview(result, 500)}")
+                    logger.debug(f"   结果结尾长度: {min(len(result), 200)}")
+        
         return result
-
+        
     except Exception as e:
         logger.error(f"❌ clean_json_response 出错: {e}")
         logger.error(f"   文本长度: {len(text) if text else 0}")
-        logger.error(f"   文本预览: {text[:200] if text else 'None'}")
+        logger.error(f"   文本预览: {safe_preview(text, 200)}")
         raise
 
 
 def parse_json(text: str) -> Union[Dict, List]:
     """解析 JSON，优先使用标准json，失败后用json5容错解析"""
     cleaned = clean_json_response(text)
-
+    
     # 优先使用标准 json
     try:
         return json.loads(cleaned)
     except (json.JSONDecodeError, Exception):
         pass
-
+    
     # json5 容错解析（处理单引号、多余逗号、宽松格式等）
     if HAS_JSON5:
         try:
@@ -550,12 +550,12 @@ def parse_json(text: str) -> Union[Dict, List]:
             return result
         except Exception as e5:
             logger.error(f"❌ json5容错解析也失败: {e5}")
-
+    
     # 最终失败
     logger.error(f"❌ parse_json 完全失败")
     logger.error(f"   原始文本长度: {len(text) if text else 0}")
     logger.error(f"   清洗后文本长度: {len(cleaned) if cleaned else 0}")
-    logger.debug(f"   清洗后文本预览: {cleaned[:500] if cleaned else 'None'}")
+    logger.debug(f"   清洗后文本预览: {safe_preview(cleaned, 500)}")
     raise json.JSONDecodeError("JSON解析失败（标准和json5均失败）", cleaned, 0)
 
 
@@ -570,7 +570,7 @@ def loads_json(text: str) -> Any:
         return json.loads(text)
     except (json.JSONDecodeError, Exception):
         pass
-
+    
     # 兜底修复无效转义序列后重试
     fixed_text = _fix_all_invalid_escapes(text)
     if fixed_text != text:
@@ -580,7 +580,7 @@ def loads_json(text: str) -> Any:
             return result
         except (json.JSONDecodeError, Exception):
             pass
-
+    
     # json5 容错解析
     if HAS_JSON5:
         try:
@@ -598,6 +598,6 @@ def loads_json(text: str) -> Any:
                 except Exception:
                     pass
             logger.error(f"❌ json5容错解析也失败: {e5}")
-
+    
     # 最终失败，抛出标准异常
     raise json.JSONDecodeError("JSON解析失败（标准和json5均失败）", text, 0)

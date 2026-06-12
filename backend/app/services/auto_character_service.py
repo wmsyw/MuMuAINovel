@@ -5,24 +5,17 @@ from sqlalchemy import select
 import json
 
 from app.models.character import Character
-from app.models.relationship import EntityRelationship, RelationshipType
+from app.models.relationship import CharacterRelationship, Organization, OrganizationMember, RelationshipType
 from app.models.project import Project
 from app.services.ai_service import AIService
-from app.services.entity_generation_policy_service import entity_generation_policy_service
 from app.services.prompt_service import PromptService
-from app.services.relationship_merge_service import RelationshipMergeService
-from app.services.character_card_service import normalize_character_card_fields
 from app.logger import get_logger
 
 logger = get_logger(__name__)
 
 
 class AutoCharacterService:
-    """[DEPRECATED] 自动角色引入服务
-    
-    Migration Note: This service is deprecated in favor of the extraction candidate pipeline.
-    New character creation should be routed through ExtractionService.
-    """
+    """自动角色引入服务"""
     
     def __init__(self, ai_service: AIService):
         self.ai_service = ai_service
@@ -121,6 +114,7 @@ class AutoCharacterService:
             character_data = await self.ai_service.call_with_json_retry(
                 prompt=prompt,
                 max_retries=2,  # 减少重试次数以加快速度
+                auto_mcp=enable_mcp,
             )
             
             char_name = character_data.get('name', '未知')
@@ -146,6 +140,8 @@ class AutoCharacterService:
     ) -> Character:
         """创建角色数据库记录"""
         
+        is_organization = character_data.get("is_organization", False)
+        
         # 提取职业信息（支持通过名称匹配）
         career_info = character_data.get("career_info", {})
         raw_main_career_name = career_info.get("main_career_name") if career_info else None
@@ -158,7 +154,7 @@ class AutoCharacterService:
         sub_careers_data = []
         
         # 匹配主职业名称
-        if raw_main_career_name:
+        if raw_main_career_name and not is_organization:
             career_check = await db.execute(
                 select(Career).where(
                     Career.name == raw_main_career_name,
@@ -178,7 +174,7 @@ class AutoCharacterService:
                 logger.warning(f"    ⚠️ AI返回的主职业名称未找到: {raw_main_career_name}")
         
         # 匹配副职业名称
-        if raw_sub_careers_data and isinstance(raw_sub_careers_data, list):
+        if raw_sub_careers_data and not is_organization and isinstance(raw_sub_careers_data, list):
             for sub_data in raw_sub_careers_data[:2]:
                 if isinstance(sub_data, dict):
                     career_name = sub_data.get('career_name')
@@ -212,11 +208,13 @@ class AutoCharacterService:
             name=character_data.get("name", "未命名角色"),
             age=str(character_data.get("age", "")),
             gender=character_data.get("gender"),
+            is_organization=is_organization,
             role_type=character_data.get("role_type", "supporting"),
             personality=character_data.get("personality", ""),
             background=character_data.get("background", ""),
             appearance=character_data.get("appearance", ""),
-            **normalize_character_card_fields(character_data),
+            organization_type=character_data.get("organization_type") if is_organization else None,
+            organization_purpose=character_data.get("organization_purpose") if is_organization else None,
             traits=json.dumps(character_data.get("traits", []), ensure_ascii=False) if character_data.get("traits") else None,
             main_career_id=main_career_id,
             main_career_stage=main_career_stage if main_career_id else None,
@@ -227,7 +225,7 @@ class AutoCharacterService:
         await db.flush()
         
         # 处理主职业关联
-        if main_career_id:
+        if main_career_id and not is_organization:
             char_career = CharacterCareer(
                 character_id=character.id,
                 career_id=main_career_id,
@@ -239,7 +237,7 @@ class AutoCharacterService:
             logger.info(f"    ✅ 创建主职业关联: {character.name} -> {raw_main_career_name}")
         
         # 处理副职业关联
-        if sub_careers_data:
+        if sub_careers_data and not is_organization:
             for sub_data in sub_careers_data:
                 char_career = CharacterCareer(
                     character_id=character.id,
@@ -251,6 +249,21 @@ class AutoCharacterService:
                 db.add(char_career)
             logger.info(f"    ✅ 创建副职业关联: {character.name}, 数量: {len(sub_careers_data)}")
         
+        # 如果是组织，创建Organization记录
+        if is_organization:
+            org = Organization(
+                character_id=character.id,
+                project_id=project_id,
+                member_count=0,
+                power_level=character_data.get("power_level", 50),
+                location=character_data.get("location"),
+                motto=character_data.get("motto"),
+                color=character_data.get("color")
+            )
+            db.add(org)
+            await db.flush()
+            logger.info(f"    ✅ 创建组织详情: {character.name}")
+        
         return character
     
     async def _create_relationships(
@@ -260,7 +273,7 @@ class AutoCharacterService:
         existing_characters: List[Character],
         project_id: str,
         db: AsyncSession
-    ) -> List[EntityRelationship]:
+    ) -> List[CharacterRelationship]:
         """创建角色关系"""
         
         if not relationship_specs:
@@ -285,14 +298,30 @@ class AutoCharacterService:
                     continue
                 
                 # 检查关系是否已存在
-                merge_service = RelationshipMergeService(db)
-                existing_rel = await merge_service._find_existing_character_relationship(project_id, new_character.id, target_char.id)
-                if existing_rel is not None:
+                existing_rel = await db.execute(
+                    select(CharacterRelationship).where(
+                        CharacterRelationship.project_id == project_id,
+                        CharacterRelationship.character_from_id == new_character.id,
+                        CharacterRelationship.character_to_id == target_char.id
+                    )
+                )
+                if existing_rel.scalar_one_or_none():
                     logger.debug(f"    ℹ️ 关系已存在: {new_character.name} -> {target_name}")
                     continue
-
+                
+                # 创建关系
+                relationship = CharacterRelationship(
+                    project_id=project_id,
+                    character_from_id=new_character.id,
+                    character_to_id=target_char.id,
+                    relationship_name=rel_spec.get("relationship_type", "未知关系"),
+                    intimacy_level=rel_spec.get("intimacy_level", 50),
+                    description=rel_spec.get("description", ""),
+                    status=rel_spec.get("status", "active"),
+                    source="auto"  # 标记为自动生成
+                )
+                
                 # 尝试匹配预定义关系类型
-                relationship_type_id = None
                 rel_type_name = rel_spec.get("relationship_type")
                 if rel_type_name:
                     rel_type_result = await db.execute(
@@ -302,24 +331,10 @@ class AutoCharacterService:
                     )
                     rel_type = rel_type_result.scalar_one_or_none()
                     if rel_type:
-                        relationship_type_id = rel_type.id
-
-                merge_result = await merge_service.merge_character_relationship(
-                    project_id=project_id,
-                    character_from_id=new_character.id,
-                    character_to_id=target_char.id,
-                    relationship_type_id=relationship_type_id,
-                    relationship_name=rel_spec.get("relationship_type", "未知关系"),
-                    intimacy_level=rel_spec.get("intimacy_level", 50),
-                    description=rel_spec.get("description", ""),
-                    status=rel_spec.get("status", "active"),
-                    source="auto",
-                    confidence=1.0,
-                    allow_conflict_apply=True,
-                )
-                if merge_result.relationship is None:
-                    continue
-                relationships.append(merge_result.relationship)
+                        relationship.relationship_type_id = rel_type.id
+                
+                db.add(relationship)
+                relationships.append(relationship)
                 
                 logger.info(
                     f"    ✅ 创建关系: {new_character.name} -> {target_name} "
@@ -339,7 +354,6 @@ class AutoCharacterService:
         outline_data_list: list,
         db: AsyncSession,
         user_id: str = None,
-        is_admin: bool = False,
         enable_mcp: bool = True,
         progress_callback: Optional[Callable[[str], Awaitable[None]]] = None
     ) -> Dict[str, Any]:
@@ -438,28 +452,6 @@ class AutoCharacterService:
                 "missing_names": list(missing_names),
                 "created_count": 0
             }
-        policy_decision = await entity_generation_policy_service.evaluate_for_user(
-            db,
-            actor_user_id=user_id,
-            project_id=project_id,
-            entity_type="character",
-            source_endpoint="services.auto_character_service.check_and_create_missing_characters",
-            action_type="auto_create",
-            is_admin=is_admin,
-            provider=getattr(self.ai_service, "api_provider", None),
-            model=getattr(self.ai_service, "default_model", None),
-            reason="大纲生成/续写后自动补全缺失角色",
-        )
-        if not policy_decision.allowed:
-            logger.info("🛡️ 【角色校验】AI实体生成策略阻止自动创建角色")
-            if progress_callback:
-                await progress_callback(policy_decision.message)
-            return {
-                "created_characters": [],
-                "missing_names": list(missing_names),
-                "created_count": 0,
-                "policy": policy_decision.to_response(),
-            }
         
         # 5. 为每个缺失的角色生成并创建角色信息
         created_characters = []
@@ -544,30 +536,16 @@ class AutoCharacterService:
         # 6. flush 到数据库（让调用方 commit）
         if created_characters:
             await db.flush()
-            entity_generation_policy_service.record_override_audit(
-                db,
-                policy_decision,
-                [character.id for character in created_characters],
-                extra_payload={"missing_names": list(missing_names)},
-            )
         
         logger.info(f"🎉 【角色校验】完成: 发现 {len(missing_names)} 个缺失角色，成功创建 {len(created_characters)} 个")
         
         return {
             "created_characters": created_characters,
             "missing_names": list(missing_names),
-            "created_count": len(created_characters),
-            "policy": policy_decision.to_response(),
+            "created_count": len(created_characters)
         }
 
 
-# 全局实例缓存
-_auto_character_service_instance: Optional[AutoCharacterService] = None
-
-
 def get_auto_character_service(ai_service: AIService) -> AutoCharacterService:
-    """获取自动角色服务实例（单例模式）"""
-    global _auto_character_service_instance
-    if _auto_character_service_instance is None:
-        _auto_character_service_instance = AutoCharacterService(ai_service)
-    return _auto_character_service_instance
+    """获取自动角色服务实例。AIService 绑定当前用户配置，不能全局复用。"""
+    return AutoCharacterService(ai_service)

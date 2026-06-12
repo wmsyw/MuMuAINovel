@@ -11,28 +11,94 @@ from app.models.project import Project
 from app.models.outline import Outline
 from app.models.character import Character
 from app.models.career import Career, CharacterCareer
-from app.models.memory import StoryMemory
+from app.models.memory import StoryMemory, PlotAnalysis
 from app.models.foreshadow import Foreshadow
-from app.models.relationship import EntityRelationship, OrganizationEntity, OrganizationMember
-from app.models.goldfinger import Goldfinger, GoldfingerHistoryEvent
+from app.models.relationship import CharacterRelationship, Organization, OrganizationMember
 from app.logger import get_logger
 
 logger = get_logger(__name__)
 
 
-MAX_GOLDFINGER_CONTEXT_ITEMS = 8
-MAX_GOLDFINGER_HISTORY_EVENTS = 3
-MAX_GOLDFINGER_SUMMARY_CHARS = 300
-GOLDFINGER_STATUS_PRIORITY = {
-    "active": 30,
-    "cooldown": 24,
-    "upgrading": 24,
-    "latent": 10,
-    "sealed": 6,
-    "unknown": 4,
-    "completed": 2,
-    "lost": 0,
+STATUS_LABELS = {
+    "active": "活跃",
+    "deceased": "死亡",
+    "missing": "失踪",
+    "retired": "退场",
+    "destroyed": "覆灭",
 }
+
+
+def _append_current_state_lines(info_lines: List[str], character: Character) -> None:
+    """向角色上下文注入分析系统维护的最新状态。"""
+    status = character.status or "active"
+    status_label = STATUS_LABELS.get(status, status)
+    status_line = f"  当前状态: {status_label}"
+    if character.status_changed_chapter:
+        status_line += f"（第{character.status_changed_chapter}章变更）"
+    info_lines.append(status_line)
+
+    if character.current_state:
+        current_state = character.current_state[:150] if len(character.current_state) > 150 else character.current_state
+        state_line = f"  当前心理/处境: {current_state}"
+        if character.state_updated_chapter:
+            state_line += f"（第{character.state_updated_chapter}章更新）"
+        info_lines.append(state_line)
+
+
+def _stringify_list_items(value: Any, limit: int = 5) -> List[str]:
+    """将结构化字段中的列表项压缩为适合语义检索的短文本。"""
+    if not value:
+        return []
+    items = value if isinstance(value, list) else [value]
+    result = []
+    for item in items[:limit]:
+        if isinstance(item, dict):
+            text = item.get("name") or item.get("content") or item.get("title") or ""
+        else:
+            text = str(item)
+        text = text.strip()
+        if text:
+            result.append(text)
+    return result
+
+
+def _format_memory_query_section(label: str, values: List[str]) -> Optional[str]:
+    """格式化结构化记忆检索片段。"""
+    values = [value.strip() for value in values if value and value.strip()]
+    if not values:
+        return None
+    return f"{label}：{'；'.join(values)}"
+
+
+def _select_memories_with_fallback(
+    memories: List[Dict[str, Any]],
+    threshold: float,
+    fallback_count: int,
+    log_prefix: str
+) -> List[Dict[str, Any]]:
+    """按相似度筛选记忆；无高分命中时保留少量top结果作为兜底。"""
+    if not memories:
+        return []
+
+    for index, mem in enumerate(memories[:5], start=1):
+        logger.info(
+            f"  🔎 {log_prefix}候选记忆#{index}: "
+            f"similarity={mem.get('similarity', 0):.4f}, "
+            f"distance={mem.get('distance', 0):.4f}, "
+            f"chapter={mem.get('metadata', {}).get('chapter_number', '未知')}, "
+            f"content={str(mem.get('content', ''))[:60]}"
+        )
+
+    filtered = [mem for mem in memories if mem.get('similarity', 0) > threshold]
+    if filtered:
+        return filtered
+
+    fallback = memories[:fallback_count]
+    logger.info(
+        f"  ℹ️ {log_prefix}无记忆超过相似度阈值{threshold:.2f}，"
+        f"降级保留top {len(fallback)}条"
+    )
+    return fallback
 
 
 @dataclass
@@ -41,7 +107,7 @@ class OneToManyContext:
     1-N模式章节上下文数据结构
     
     采用RTCO框架的分层设计：
-    - P0-核心：大纲（含最近10章规划）、衔接锚点（500字+摘要）、字数要求
+    - P0-核心：大纲（含最近10章规划）、衔接锚点（上一章完整正文+摘要）、字数要求
     - P1-重要：角色（完整版含关系/组织/职业）、职业详情、情感基调
     - P2-参考：记忆（始终启用，相关度>0.6）、伏笔提醒
     """
@@ -49,7 +115,7 @@ class OneToManyContext:
     # === P0-核心信息 ===
     chapter_outline: str = ""           # 本章大纲（从expansion_plan构建）
     recent_chapters_context: Optional[str] = None  # 最近10章expansion_plan摘要
-    continuation_point: Optional[str] = None  # 衔接锚点（统一500字）
+    continuation_point: Optional[str] = None  # 衔接锚点（上一章完整正文）
     previous_chapter_summary: Optional[str] = None  # 上一章剧情摘要
     previous_chapter_events: Optional[List[str]] = None  # 上一章关键事件
     target_word_count: int = 3000
@@ -69,7 +135,6 @@ class OneToManyContext:
     # === P1-重要信息 ===
     chapter_characters: str = ""        # 完整版角色信息（含年龄、外貌、背景、关系、组织）
     chapter_careers: Optional[str] = None  # 独立的职业详情（含完整阶段体系）
-    goldfinger_context: Optional[str] = None  # 已审核金手指上下文
     emotional_tone: str = ""
     
     # === P2-参考信息 ===
@@ -83,9 +148,9 @@ class OneToManyContext:
         """计算总上下文长度"""
         total = 0
         for field_name in ['chapter_outline', 'recent_chapters_context', 'continuation_point',
-                           'chapter_characters', 'chapter_careers',
-                           'goldfinger_context', 'relevant_memories', 'foreshadow_reminders',
-                           'previous_chapter_summary']:
+                          'chapter_characters', 'chapter_careers',
+                          'relevant_memories', 'foreshadow_reminders',
+                          'previous_chapter_summary']:
             value = getattr(self, field_name, None)
             if value:
                 total += len(value)
@@ -99,7 +164,7 @@ class OneToOneContext:
     
     采用RTCO框架的分层设计：
     - P0-核心：从outline.structure提取的大纲、字数要求
-    - P1-重要：上一章最后500字、从structure.characters获取的角色、本章职业体系
+    - P1-重要：最近章节摘要、上一章完整正文、从structure.characters获取的角色、本章职业体系
     - P2-参考：伏笔提醒、相关记忆（相关度>0.6）
     """
     
@@ -120,11 +185,11 @@ class OneToOneContext:
     theme: str = ""
     
     # === P1-重要信息 ===
-    continuation_point: Optional[str] = None  # 上一章最后500字
+    recent_chapters_context: Optional[str] = None  # 最近N章剧情摘要
+    continuation_point: Optional[str] = None  # 上一章完整正文
     previous_chapter_summary: Optional[str] = None  # 上一章剧情摘要
     chapter_characters: str = ""        # 从structure.characters获取
     chapter_careers: Optional[str] = None  # 本章涉及的职业完整信息
-    goldfinger_context: Optional[str] = None  # 已审核金手指上下文
     
     # === P2-参考信息 ===
     foreshadow_reminders: Optional[str] = None
@@ -136,260 +201,13 @@ class OneToOneContext:
     def get_total_context_length(self) -> int:
         """计算总上下文长度"""
         total = 0
-        for field_name in ['chapter_outline', 'continuation_point', 'previous_chapter_summary',
-                           'chapter_characters', 'chapter_careers', 'goldfinger_context', 'foreshadow_reminders',
-                           'relevant_memories']:
+        for field_name in ['chapter_outline', 'recent_chapters_context', 'continuation_point', 'previous_chapter_summary',
+                          'chapter_characters', 'chapter_careers', 'foreshadow_reminders',
+                          'relevant_memories']:
             value = getattr(self, field_name, None)
             if value:
                 total += len(value)
         return total
-
-
-def _truncate_chinese_chars(value: Any, max_chars: int) -> str:
-    """按中文字符直觉截断文本，确保返回长度不超过 max_chars。"""
-    text = str(value or "").strip().replace("\r", " ").replace("\n", " ")
-    if len(text) <= max_chars:
-        return text
-    return text[: max_chars - 1].rstrip() + "…"
-
-
-def _coerce_list(value: Any) -> list[Any]:
-    """将JSON字段规整为列表，避免把完整JSON原样塞入提示词。"""
-    if value is None or value == "":
-        return []
-    if isinstance(value, list):
-        return value
-    return [value]
-
-
-def _compact_json_item(item: Any) -> str:
-    """提取JSON片段的可读摘要，优先使用常见名称/描述字段。"""
-    if item is None:
-        return ""
-    if isinstance(item, dict):
-        name = item.get("title") or item.get("name") or item.get("label") or item.get("type")
-        status = item.get("status")
-        description = (
-            item.get("description")
-            or item.get("content")
-            or item.get("summary")
-            or item.get("rule")
-            or item.get("value")
-        )
-        parts = [str(part) for part in (name, status, description) if part]
-        if parts:
-            return "-".join(parts)
-        compact_pairs = []
-        for key, value in list(item.items())[:2]:
-            if value not in (None, "", [], {}):
-                compact_pairs.append(f"{key}:{value}")
-        return "；".join(compact_pairs)
-    if isinstance(item, (list, tuple)):
-        return "、".join(_compact_json_item(child) for child in item[:2] if child)
-    return str(item)
-
-
-def _compact_json_summary(value: Any, *, max_items: int = 3, max_chars: int = 120) -> str:
-    """将规则/任务/奖励等JSON字段压缩为短摘要。"""
-    items = [_compact_json_item(item) for item in _coerce_list(value)[:max_items]]
-    items = [item for item in items if item]
-    if not items:
-        return ""
-    summary = "；".join(items)
-    total_items = len(_coerce_list(value))
-    if total_items > max_items:
-        summary += f"；等{total_items}项"
-    return _truncate_chinese_chars(summary, max_chars)
-
-
-def _extract_character_names_from_outline(chapter: Chapter, outline: Optional[Outline]) -> list[str]:
-    """提取本章显式角色焦点，用于金手指拥有者相关性排序。"""
-    names: list[str] = []
-
-    if chapter.expansion_plan:
-        try:
-            plan = json.loads(chapter.expansion_plan)
-            for item in plan.get("character_focus", []) or []:
-                name = item.get("name") if isinstance(item, dict) else item
-                if name:
-                    names.append(str(name))
-        except (json.JSONDecodeError, TypeError):
-            pass
-
-    if outline and outline.structure:
-        try:
-            structure = json.loads(outline.structure)
-            for item in structure.get("characters", []) or []:
-                name = item.get("name") if isinstance(item, dict) else item
-                if name:
-                    names.append(str(name))
-        except (json.JSONDecodeError, TypeError):
-            pass
-
-    # 保持顺序去重，确保排序稳定。
-    seen = set()
-    unique_names = []
-    for name in names:
-        if name not in seen:
-            seen.add(name)
-            unique_names.append(name)
-    return unique_names
-
-
-def _build_goldfinger_relevance_text(chapter: Chapter, outline: Optional[Outline], chapter_outline: str) -> str:
-    """聚合显式大纲/章节文本，用于判断金手指是否被本章点名。"""
-    parts = [chapter.title or "", chapter.summary or "", chapter_outline or ""]
-    if chapter.expansion_plan:
-        try:
-            parts.append(json.dumps(json.loads(chapter.expansion_plan), ensure_ascii=False))
-        except (json.JSONDecodeError, TypeError):
-            parts.append(chapter.expansion_plan)
-    if outline:
-        parts.extend([outline.title or "", outline.content or ""])
-        if outline.structure:
-            try:
-                parts.append(json.dumps(json.loads(outline.structure), ensure_ascii=False))
-            except (json.JSONDecodeError, TypeError):
-                parts.append(outline.structure)
-    return "\n".join(part for part in parts if part)
-
-
-def _goldfinger_aliases(goldfinger: Goldfinger) -> list[str]:
-    aliases = []
-    for item in _coerce_list(goldfinger.aliases):
-        if item:
-            aliases.append(str(item))
-    return aliases
-
-
-def _score_goldfinger_for_chapter(
-    goldfinger: Goldfinger,
-    *,
-    focus_character_names: list[str],
-    relevance_text: str,
-    history_events: list[GoldfingerHistoryEvent],
-) -> int:
-    """用简单确定性规则为本章金手指上下文排序。"""
-    score = GOLDFINGER_STATUS_PRIORITY.get(goldfinger.status or "unknown", 0)
-
-    terms = [goldfinger.name or "", goldfinger.normalized_name or "", *_goldfinger_aliases(goldfinger)]
-    if any(term and term in relevance_text for term in terms):
-        score += 50
-
-    owner_name = goldfinger.owner_character_name or ""
-    if owner_name and owner_name in focus_character_names:
-        score += 35
-    elif owner_name and owner_name in relevance_text:
-        score += 20
-
-    if history_events:
-        score += 15
-
-    return score
-
-
-def _format_goldfinger_history(events: list[GoldfingerHistoryEvent]) -> str:
-    history_parts = []
-    for event in events[:MAX_GOLDFINGER_HISTORY_EVENTS]:
-        event_type = event.event_type or "记录"
-        evidence = _truncate_chinese_chars(event.evidence_excerpt, 70)
-        new_value = _compact_json_summary(event.new_value, max_items=2, max_chars=70)
-        if evidence:
-            history_parts.append(f"{event_type}：{evidence}")
-        elif new_value:
-            history_parts.append(f"{event_type}：{new_value}")
-        else:
-            history_parts.append(event_type)
-    return "；".join(history_parts)
-
-
-def _format_goldfinger_block(goldfinger: Goldfinger, history_events: list[GoldfingerHistoryEvent]) -> list[str]:
-    attrs = []
-    if goldfinger.owner_character_name:
-        attrs.append(f"拥有者：{goldfinger.owner_character_name}")
-    if goldfinger.type:
-        attrs.append(f"类型：{goldfinger.type}")
-    attrs.append(f"状态：{goldfinger.status or 'unknown'}")
-
-    lines = [f"- 【{goldfinger.name}】（{'；'.join(attrs)}）"]
-    summary = _truncate_chinese_chars(goldfinger.summary, MAX_GOLDFINGER_SUMMARY_CHARS)
-    if summary:
-        lines.append(f"  概要：{summary}")
-
-    compact_fields = [
-        ("规则", goldfinger.rules),
-        ("任务", goldfinger.tasks),
-        ("奖励", goldfinger.rewards),
-        ("限制", goldfinger.limits),
-        ("触发", goldfinger.trigger_conditions),
-        ("冷却", goldfinger.cooldown),
-    ]
-    for label, value in compact_fields:
-        compact = _compact_json_summary(value)
-        if compact:
-            lines.append(f"  {label}：{compact}")
-
-    history = _format_goldfinger_history(history_events)
-    if history:
-        lines.append(f"  近期历史：{history}")
-
-    return lines
-
-
-async def _build_goldfinger_generation_context(
-    *,
-    chapter: Chapter,
-    project_id: str,
-    outline: Optional[Outline],
-    db: AsyncSession,
-    chapter_outline: str,
-) -> tuple[Optional[str], int]:
-    """构建章节生成专用的已审核金手指上下文。"""
-    try:
-        goldfinger_result = await db.execute(
-            select(Goldfinger).where(Goldfinger.project_id == project_id)
-        )
-        goldfingers = list(goldfinger_result.scalars().all())
-        if not goldfingers:
-            return None, 0
-
-        goldfinger_ids = [goldfinger.id for goldfinger in goldfingers]
-        history_result = await db.execute(
-            select(GoldfingerHistoryEvent)
-            .where(GoldfingerHistoryEvent.project_id == project_id)
-            .where(GoldfingerHistoryEvent.goldfinger_id.in_(goldfinger_ids))
-            .order_by(GoldfingerHistoryEvent.created_at.desc(), GoldfingerHistoryEvent.id.desc())
-        )
-        history_by_goldfinger: dict[str, list[GoldfingerHistoryEvent]] = {}
-        for event in history_result.scalars().all():
-            events = history_by_goldfinger.setdefault(event.goldfinger_id, [])
-            if len(events) < MAX_GOLDFINGER_HISTORY_EVENTS:
-                events.append(event)
-
-        focus_character_names = _extract_character_names_from_outline(chapter, outline)
-        relevance_text = _build_goldfinger_relevance_text(chapter, outline, chapter_outline)
-        ranked_goldfingers = sorted(
-            goldfingers,
-            key=lambda goldfinger: (
-                -_score_goldfinger_for_chapter(
-                    goldfinger,
-                    focus_character_names=focus_character_names,
-                    relevance_text=relevance_text,
-                    history_events=history_by_goldfinger.get(goldfinger.id, []),
-                ),
-                goldfinger.name or "",
-                goldfinger.id or "",
-            ),
-        )[:MAX_GOLDFINGER_CONTEXT_ITEMS]
-
-        lines = ["【金手指上下文（仅已审核规范事实）】"]
-        for goldfinger in ranked_goldfingers:
-            lines.extend(_format_goldfinger_block(goldfinger, history_by_goldfinger.get(goldfinger.id, [])))
-
-        return "\n".join(lines), len(ranked_goldfingers)
-    except Exception as e:
-        logger.error(f"❌ 构建金手指上下文失败: {str(e)}")
-        return None, 0
 
 
 # ==================== 1-N模式上下文构建器 ====================
@@ -400,7 +218,7 @@ class OneToManyContextBuilder:
     
     上下文构建策略：
     - 章节大纲：本章expansion_plan + 最近10章expansion_plan摘要
-    - 衔接锚点：统一上一章末尾500字 + 摘要
+    - 衔接锚点：上一章完整正文 + 摘要
     - 角色信息：完整版（含年龄、外貌、背景、关系、组织、职业）
     - 职业详情：独立的chapter_careers字段，含完整阶段体系
     - 相关记忆：始终启用（相关度>0.6）
@@ -408,8 +226,11 @@ class OneToManyContextBuilder:
     """
     
     # 配置常量
-    ENDING_LENGTH = 500          # 统一衔接长度500字
-    MEMORY_COUNT = 10            # 记忆条数
+    ENDING_LENGTH = None         # None 表示使用上一章完整正文
+    MEMORY_CANDIDATE_LIMIT = 50  # 向量检索候选池大小
+    MEMORY_CONTEXT_LIMIT = 10    # 最终注入提示词的记忆条数
+    MEMORY_FALLBACK_COUNT = 5    # 无高分命中时保留的候选数量
+    MEMORY_COUNT = MEMORY_CONTEXT_LIMIT  # 兼容旧统计/引用
     MEMORY_SIMILARITY_THRESHOLD = 0.6  # 记忆相关度阈值
     RECENT_CHAPTERS_COUNT = 10   # 最近章节规划数量
     
@@ -484,7 +305,7 @@ class OneToManyContextBuilder:
             )
             logger.info(f"  ✅ 最近章节规划: {len(context.recent_chapters_context or '')}字符")
         
-        # === 衔接锚点（统一500字 + 摘要）===
+        # === 衔接锚点（上一章完整正文 + 摘要）===
         if chapter_number == 1:
             context.continuation_point = None
             context.previous_chapter_summary = None
@@ -509,20 +330,11 @@ class OneToManyContextBuilder:
         context.emotional_tone = self._extract_emotional_tone(chapter, outline)
         logger.info(f"  ✅ 角色信息: {len(context.chapter_characters)}字符")
         logger.info(f"  ✅ 职业信息: {len(context.chapter_careers or '')}字符")
-
-        context.goldfinger_context, goldfinger_count = await _build_goldfinger_generation_context(
-            chapter=chapter,
-            project_id=project.id,
-            outline=outline,
-            db=db,
-            chapter_outline=context.chapter_outline,
-        )
-        logger.info(f"  ✅ 金手指上下文: {goldfinger_count}个，{len(context.goldfinger_context or '')}字符")
         
         # === P2-参考信息（始终启用）===
         if self.memory_service:
             context.relevant_memories = await self._get_relevant_memories_enhanced(
-                user_id, project.id, chapter_number,
+                user_id, project.id, chapter,
                 context.chapter_outline, db
             )
             logger.info(f"  ✅ 相关记忆: {len(context.relevant_memories or '')}字符")
@@ -543,8 +355,6 @@ class OneToManyContextBuilder:
             "continuation_length": len(context.continuation_point or ""),
             "characters_length": len(context.chapter_characters),
             "careers_length": len(context.chapter_careers or ""),
-            "goldfinger_length": len(context.goldfinger_context or ""),
-            "goldfinger_count": goldfinger_count,
             "recent_context_length": len(context.recent_chapters_context or ""),
             "memories_length": len(context.relevant_memories or ""),
             "foreshadow_length": len(context.foreshadow_reminders or ""),
@@ -627,13 +437,11 @@ class OneToManyContextBuilder:
         
         # === 批量查询关系数据 ===
         rels_result = await db.execute(
-            select(EntityRelationship).where(
-                EntityRelationship.project_id == project.id,
-                EntityRelationship.from_entity_type == "character",
-                EntityRelationship.to_entity_type == "character",
+            select(CharacterRelationship).where(
+                CharacterRelationship.project_id == project.id,
                 or_(
-                    EntityRelationship.from_entity_id.in_(character_ids),
-                    EntityRelationship.to_entity_id.in_(character_ids)
+                    CharacterRelationship.character_from_id.in_(character_ids),
+                    CharacterRelationship.character_to_id.in_(character_ids)
                 )
             )
         )
@@ -648,14 +456,16 @@ class OneToManyContextBuilder:
                 char_rels_map[r.character_to_id].append(r)
         
         # === 批量查询组织成员数据 ===
-        character_member_ids = [c.id for c in characters]
-        org_memberships_map: Dict[str, List] = {cid: [] for cid in character_member_ids}
+        non_org_ids = [c.id for c in characters if not c.is_organization]
+        org_memberships_map: Dict[str, List] = {cid: [] for cid in non_org_ids}
         
-        if character_member_ids:
+        if non_org_ids:
             member_result = await db.execute(
-                select(OrganizationMember, OrganizationEntity.name)
-                .join(OrganizationEntity, OrganizationMember.organization_entity_id == OrganizationEntity.id)
-                .where(OrganizationMember.character_id.in_(character_member_ids))
+                select(OrganizationMember, Character.name).join(
+                    Organization, OrganizationMember.organization_id == Organization.id
+                ).join(
+                    Character, Organization.character_id == Character.id
+                ).where(OrganizationMember.character_id.in_(non_org_ids))
             )
             for m, org_name in member_result.all():
                 if m.character_id in org_memberships_map:
@@ -673,7 +483,7 @@ class OneToManyContextBuilder:
             career_ids.add(cc.career_id)
         # 也加入 main_career_id
         for c in characters:
-            if c.main_career_id:
+            if not c.is_organization and c.main_career_id:
                 career_ids.add(c.main_career_id)
         
         careers_map: Dict[str, Career] = {}
@@ -693,25 +503,37 @@ class OneToManyContextBuilder:
             else:
                 char_career_relations[cc.character_id]['sub'].append(cc)
         
-        # === 查询组织成员列表 ===
-        orgs_result = await db.execute(
-            select(OrganizationEntity).where(OrganizationEntity.project_id == project.id)
-        )
-        org_entities = orgs_result.scalars().all()
+        # === 查询组织角色的成员列表 ===
+        org_chars = [c for c in characters if c.is_organization]
         org_members_map: Dict[str, List] = {}
-        if org_entities:
-            members_result = await db.execute(
-                select(OrganizationMember, Character.name)
-                .join(Character, OrganizationMember.character_id == Character.id)
-                .where(OrganizationMember.organization_entity_id.in_([org.id for org in org_entities]))
+        
+        if org_chars:
+            org_char_ids = [c.id for c in org_chars]
+            orgs_result = await db.execute(
+                select(Organization).where(Organization.character_id.in_(org_char_ids))
             )
-            for m, member_name in members_result.all():
-                org_members_map.setdefault(m.organization_entity_id, []).append((m, member_name))
+            orgs = orgs_result.scalars().all()
+            
+            if orgs:
+                org_id_to_char_id = {o.id: o.character_id for o in orgs}
+                org_ids = [o.id for o in orgs]
+                
+                members_result = await db.execute(
+                    select(OrganizationMember, Character.name).join(
+                        Character, OrganizationMember.character_id == Character.id
+                    ).where(OrganizationMember.organization_id.in_(org_ids))
+                )
+                for m, member_name in members_result.all():
+                    char_id = org_id_to_char_id.get(m.organization_id)
+                    if char_id:
+                        if char_id not in org_members_map:
+                            org_members_map[char_id] = []
+                        org_members_map[char_id].append((m, member_name))
         
         # === 构建完整版角色信息 ===
         characters_info_parts = []
         for c in characters:
-            entity_type = '角色'
+            entity_type = '组织' if c.is_organization else '角色'
             role_type_map = {
                 'protagonist': '主角',
                 'antagonist': '反派',
@@ -735,6 +557,7 @@ class OneToManyContextBuilder:
             if c.background:
                 background_preview = c.background[:150] if len(c.background) > 150 else c.background
                 info_lines.append(f"  背景: {background_preview}")
+            _append_current_state_lines(info_lines, c)
             
             # 职业信息
             if c.id in char_career_relations:
@@ -767,14 +590,14 @@ class OneToManyContextBuilder:
                             except (json.JSONDecodeError, AttributeError, TypeError):
                                 stage_name = f'第{cc.current_stage}阶'
                             info_lines.append(f"  副职业: {career.name} ({cc.current_stage}/{career.max_stage}阶 - {stage_name})")
-            elif c.main_career_id:
+            elif not c.is_organization and c.main_career_id:
                 career = careers_map.get(c.main_career_id)
                 if career:
                     stage = c.main_career_stage or 1
                     info_lines.append(f"  主职业: {career.name}（第{stage}阶段）")
             
             # 角色关系
-            if c.id in char_rels_map:
+            if not c.is_organization and c.id in char_rels_map:
                 rels = char_rels_map[c.id]
                 if rels:
                     rel_parts = []
@@ -788,30 +611,25 @@ class OneToManyContextBuilder:
                     info_lines.append(f"  关系网络: {'；'.join(rel_parts)}")
             
             # 组织归属
-            if c.id in org_memberships_map:
+            if not c.is_organization and c.id in org_memberships_map:
                 memberships = org_memberships_map[c.id]
                 if memberships:
                     org_parts = [f"{org_name}（{m.position}）" for m, org_name in memberships[:2]]
                     info_lines.append(f"  组织归属: {'、'.join(org_parts)}")
             
+            # 组织特有信息
+            if c.is_organization:
+                if c.organization_type:
+                    info_lines.append(f"  组织类型: {c.organization_type}")
+                if c.organization_purpose:
+                    info_lines.append(f"  组织目的: {c.organization_purpose[:100]}")
+                if c.id in org_members_map:
+                    members = org_members_map[c.id]
+                    if members:
+                        member_parts = [f"{name}（{m.position}）" for m, name in members[:5]]
+                        info_lines.append(f"  组织成员: {'、'.join(member_parts)}")
+            
             characters_info_parts.append("\n".join(info_lines))
-
-        for org_entity in org_entities:
-            org_lines = [f"【{org_entity.name}】(组织, organization)"]
-            if org_entity.organization_type:
-                org_lines.append(f"  组织类型: {org_entity.organization_type}")
-            if org_entity.organization_purpose:
-                org_lines.append(f"  组织目的: {org_entity.organization_purpose[:100]}")
-            if org_entity.personality:
-                org_lines.append(f"  组织特性: {org_entity.personality[:100]}")
-            if org_entity.background:
-                org_lines.append(f"  背景: {org_entity.background[:150]}")
-            if org_entity.id in org_members_map:
-                members = org_members_map[org_entity.id]
-                if members:
-                    member_parts = [f"{name}（{m.position}）" for m, name in members[:5]]
-                    org_lines.append(f"  组织成员: {'、'.join(member_parts)}")
-            characters_info_parts.append("\n".join(org_lines))
         
         characters_result_str = "\n\n".join(characters_info_parts)
         logger.info(f"  ✅ [1-N完整版] 构建了 {len(characters_info_parts)} 个角色信息，总长度: {len(characters_result_str)} 字符")
@@ -856,7 +674,7 @@ class OneToManyContextBuilder:
         """构建最近10章的expansion_plan摘要"""
         try:
             result = await db.execute(
-                select(Chapter.chapter_number, Chapter.title, Chapter.expansion_plan, Chapter.summary)
+                select(Chapter.id, Chapter.chapter_number, Chapter.title, Chapter.expansion_plan, Chapter.summary)
                 .where(Chapter.project_id == project_id)
                 .where(Chapter.chapter_number < chapter.chapter_number)
                 .order_by(Chapter.chapter_number.desc())
@@ -868,11 +686,46 @@ class OneToManyContextBuilder:
                 return None
             
             # 按章节号正序排列
-            recent_chapters = sorted(recent_chapters, key=lambda x: x[0])
+            recent_chapters = sorted(recent_chapters, key=lambda x: x[1])
+
+            chapter_ids = [row[0] for row in recent_chapters]
+            summary_map: Dict[str, str] = {}
+            analysis_map: Dict[str, Any] = {}
+            if chapter_ids:
+                summary_result = await db.execute(
+                    select(StoryMemory.chapter_id, StoryMemory.content)
+                    .where(StoryMemory.chapter_id.in_(chapter_ids))
+                    .where(StoryMemory.memory_type == 'chapter_summary')
+                )
+                summary_map = {chapter_id: content for chapter_id, content in summary_result.all()}
+
+                analysis_result = await db.execute(
+                    select(PlotAnalysis.chapter_id, PlotAnalysis.plot_points, PlotAnalysis.character_states)
+                    .where(PlotAnalysis.chapter_id.in_(chapter_ids))
+                )
+                analysis_map = {
+                    chapter_id: {"plot_points": plot_points or [], "character_states": character_states or []}
+                    for chapter_id, plot_points, character_states in analysis_result.all()
+                }
             
             lines = ["【最近章节规划】"]
-            for ch_num, ch_title, expansion_plan, summary in recent_chapters:
-                if expansion_plan:
+            for ch_id, ch_num, ch_title, expansion_plan, summary in recent_chapters:
+                real_summary = summary_map.get(ch_id)
+                analysis = analysis_map.get(ch_id)
+                if real_summary:
+                    line = f"第{ch_num}章《{ch_title}》：{real_summary[:180]}"
+                    if analysis and analysis.get("plot_points"):
+                        points = []
+                        for point in analysis["plot_points"][:3]:
+                            if isinstance(point, dict):
+                                points.append(str(point.get("content") or ""))
+                            else:
+                                points.append(str(point))
+                        points = [p for p in points if p]
+                        if points:
+                            line += f"（真实情节点：{'；'.join(points)}）"
+                    lines.append(line)
+                elif expansion_plan:
                     try:
                         plan = json.loads(expansion_plan)
                         plot_summary = plan.get('plot_summary', '')
@@ -900,36 +753,40 @@ class OneToManyContextBuilder:
         self,
         user_id: str,
         project_id: str,
-        chapter_number: int,
+        chapter: Chapter,
         chapter_outline: str,
         db: AsyncSession
     ) -> Optional[str]:
-        """获取相关记忆（始终启用，相关度>0.6）"""
+        """获取相关记忆（优先使用1-N expansion_plan中的人物、事件、目标和冲突）。"""
         if not self.memory_service:
             return None
         
         try:
-            query_text = chapter_outline[:500].replace('\n', ' ')
+            chapter_number = chapter.chapter_number
+            query_text = self._build_memory_query_from_expansion_plan(chapter, chapter_outline)
+            logger.info(f"  🔍 [1-N] 结构化记忆查询: {query_text[:180]}...")
             
             relevant_memories = await self.memory_service.search_memories(
                 user_id=user_id,
                 project_id=project_id,
                 query=query_text,
-                limit=15,
-                min_importance=0.0
+                limit=self.MEMORY_CANDIDATE_LIMIT,
+                min_importance=0.0,
+                chapter_range=(1, max(0, chapter_number - 1))
             )
             
-            # 过滤相关度>0.6
-            filtered_memories = [
-                mem for mem in relevant_memories
-                if mem.get('similarity', 0) > self.MEMORY_SIMILARITY_THRESHOLD
-            ]
+            filtered_memories = _select_memories_with_fallback(
+                memories=relevant_memories,
+                threshold=self.MEMORY_SIMILARITY_THRESHOLD,
+                fallback_count=self.MEMORY_FALLBACK_COUNT,
+                log_prefix="[1-N] "
+            )
             
             if not filtered_memories:
                 return None
             
             memory_lines = ["【相关记忆】"]
-            for mem in filtered_memories[:self.MEMORY_COUNT]:
+            for mem in filtered_memories[:self.MEMORY_CONTEXT_LIMIT]:
                 similarity = mem.get('similarity', 0)
                 content = mem.get('content', '')[:100]
                 memory_lines.append(f"- (相关度:{similarity:.2f}) {content}")
@@ -940,13 +797,38 @@ class OneToManyContextBuilder:
             logger.error(f"❌ 获取相关记忆失败: {str(e)}")
             return None
     
+    def _build_memory_query_from_expansion_plan(
+        self,
+        chapter: Chapter,
+        chapter_outline: str
+    ) -> str:
+        """从1-N章节扩展计划构建高信号记忆检索query。"""
+        sections = []
+        if chapter.expansion_plan:
+            try:
+                plan = json.loads(chapter.expansion_plan)
+                sections.extend(filter(None, [
+                    _format_memory_query_section("人物", _stringify_list_items(plan.get("character_focus"), limit=8)),
+                    _format_memory_query_section("关键事件", _stringify_list_items(plan.get("key_events"), limit=6)),
+                    _format_memory_query_section("叙事目标", _stringify_list_items(plan.get("narrative_goal"), limit=1)),
+                    _format_memory_query_section("冲突", _stringify_list_items(plan.get("conflict_type"), limit=1)),
+                    _format_memory_query_section("情绪", _stringify_list_items(plan.get("emotional_tone"), limit=1)),
+                ]))
+            except json.JSONDecodeError:
+                logger.warning(f"  ⚠️ [1-N] expansion_plan解析失败，使用章节大纲兜底: chapter={chapter.id}")
+
+        if sections:
+            return "\n".join(sections)[:800]
+
+        return chapter_outline[:500].replace('\n', ' ')
+    
     async def _get_last_ending_enhanced(
         self,
         chapter: Chapter,
         db: AsyncSession,
-        max_length: int
+        max_length: Optional[int]
     ) -> Dict[str, Any]:
-        """获取增强版衔接锚点（含上一章摘要和关键事件）"""
+        """获取增强版衔接锚点（含上一章完整正文、摘要和关键事件）"""
         result_info = {
             'ending_text': None,
             'summary': None,
@@ -969,10 +851,10 @@ class OneToManyContextBuilder:
         if not prev_chapter:
             return result_info
         
-        # 1. 提取结尾内容
+        # 1. 提取上一章完整正文；max_length 仅作为兼容兜底
         if prev_chapter.content:
             content = prev_chapter.content.strip()
-            if len(content) <= max_length:
+            if max_length is None or len(content) <= max_length:
                 result_info['ending_text'] = content
             else:
                 result_info['ending_text'] = content[-max_length:]
@@ -1238,14 +1120,20 @@ class OneToOneContextBuilder:
     2. target_word_count
     
     P1重要信息：
-    1. 上一章完整内容的最后500字作为参考
-    2. 根据structure中的characters获取角色信息（含职业）
+    1. 最近N章剧情摘要作为连续性参考
+    2. 上一章完整正文作为参考
+    3. 根据structure中的characters获取角色信息（含职业）
     
     P2参考信息：
     1. 伏笔提醒
     2. 根据角色名检索相关记忆（相关度>0.6）
     """
     
+    RECENT_CHAPTERS_COUNT = 10   # 最近章节摘要数量
+    MEMORY_CANDIDATE_LIMIT = 50  # 向量检索候选池大小
+    MEMORY_CONTEXT_LIMIT = 10    # 最终注入提示词的记忆条数
+    MEMORY_FALLBACK_COUNT = 5    # 无高分命中时保留的候选数量
+
     def __init__(self, memory_service=None, foreshadow_service=None):
         """
         初始化构建器
@@ -1301,7 +1189,14 @@ class OneToOneContextBuilder:
         logger.info(f"  ✅ P0-大纲信息: {len(context.chapter_outline)}字符")
         
         # === P1-重要信息 ===
-        # 1. 获取上一章内容的最后500字和上一章摘要
+        # 0. 最近N章剧情摘要窗口
+        if chapter_number > 1:
+            context.recent_chapters_context = await self._build_recent_chapters_context(
+                chapter, project.id, db
+            )
+            logger.info(f"  ✅ P1-最近章节摘要: {len(context.recent_chapters_context or '')}字符")
+
+        # 1. 获取上一章完整正文和上一章摘要
         if chapter_number > 1:
             # 查找前一章：不假设序号连续，取 chapter_number < 当前章 中最大的
             prev_chapter_result = await db.execute(
@@ -1315,11 +1210,8 @@ class OneToOneContextBuilder:
             
             if prev_chapter and prev_chapter.content:
                 content = prev_chapter.content.strip()
-                if len(content) <= 500:
-                    context.continuation_point = content
-                else:
-                    context.continuation_point = content[-500:]
-                logger.info(f"  ✅ P1-上一章内容(最后500字): {len(context.continuation_point)}字符")
+                context.continuation_point = content
+                logger.info(f"  ✅ P1-上一章完整正文: {len(context.continuation_point)}字符")
                 
                 # 获取上一章摘要（优先从记忆系统获取，其次使用章节摘要）
                 summary_result = await db.execute(
@@ -1393,15 +1285,6 @@ class OneToOneContextBuilder:
             context.chapter_characters = "暂无角色信息"
             context.chapter_careers = None
             logger.info(f"  ⚠️ P1-角色信息: 无")
-
-        context.goldfinger_context, goldfinger_count = await _build_goldfinger_generation_context(
-            chapter=chapter,
-            project_id=project.id,
-            outline=outline,
-            db=db,
-            chapter_outline=context.chapter_outline,
-        )
-        logger.info(f"  ✅ P1-金手指上下文: {goldfinger_count}个，{len(context.goldfinger_context or '')}字符")
         
         # === P2-参考信息 ===
         # 1. 伏笔提醒
@@ -1417,27 +1300,28 @@ class OneToOneContextBuilder:
         # 2. 根据大纲内容检索相关记忆（相关度>0.4）
         if self.memory_service and context.chapter_outline:
             try:
-                # 使用大纲内容作为查询（截取前500字符以避免过长）
-                query_text = context.chapter_outline[:500].replace('\n', ' ')
-                logger.info(f"  🔍 记忆查询关键词: {query_text[:100]}...")
+                query_text = self._build_memory_query_from_outline_structure(outline, context.chapter_outline)
+                logger.info(f"  🔍 [1-1] 结构化记忆查询: {query_text[:180]}...")
                 
                 relevant_memories = await self.memory_service.search_memories(
                     user_id=user_id,
                     project_id=project.id,
                     query=query_text,
-                    limit=15,
-                    min_importance=0.0
+                    limit=self.MEMORY_CANDIDATE_LIMIT,
+                    min_importance=0.0,
+                    chapter_range=(1, max(0, chapter_number - 1))
                 )
                 
-                # 过滤相关度阈值为0.6
-                filtered_memories = [
-                    mem for mem in relevant_memories
-                    if mem.get('similarity', 0) > 0.6
-                ]
+                filtered_memories = _select_memories_with_fallback(
+                    memories=relevant_memories,
+                    threshold=0.6,
+                    fallback_count=self.MEMORY_FALLBACK_COUNT,
+                    log_prefix="[1-1] "
+                )
                 
                 if filtered_memories:
                     memory_lines = ["【相关记忆】"]
-                    for mem in filtered_memories[:10]:  # 最多显示10条
+                    for mem in filtered_memories[:self.MEMORY_CONTEXT_LIMIT]:
                         similarity = mem.get('similarity', 0)
                         content = mem.get('content', '')[:100]
                         memory_lines.append(f"- (相关度:{similarity:.2f}) {content}")
@@ -1460,13 +1344,12 @@ class OneToOneContextBuilder:
             "mode": "one-to-one",
             "chapter_number": chapter_number,
             "has_previous_content": context.continuation_point is not None,
+            "recent_context_length": len(context.recent_chapters_context or ""),
             "previous_content_length": len(context.continuation_point or ""),
             "previous_summary_length": len(context.previous_chapter_summary or ""),
             "outline_length": len(context.chapter_outline),
             "characters_length": len(context.chapter_characters),
             "careers_length": len(context.chapter_careers or ""),
-            "goldfinger_length": len(context.goldfinger_context or ""),
-            "goldfinger_count": goldfinger_count,
             "foreshadow_length": len(context.foreshadow_reminders or ""),
             "memories_length": len(context.relevant_memories or ""),
             "total_length": context.get_total_context_length()
@@ -1475,6 +1358,117 @@ class OneToOneContextBuilder:
         logger.info(f"📊 [1-1模式] 上下文构建完成: 总长度 {context.context_stats['total_length']} 字符")
         
         return context
+    
+    async def _build_recent_chapters_context(
+        self,
+        chapter: Chapter,
+        project_id: str,
+        db: AsyncSession
+    ) -> Optional[str]:
+        """构建最近N章剧情摘要窗口（1-1模式）。"""
+        try:
+            result = await db.execute(
+                select(Chapter.id, Chapter.chapter_number, Chapter.title, Chapter.summary)
+                .where(Chapter.project_id == project_id)
+                .where(Chapter.chapter_number < chapter.chapter_number)
+                .order_by(Chapter.chapter_number.desc())
+                .limit(self.RECENT_CHAPTERS_COUNT)
+            )
+            recent_chapters = result.all()
+
+            if not recent_chapters:
+                return None
+
+            recent_chapters = sorted(recent_chapters, key=lambda x: x[1])
+            chapter_ids = [row[0] for row in recent_chapters]
+            summary_map: Dict[str, str] = {}
+            analysis_map: Dict[str, Any] = {}
+
+            if chapter_ids:
+                summary_result = await db.execute(
+                    select(StoryMemory.chapter_id, StoryMemory.content)
+                    .where(StoryMemory.chapter_id.in_(chapter_ids))
+                    .where(StoryMemory.memory_type == 'chapter_summary')
+                )
+                summary_map = {chapter_id: content for chapter_id, content in summary_result.all()}
+
+                analysis_result = await db.execute(
+                    select(PlotAnalysis.chapter_id, PlotAnalysis.plot_points)
+                    .where(PlotAnalysis.chapter_id.in_(chapter_ids))
+                )
+                analysis_map = {
+                    chapter_id: plot_points or []
+                    for chapter_id, plot_points in analysis_result.all()
+                }
+
+            lines = [f"【最近{len(recent_chapters)}章剧情摘要】"]
+            for ch_id, ch_num, ch_title, summary in recent_chapters:
+                real_summary = summary_map.get(ch_id) or summary
+                if real_summary:
+                    line = f"第{ch_num}章《{ch_title}》：{real_summary[:180]}"
+                else:
+                    line = f"第{ch_num}章《{ch_title}》"
+
+                plot_points = analysis_map.get(ch_id) or []
+                points = []
+                for point in plot_points[:3]:
+                    if isinstance(point, dict):
+                        points.append(str(point.get("content") or ""))
+                    else:
+                        points.append(str(point))
+                points = [p for p in points if p]
+                if points:
+                    line += f"（关键情节点：{'；'.join(points)}）"
+                lines.append(line)
+
+            return "\n".join(lines) if len(lines) > 1 else None
+        except Exception as e:
+            logger.error(f"❌ 构建1-1最近章节上下文失败: {str(e)}")
+            return None
+    
+    def _build_memory_query_from_outline_structure(
+        self,
+        outline: Optional[Outline],
+        chapter_outline: str
+    ) -> str:
+        """从1-1大纲structure构建高信号记忆检索query。"""
+        sections = []
+        if outline and outline.structure:
+            try:
+                structure = json.loads(outline.structure)
+                raw_characters = structure.get("characters", [])
+                character_names = []
+                organization_names = []
+                for item in raw_characters:
+                    if isinstance(item, dict):
+                        name = str(item.get("name") or "").strip()
+                        if not name:
+                            continue
+                        if item.get("type") == "organization":
+                            organization_names.append(name)
+                        else:
+                            character_names.append(name)
+                    elif isinstance(item, str) and item.strip():
+                        character_names.append(item.strip())
+
+                sections.extend(filter(None, [
+                    _format_memory_query_section("人物", character_names[:8]),
+                    _format_memory_query_section("组织", organization_names[:5]),
+                    _format_memory_query_section("关键事件", _stringify_list_items(structure.get("key_points"), limit=6)),
+                    _format_memory_query_section("叙事目标", _stringify_list_items(structure.get("goal"), limit=1)),
+                    _format_memory_query_section("场景", _stringify_list_items(structure.get("scenes"), limit=2)),
+                    _format_memory_query_section("情绪", _stringify_list_items(structure.get("emotion"), limit=1)),
+                ]))
+
+                if not sections and structure.get("summary"):
+                    sections.append(f"概要：{str(structure['summary'])[:200]}")
+            except json.JSONDecodeError:
+                logger.warning(f"  ⚠️ [1-1] outline.structure解析失败，使用章节大纲兜底: outline={outline.id}")
+
+        if sections:
+            return "\n".join(sections)[:900]
+
+        return chapter_outline[:500].replace('\n', ' ')
     
     def _build_outline_from_structure(
         self,
@@ -1589,9 +1583,6 @@ class OneToOneContextBuilder:
                 char_career_relations[cc.character_id]['main'].append(cc)
             else:
                 char_career_relations[cc.character_id]['sub'].append(cc)
-
-        orgs_result = await db.execute(select(OrganizationEntity).where(OrganizationEntity.project_id == project_id))
-        organization_entities = orgs_result.scalars().all()
         
         # 构建角色信息字符串
         characters_info_parts = []
@@ -1601,7 +1592,7 @@ class OneToOneContextBuilder:
                 continue
             
             # === 角色基本信息 ===
-            entity_type = '角色'
+            entity_type = '组织' if c.is_organization else '角色'
             role_type_map = {
                 'protagonist': '主角',
                 'antagonist': '反派',
@@ -1676,62 +1667,64 @@ class OneToOneContextBuilder:
                             info_lines.append(f"    - {career.name} ({cc.current_stage}/{career.max_stage}阶 - {stage_name})")
             
             # === 角色关系信息 ===
-            from sqlalchemy import or_
-            rels_result = await db.execute(
-                select(EntityRelationship).where(
-                    EntityRelationship.project_id == project_id,
-                    EntityRelationship.from_entity_type == "character",
-                    EntityRelationship.to_entity_type == "character",
-                    or_(
-                        EntityRelationship.from_entity_id == c.id,
-                        EntityRelationship.to_entity_id == c.id
+            if not c.is_organization:
+                from sqlalchemy import or_
+                rels_result = await db.execute(
+                    select(CharacterRelationship).where(
+                        CharacterRelationship.project_id == project_id,
+                        or_(
+                            CharacterRelationship.character_from_id == c.id,
+                            CharacterRelationship.character_to_id == c.id
+                        )
                     )
                 )
-            )
-            rels = rels_result.scalars().all()
-            if rels:
-                related_ids = set()
-                for r in rels:
-                    related_ids.add(r.character_from_id)
-                    related_ids.add(r.character_to_id)
-                related_ids.discard(c.id)
-                if related_ids:
-                    names_result = await db.execute(
-                        select(Character.id, Character.name).where(Character.id.in_(related_ids))
-                    )
-                    name_map = {row.id: row.name for row in names_result}
-                    rel_parts = []
+                rels = rels_result.scalars().all()
+                if rels:
+                    related_ids = set()
                     for r in rels:
-                        if r.character_from_id == c.id:
-                            target_name = name_map.get(r.character_to_id, "未知")
-                        else:
-                            target_name = name_map.get(r.character_from_id, "未知")
-                        rel_name = r.relationship_name or "相关"
-                        rel_parts.append(f"与{target_name}：{rel_name}")
-                    info_lines.append(f"  关系网络: {'；'.join(rel_parts)}")
+                        related_ids.add(r.character_from_id)
+                        related_ids.add(r.character_to_id)
+                    related_ids.discard(c.id)
+                    if related_ids:
+                        names_result = await db.execute(
+                            select(Character.id, Character.name).where(Character.id.in_(related_ids))
+                        )
+                        name_map = {row.id: row.name for row in names_result}
+                        rel_parts = []
+                        for r in rels:
+                            if r.character_from_id == c.id:
+                                target_name = name_map.get(r.character_to_id, "未知")
+                            else:
+                                target_name = name_map.get(r.character_from_id, "未知")
+                            rel_name = r.relationship_name or "相关"
+                            rel_parts.append(f"与{target_name}：{rel_name}")
+                        info_lines.append(f"  关系网络: {'；'.join(rel_parts)}")
+            
+            # === 组织特有信息 ===
+            if c.is_organization:
+                if c.organization_type:
+                    info_lines.append(f"  组织类型: {c.organization_type}")
+                if c.organization_purpose:
+                    info_lines.append(f"  组织目的: {c.organization_purpose[:100]}")
+                # 从 OrganizationMember 表动态查询组织成员
+                org_result = await db.execute(
+                    select(Organization).where(Organization.character_id == c.id)
+                )
+                org = org_result.scalar_one_or_none()
+                if org:
+                    members_result = await db.execute(
+                        select(OrganizationMember, Character.name).join(
+                            Character, OrganizationMember.character_id == Character.id
+                        ).where(OrganizationMember.organization_id == org.id)
+                    )
+                    members = members_result.all()
+                    if members:
+                        member_parts = [f"{name}（{m.position}）" for m, name in members]
+                        info_lines.append(f"  组织成员: {'、'.join(member_parts)[:100]}")
             
             # 组合完整信息
             full_info = "\n".join(info_lines)
             characters_info_parts.append(full_info)
-
-        for org_entity in organization_entities:
-            org_lines = [f"【{org_entity.name}】(组织, organization)"]
-            if org_entity.organization_type:
-                org_lines.append(f"  组织类型: {org_entity.organization_type}")
-            if org_entity.organization_purpose:
-                org_lines.append(f"  组织目的: {org_entity.organization_purpose[:100]}")
-            if org_entity.personality:
-                org_lines.append(f"  组织特性: {org_entity.personality[:100]}")
-            members_result = await db.execute(
-                select(OrganizationMember, Character.name)
-                .join(Character, OrganizationMember.character_id == Character.id)
-                .where(OrganizationMember.organization_entity_id == org_entity.id)
-            )
-            members = members_result.all()
-            if members:
-                member_parts = [f"{name}（{m.position}）" for m, name in members]
-                org_lines.append(f"  组织成员: {'、'.join(member_parts)[:100]}")
-            characters_info_parts.append("\n".join(org_lines))
         
         characters_result = "\n\n".join(characters_info_parts)
         logger.info(f"  ✅ 构建了 {len(characters_info_parts)} 个角色的完整信息，总长度: {len(characters_result)} 字符")
@@ -1874,3 +1867,4 @@ class OneToOneContextBuilder:
         except Exception as e:
             logger.error(f"❌ 获取伏笔提醒失败: {str(e)}")
             return None
+

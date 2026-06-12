@@ -5,11 +5,49 @@ from typing import Any, AsyncGenerator, Dict, List, Optional
 
 import httpx
 
-from app.logger import get_logger
-from app.services.ai_token_limits import resolve_openai_compatible_max_tokens
+from app.logger import get_logger, summarize_log_value
 from .base_client import BaseAIClient
 
 logger = get_logger(__name__)
+
+
+def _message_content_length(content: Any) -> int:
+    if content is None:
+        return 0
+    if isinstance(content, str):
+        return len(content)
+    return len(json.dumps(content, ensure_ascii=False, default=str))
+
+
+def _log_request_summary(payload: Dict[str, Any]) -> None:
+    messages = payload.get("messages") or []
+    message_chars = sum(_message_content_length(message.get("content")) for message in messages if isinstance(message, dict))
+    logger.debug(
+        "📤 OpenAI 请求摘要: model=%s, messages=%s, message_chars=%s, tools=%s, stream=%s, max_tokens=%s",
+        payload.get("model"),
+        len(messages),
+        message_chars,
+        len(payload.get("tools") or []),
+        bool(payload.get("stream")),
+        payload.get("max_tokens"),
+    )
+
+
+def _log_response_summary(data: Dict[str, Any]) -> None:
+    choices = data.get("choices") or []
+    first_choice = choices[0] if choices else {}
+    message = first_choice.get("message") or {}
+    content = message.get("content") or ""
+    tool_calls = message.get("tool_calls") or []
+    usage = data.get("usage") or {}
+    logger.debug(
+        "📥 OpenAI 响应摘要: choices=%s, finish_reason=%s, content_length=%s, tool_calls=%s, usage=%s",
+        len(choices),
+        first_choice.get("finish_reason"),
+        len(content) if isinstance(content, str) else _message_content_length(content),
+        len(tool_calls),
+        summarize_log_value(usage),
+    )
 
 
 class OpenAIClient(BaseAIClient):
@@ -318,7 +356,7 @@ class OpenAIClient(BaseAIClient):
             provider_compatibility=provider_compatibility,
         )
         
-        logger.debug(f"📤 OpenAI 请求 payload: {json.dumps(payload, ensure_ascii=False, indent=2)}")
+        _log_request_summary(payload)
         
         try:
             data = await self._request_with_retry("POST", "/chat/completions", payload)
@@ -326,8 +364,7 @@ class OpenAIClient(BaseAIClient):
             await self._log_upstream_http_error(exc, endpoint="/chat/completions", payload=payload)
             raise
         
-        # 调试日志：输出原始响应
-        logger.debug(f"📥 OpenAI 原始响应: {json.dumps(data, ensure_ascii=False, indent=2)}")
+        _log_response_summary(data)
 
         choices = data.get("choices", [])
         if not choices or len(choices) == 0:
@@ -481,6 +518,7 @@ class OpenAIClient(BaseAIClient):
         except Exception as e:
             logger.error(f"流式请求出错: {str(e)}")
             raise
+<<<<<<< HEAD
 
     async def create_response_stream(
         self,
@@ -589,3 +627,5 @@ class OpenAIClient(BaseAIClient):
         except Exception as e:
             logger.error(f"OpenAI Responses 流式请求出错: {str(e)}")
             raise
+=======
+>>>>>>> upstream/main
