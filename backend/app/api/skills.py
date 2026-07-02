@@ -10,7 +10,7 @@ from typing import Dict, List, Optional
 
 from app.database import get_db
 from app.user_manager import User
-from app.api.settings import require_login
+from app.api.settings import require_admin, require_login
 from app.services.skill_loader import get_all_skills_cached, get_skill_by_trigger, get_skill_detail, create_skill_files, update_skill_files, delete_skill_files, refresh_skills_cache, _get_skill_body
 from app.services.ai_service import AIService, create_user_ai_service
 from app.utils.sse_response import SSEResponse, create_sse_response, wrap_stream_with_heartbeat, HEARTBEAT
@@ -192,7 +192,7 @@ async def get_skill_detail_api(skill_key: str, user: User = Depends(require_logi
 
 
 @router.post("/create")
-async def create_skill(request: SkillCreateRequest, user: User = Depends(require_login)):
+async def create_skill(request: SkillCreateRequest, user: User = Depends(require_admin)):
     """创建新的 Skill"""
     try:
         result = create_skill_files(
@@ -215,7 +215,7 @@ async def create_skill(request: SkillCreateRequest, user: User = Depends(require
 
 
 @router.put("/update/{skill_key:path}")
-async def update_skill(skill_key: str, request: SkillUpdateRequest, user: User = Depends(require_login)):
+async def update_skill(skill_key: str, request: SkillUpdateRequest, user: User = Depends(require_admin)):
     """更新 Skill"""
     try:
         result = update_skill_files(
@@ -238,7 +238,7 @@ async def update_skill(skill_key: str, request: SkillUpdateRequest, user: User =
 
 
 @router.delete("/delete/{skill_key:path}")
-async def delete_skill(skill_key: str, user: User = Depends(require_login)):
+async def delete_skill(skill_key: str, user: User = Depends(require_admin)):
     """删除 Skill"""
     try:
         delete_skill_files(skill_key)
@@ -253,7 +253,7 @@ async def delete_skill(skill_key: str, user: User = Depends(require_login)):
 
 
 @router.post("/refresh-cache")
-async def refresh_cache(user: User = Depends(require_login)):
+async def refresh_cache(user: User = Depends(require_admin)):
     """手动刷新 Skill 缓存"""
     skills = refresh_skills_cache()
     return {"success": True, "count": len(skills)}

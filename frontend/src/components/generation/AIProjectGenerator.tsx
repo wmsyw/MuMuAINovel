@@ -3,22 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { Card, Button, Space, Typography, message, Progress, theme } from 'antd';
 import { CheckCircleOutlined, LoadingOutlined } from '@ant-design/icons';
 import { wizardStreamApi } from '../../services/api';
-import type { ApiError, InspirationGenerationContext } from '../../types';
+import type { ApiError } from '../../types';
+import type { GenerationConfig } from './types';
 
 const { Title, Paragraph, Text } = Typography;
-
-export interface GenerationConfig {
-  title: string;
-  description: string;
-  theme: string;
-  genre: string | string[];
-  narrative_perspective: string;
-  target_words: number;
-  chapter_count: number;
-  character_count: number;
-  outline_mode?: 'one-to-one' | 'one-to-many';  // 大纲章节模式
-  inspiration_context?: InspirationGenerationContext;
-}
 
 interface AIProjectGeneratorProps {
   config: GenerationConfig;
@@ -66,7 +54,7 @@ function buildInspirationContextRequestPart(data: GenerationConfig) {
     : {};
 }
 
-export function shouldGenerateCareerSystem(genre: GenerationConfig['genre']): boolean {
+function shouldGenerateCareerSystem(genre: GenerationConfig['genre']): boolean {
   const genreText = formatGenre(genre);
   const hasRequiredGenre = CAREER_SYSTEM_REQUIRED_GENRE_KEYWORDS.some(keyword => genreText.includes(keyword));
   if (hasRequiredGenre) {

@@ -72,7 +72,10 @@ class _CapturingProvider(BaseAIProvider):
         tool_choice: str | None = None,
         user_id: str | None = None,
         reasoning_config: Any = None,
-    ) -> AsyncGenerator[str, None]:
+        mcp_max_rounds: int = 3,
+        allowed_tool_names: set[str] | None = None,
+        db_session: Any = None,
+    ) -> AsyncGenerator[str | dict[str, Any], None]:
         self.stream_calls.append(
             {
                 "prompt": prompt,
@@ -84,11 +87,15 @@ class _CapturingProvider(BaseAIProvider):
                 "tool_choice": tool_choice,
                 "user_id": user_id,
                 "reasoning_config": reasoning_config,
+                "mcp_max_rounds": mcp_max_rounds,
+                "allowed_tool_names": allowed_tool_names,
+                "db_session": db_session,
             }
         )
-        return self._empty_stream()
+        async for chunk in self._empty_stream():
+            yield chunk
 
-    async def _empty_stream(self) -> AsyncGenerator[str, None]:
+    async def _empty_stream(self) -> AsyncGenerator[str | dict[str, Any], None]:
         for chunk in ():
             yield chunk
 

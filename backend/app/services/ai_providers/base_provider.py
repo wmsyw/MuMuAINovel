@@ -16,7 +16,7 @@ class BaseAIProvider(ABC):
         temperature: float,
         max_tokens: int,
         system_prompt: Optional[str] = None,
-        tools: Optional[List[Dict]] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[str] = None,
         reasoning_config: Optional[ReasoningConfig] = None,
     ) -> Dict[str, Any]:
@@ -31,10 +31,14 @@ class BaseAIProvider(ABC):
         temperature: float,
         max_tokens: int,
         system_prompt: Optional[str] = None,
-        tools: Optional[List[Dict]] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[str] = None,
         user_id: Optional[str] = None,
         reasoning_config: Optional[ReasoningConfig] = None,
-    ) -> AsyncGenerator[str, None]:
+        mcp_max_rounds: int = 3,
+        allowed_tool_names: Optional[set[str]] = None,
+        db_session: Any = None,
+    ) -> AsyncGenerator[str | Dict[str, Any], None]:
         """流式生成"""
-        pass
+        if False:
+            yield {}

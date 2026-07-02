@@ -90,16 +90,23 @@ export default function ProjectDetail() {
   const { refreshChapters } = useChapterSync();
 
   useEffect(() => {
+    let cancelled = false;
+
     const loadProjectData = async (id: string) => {
       try {
         setLoading(true);
         setProjectLoadError(null);
         setLocalAssetsEnabled(null);
+        setCurrentProject(null);
+        clearProjectData();
         // 加载项目基本信息与特性开关
         const [project, featureFlags] = await Promise.all([
           projectApi.getProject(id),
           settingsApi.getFeatureFlags().catch(() => ({ local_assets_enabled: false })),
         ]);
+        if (cancelled) {
+          return;
+        }
         setCurrentProject(project);
         setLocalAssetsEnabled(Boolean(featureFlags.local_assets_enabled));
 
@@ -110,18 +117,32 @@ export default function ProjectDetail() {
           refreshChapters(id),
         ]);
       } catch (error) {
+        if (cancelled) {
+          return;
+        }
         console.error('加载项目数据失败:', error);
+        setCurrentProject(null);
+        clearProjectData();
         setProjectLoadError('项目不可用，可能已被删除或当前账号无权访问。');
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
     if (projectId) {
-      loadProjectData(projectId);
+      void loadProjectData(projectId);
+    } else {
+      clearProjectData();
+      setCurrentProject(null);
+      setProjectLoadError('缺少项目 ID。');
+      setLoading(false);
     }
 
     return () => {
+      cancelled = true;
+      setCurrentProject(null);
       clearProjectData();
     };
   }, [projectId, clearProjectData, setLoading, setCurrentProject, refreshOutlines, refreshCharacters, refreshChapters]);
@@ -374,11 +395,13 @@ export default function ProjectDetail() {
     return 'sponsor'; // 默认选中赞助支持
   }, [location.pathname]);
 
-  if (localAssetsEnabled === false && location.pathname.includes('/local-assets')) {
+  const routeProjectReady = Boolean(projectId && currentProject?.id === projectId);
+
+  if (routeProjectReady && localAssetsEnabled === false && location.pathname.includes('/local-assets')) {
     return <Navigate to={`/project/${projectId}/sponsor`} replace />;
   }
 
-  if (loading || !currentProject) {
+  if (loading || !routeProjectReady || !currentProject) {
     if (!loading && projectLoadError) {
       return (
         <Result

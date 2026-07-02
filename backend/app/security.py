@@ -14,17 +14,14 @@ from fastapi import HTTPException
 
 from app.config import settings
 
+_EPHEMERAL_SESSION_SECRET = secrets.token_urlsafe(48)
+_WORKSHOP_PROXY_SIGNATURE_MAX_AGE_SECONDS = 300
+
 
 def _session_secret() -> bytes:
-    secret = (
-        getattr(settings, "SESSION_SECRET_KEY", None)
-        or getattr(settings, "session_secret_key", None)
-        or settings.LINUXDO_CLIENT_SECRET
-        or settings.LOCAL_AUTH_PASSWORD
-        or settings.openai_api_key
-    )
+    secret = getattr(settings, "SESSION_SECRET_KEY", None) or getattr(settings, "session_secret_key", None)
     if not secret:
-        secret = "mumuainovel-development-session-secret"
+        secret = _EPHEMERAL_SESSION_SECRET
     return str(secret).encode("utf-8")
 
 
@@ -41,7 +38,7 @@ def create_session_token(user_id: str, max_age_seconds: int) -> str:
     return f"{payload_b64}.{signature_b64}"
 
 
-def verify_session_token(token: str) -> str | None:
+def verify_session_token(token: str | None) -> str | None:
     if not token or "." not in token:
         return None
     payload_b64, signature_b64 = token.split(".", 1)
@@ -63,7 +60,59 @@ def verify_session_token(token: str) -> str | None:
     return user_id if isinstance(user_id, str) and user_id else None
 
 
-def _is_forbidden_ip(ip: ipaddress._BaseAddress) -> bool:
+def _workshop_proxy_secret() -> bytes | None:
+    secret = getattr(settings, "WORKSHOP_PROXY_SECRET", None)
+    return str(secret).encode("utf-8") if secret else None
+
+
+def create_workshop_proxy_signature(
+    *,
+    method: str,
+    path: str,
+    timestamp: str,
+    instance_id: str,
+    user_id: str | None,
+) -> str | None:
+    secret = _workshop_proxy_secret()
+    if not secret:
+        return None
+    payload = "\n".join([method.upper(), path, timestamp, instance_id, user_id or ""])
+    return hmac.new(secret, payload.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def verify_workshop_proxy_signature(
+    *,
+    method: str,
+    path: str,
+    timestamp: str | None,
+    instance_id: str | None,
+    user_id: str | None,
+    signature: str | None,
+    now: int | None = None,
+) -> bool:
+    if not timestamp or not instance_id or not signature:
+        return False
+    secret = _workshop_proxy_secret()
+    if not secret:
+        return False
+    if not timestamp.isdigit():
+        return False
+    issued_at = int(timestamp)
+    current_time = int(time.time()) if now is None else now
+    if abs(current_time - issued_at) > _WORKSHOP_PROXY_SIGNATURE_MAX_AGE_SECONDS:
+        return False
+
+    expected = create_workshop_proxy_signature(
+        method=method,
+        path=path,
+        timestamp=timestamp,
+        instance_id=instance_id,
+        user_id=user_id,
+    )
+    return bool(expected) and hmac.compare_digest(expected, signature)
+
+
+def _is_forbidden_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
     return any([
         ip.is_private,
         ip.is_loopback,

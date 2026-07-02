@@ -2,9 +2,11 @@
 # pyright: reportMissingImports=false, reportImplicitRelativeImport=false, reportMissingTypeArgument=false
 
 import httpx
+import time
 from typing import Optional, Dict, Any
 from app.config import settings, INSTANCE_ID
 from app.logger import get_logger, safe_preview
+from app.security import create_workshop_proxy_signature
 
 logger = get_logger(__name__)
 
@@ -36,8 +38,20 @@ class WorkshopClient:
         }
         if user_identifier:
             headers["X-User-ID"] = user_identifier
+        signed_path = f"/api/prompt-workshop{path}"
+        timestamp = str(int(time.time()))
+        signature = create_workshop_proxy_signature(
+            method=method,
+            path=signed_path,
+            timestamp=timestamp,
+            instance_id=INSTANCE_ID,
+            user_id=user_identifier,
+        )
+        if signature:
+            headers["X-Workshop-Timestamp"] = timestamp
+            headers["X-Workshop-Signature"] = signature
         
-        url = f"{self.base_url}/api/prompt-workshop{path}"
+        url = f"{self.base_url}{signed_path}"
         
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:

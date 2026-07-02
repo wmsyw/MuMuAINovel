@@ -11,13 +11,30 @@ from pathlib import Path
 # 添加项目路径
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
+ALEMBIC_CONFIG_ENV = "ALEMBIC_CONFIG"
 
 from app.logger import get_logger
 
 logger = get_logger(__name__)
 
 
-def run_command(cmd: list, description: str) -> bool:
+def alembic_config_path() -> Path:
+    explicit_config = os.getenv(ALEMBIC_CONFIG_ENV)
+    if explicit_config:
+        return Path(explicit_config).expanduser().resolve()
+
+    database_url = os.getenv("DATABASE_URL", "").lower()
+    if database_url.startswith("sqlite"):
+        return project_root / "alembic-sqlite.ini"
+
+    return project_root / "alembic-postgres.ini"
+
+
+def alembic_command(*args: str) -> list[str]:
+    return [sys.executable, "-m", "alembic", "-c", str(alembic_config_path()), *args]
+
+
+def run_command(cmd: list[str], description: str) -> bool:
     """运行命令并返回是否成功"""
     try:
         logger.info(f"🚀 {description}...")
@@ -44,54 +61,54 @@ def run_command(cmd: list, description: str) -> bool:
         return False
 
 
-def create_migration(message: str = None):
+def create_migration(message: str | None = None) -> bool:
     """创建新的迁移版本"""
     if not message:
         message = input("请输入迁移描述: ").strip()
         if not message:
             message = "auto_migration"
     
-    cmd = ["alembic", "revision", "--autogenerate", "-m", message]
+    cmd = alembic_command("revision", "--autogenerate", "-m", message)
     return run_command(cmd, f"生成迁移: {message}")
 
 
-def upgrade_database(revision: str = "head"):
+def upgrade_database(revision: str = "head") -> bool:
     """升级数据库到指定版本"""
-    cmd = ["alembic", "upgrade", revision]
+    cmd = alembic_command("upgrade", revision)
     return run_command(cmd, f"升级数据库到: {revision}")
 
 
-def downgrade_database(revision: str = "-1"):
+def downgrade_database(revision: str = "-1") -> bool:
     """降级数据库到指定版本"""
-    cmd = ["alembic", "downgrade", revision]
+    cmd = alembic_command("downgrade", revision)
     return run_command(cmd, f"降级数据库到: {revision}")
 
 
-def show_current():
+def show_current() -> bool:
     """显示当前数据库版本"""
-    cmd = ["alembic", "current"]
+    cmd = alembic_command("current")
     return run_command(cmd, "查看当前版本")
 
 
-def show_history():
+def show_history() -> bool:
     """显示迁移历史"""
-    cmd = ["alembic", "history", "--verbose"]
+    cmd = alembic_command("history", "--verbose")
     return run_command(cmd, "查看迁移历史")
 
 
-def show_heads():
+def show_heads() -> bool:
     """显示最新版本"""
-    cmd = ["alembic", "heads"]
+    cmd = alembic_command("heads")
     return run_command(cmd, "查看最新版本")
 
 
-def stamp_database(revision: str = "head"):
+def stamp_database(revision: str = "head") -> bool:
     """标记数据库版本（不执行迁移）"""
-    cmd = ["alembic", "stamp", revision]
+    cmd = alembic_command("stamp", revision)
     return run_command(cmd, f"标记数据库版本: {revision}")
 
 
-def auto_migrate():
+def auto_migrate() -> bool:
     """自动迁移：生成并执行迁移"""
     logger.info("=" * 60)
     logger.info("🔄 开始自动迁移流程")
@@ -113,7 +130,7 @@ def auto_migrate():
     return True
 
 
-def init_database():
+def init_database() -> bool:
     """初始化数据库（首次部署）"""
     logger.info("=" * 60)
     logger.info("🔧 初始化数据库")
@@ -134,10 +151,11 @@ def init_database():
     return True
 
 
-def main():
+def main() -> None:
     """主函数"""
     if len(sys.argv) < 2:
         print("使用方法:")
+        print("  ALEMBIC_CONFIG=alembic-sqlite.ini 可显式选择迁移配置")
         print("  python migrate.py create [message]    - 创建新迁移")
         print("  python migrate.py upgrade [revision]  - 升级数据库（默认: head）")
         print("  python migrate.py downgrade [revision] - 降级数据库（默认: -1）")

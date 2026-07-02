@@ -519,7 +519,8 @@ export default function Chapters() {
                 return settings.llm_model; // 返回模型名称
               }
             }
-          } catch {
+          } catch (error) {
+            console.warn('加载模型列表失败:', error);
           }
         }
       }

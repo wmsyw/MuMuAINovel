@@ -7,7 +7,8 @@ import {
 import {
   RocketOutlined, ArrowLeftOutlined, CheckCircleOutlined
 } from '@ant-design/icons';
-import { AIProjectGenerator, type GenerationConfig } from '../components/generation/AIProjectGenerator';
+import { AIProjectGenerator } from '../components/generation/AIProjectGenerator';
+import type { GenerationConfig } from '../components/generation/types';
 import type { WizardBasicInfo } from '../types';
 
 const { TextArea } = Input;

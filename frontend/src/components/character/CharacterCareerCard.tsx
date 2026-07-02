@@ -1,35 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card, Button, Modal, Form, Select, InputNumber, Input, message, Progress, Tag, Space, Divider, Typography, theme } from 'antd';
 import { EditOutlined, PlusOutlined, DeleteOutlined, TrophyOutlined } from '@ant-design/icons';
-import axios from 'axios';
+import { careerApi } from '../../services/api';
+import type { Career, CharacterCareerAssignmentRequest, CharacterCareerDetail, CharacterCareerStageUpdateRequest } from '../../types';
 
 const { TextArea } = Input;
 const { Text, Paragraph } = Typography;
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-
-interface CareerDetail {
-    id: string;
-    character_id: string;
-    career_id: string;
-    career_name: string;
-    career_type: 'main' | 'sub';
-    current_stage: number;
-    stage_name: string;
-    stage_description?: string;
-    stage_progress: number;
-    max_stage: number;
-    started_at?: string;
-    reached_current_stage_at?: string;
-    notes?: string;
-}
-
-interface Career {
-    id: string;
-    name: string;
-    type: 'main' | 'sub';
-    max_stage: number;
-}
 
 interface Props {
     characterId: string;
@@ -45,15 +21,15 @@ export const CharacterCareerCard: React.FC<Props> = ({
     onUpdate
 }) => {
     const { token } = theme.useToken();
-    const [mainCareer, setMainCareer] = useState<CareerDetail | null>(null);
-    const [subCareers, setSubCareers] = useState<CareerDetail[]>([]);
+    const [mainCareer, setMainCareer] = useState<CharacterCareerDetail | null>(null);
+    const [subCareers, setSubCareers] = useState<CharacterCareerDetail[]>([]);
     const [allCareers, setAllCareers] = useState<Career[]>([]);
     const [loading, setLoading] = useState(true);
 
     const [isMainModalOpen, setIsMainModalOpen] = useState(false);
     const [isSubModalOpen, setIsSubModalOpen] = useState(false);
     const [isProgressModalOpen, setIsProgressModalOpen] = useState(false);
-    const [selectedCareer, setSelectedCareer] = useState<CareerDetail | null>(null);
+    const [selectedCareer, setSelectedCareer] = useState<CharacterCareerDetail | null>(null);
 
     const [mainForm] = Form.useForm();
     const [subForm] = Form.useForm();
@@ -63,15 +39,11 @@ export const CharacterCareerCard: React.FC<Props> = ({
     const fetchCharacterCareers = useCallback(async () => {
         try {
             setLoading(true);
-            const response = await axios.get(
-                `${API_BASE_URL}/api/careers/character/${characterId}/careers`,
-                { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
-            );
-            setMainCareer(response.data.main_career || null);
-            setSubCareers(response.data.sub_careers || []);
+            const response = await careerApi.getCharacterCareers(characterId);
+            setMainCareer(response.main_career || null);
+            setSubCareers(response.sub_careers || []);
         } catch (error: unknown) {
-            const axiosError = error as { response?: { data?: { detail?: string } } };
-            message.error(axiosError.response?.data?.detail || '获取职业信息失败');
+            console.error('获取职业信息失败:', error);
         } finally {
             setLoading(false);
         }
@@ -79,12 +51,9 @@ export const CharacterCareerCard: React.FC<Props> = ({
 
     const fetchAllCareers = useCallback(async () => {
         try {
-            const response = await axios.get(`${API_BASE_URL}/api/careers`, {
-                params: { project_id: projectId },
-                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-            });
-            const main = response.data.main_careers || [];
-            const sub = response.data.sub_careers || [];
+            const response = await careerApi.getCareers(projectId);
+            const main = response.main_careers || [];
+            const sub = response.sub_careers || [];
             setAllCareers([...main, ...sub]);
         } catch (error: unknown) {
             console.error('获取职业列表失败:', error);
@@ -98,59 +67,44 @@ export const CharacterCareerCard: React.FC<Props> = ({
         }
     }, [characterId, editable, fetchCharacterCareers, fetchAllCareers]);
 
-    const handleSetMainCareer = async (values: { career_id: string; current_stage?: number; started_at?: string }) => {
+    const handleSetMainCareer = async (values: CharacterCareerAssignmentRequest) => {
         try {
-            await axios.post(
-                `${API_BASE_URL}/api/careers/character/${characterId}/careers/main`,
-                values,
-                { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
-            );
+            await careerApi.setMainCharacterCareer(characterId, values);
             message.success('主职业设置成功');
             setIsMainModalOpen(false);
             mainForm.resetFields();
             fetchCharacterCareers();
             onUpdate?.();
         } catch (error: unknown) {
-            const axiosError = error as { response?: { data?: { detail?: string } } };
-            message.error(axiosError.response?.data?.detail || '设置主职业失败');
+            console.error('设置主职业失败:', error);
         }
     };
 
-    const handleAddSubCareer = async (values: { career_id: string; current_stage?: number; started_at?: string }) => {
+    const handleAddSubCareer = async (values: CharacterCareerAssignmentRequest) => {
         try {
-            await axios.post(
-                `${API_BASE_URL}/api/careers/character/${characterId}/careers/sub`,
-                values,
-                { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
-            );
+            await careerApi.addSubCharacterCareer(characterId, values);
             message.success('副职业添加成功');
             setIsSubModalOpen(false);
             subForm.resetFields();
             fetchCharacterCareers();
             onUpdate?.();
         } catch (error: unknown) {
-            const axiosError = error as { response?: { data?: { detail?: string } } };
-            message.error(axiosError.response?.data?.detail || '添加副职业失败');
+            console.error('添加副职业失败:', error);
         }
     };
 
-    const handleUpdateProgress = async (values: { current_stage: number; stage_progress: number; reached_current_stage_at?: string; notes?: string }) => {
+    const handleUpdateProgress = async (values: CharacterCareerStageUpdateRequest) => {
         if (!selectedCareer) return;
 
         try {
-            await axios.put(
-                `${API_BASE_URL}/api/careers/character/${characterId}/careers/${selectedCareer.career_id}/stage`,
-                values,
-                { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
-            );
+            await careerApi.updateCharacterCareerStage(characterId, selectedCareer.career_id, values);
             message.success('职业阶段更新成功');
             setIsProgressModalOpen(false);
             progressForm.resetFields();
             fetchCharacterCareers();
             onUpdate?.();
         } catch (error: unknown) {
-            const axiosError = error as { response?: { data?: { detail?: string } } };
-            message.error(axiosError.response?.data?.detail || '更新职业阶段失败');
+            console.error('更新职业阶段失败:', error);
         }
     };
 
@@ -161,22 +115,18 @@ export const CharacterCareerCard: React.FC<Props> = ({
             centered: true,
             onOk: async () => {
                 try {
-                    await axios.delete(
-                        `${API_BASE_URL}/api/careers/character/${characterId}/careers/${careerId}`,
-                        { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
-                    );
+                    await careerApi.removeSubCharacterCareer(characterId, careerId);
                     message.success('副职业删除成功');
                     fetchCharacterCareers();
                     onUpdate?.();
                 } catch (error: unknown) {
-                    const axiosError = error as { response?: { data?: { detail?: string } } };
-                    message.error(axiosError.response?.data?.detail || '删除副职业失败');
+                    console.error('删除副职业失败:', error);
                 }
             }
         });
     };
 
-    const openEditProgress = (career: CareerDetail) => {
+    const openEditProgress = (career: CharacterCareerDetail) => {
         setSelectedCareer(career);
         progressForm.setFieldsValue({
             current_stage: career.current_stage,
@@ -187,7 +137,7 @@ export const CharacterCareerCard: React.FC<Props> = ({
         setIsProgressModalOpen(true);
     };
 
-    const renderCareerInfo = (career: CareerDetail, isMain: boolean = false) => (
+    const renderCareerInfo = (career: CharacterCareerDetail, isMain: boolean = false) => (
         <div key={career.id} style={{ marginBottom: 16 }}>
             <Space style={{ width: '100%', justifyContent: 'space-between' }}>
                 <Space>

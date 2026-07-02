@@ -3,7 +3,7 @@ export interface TagOption {
   label: string;
 }
 
-export interface GenreOption extends TagOption {}
+export type GenreOption = TagOption;
 
 export interface ChannelOption {
   id: string;

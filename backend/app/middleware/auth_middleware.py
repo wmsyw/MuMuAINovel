@@ -3,10 +3,11 @@
 支持来自其他实例的代理请求（提示词工坊功能）
 """
 from fastapi import Request
+from starlette.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from app.user_manager import user_manager
 from app.logger import get_logger
-from app.security import verify_session_token
+from app.security import verify_session_token, verify_workshop_proxy_signature
 
 logger = get_logger(__name__)
 
@@ -28,6 +29,16 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if instance_id and is_workshop_path:
             # 来自其他实例的代理请求
             header_user_id = request.headers.get("X-User-ID")
+            if not verify_workshop_proxy_signature(
+                method=request.method,
+                path=request.url.path,
+                timestamp=request.headers.get("X-Workshop-Timestamp"),
+                instance_id=instance_id,
+                user_id=header_user_id,
+                signature=request.headers.get("X-Workshop-Signature"),
+            ):
+                logger.warning(f"拒绝未签名或签名无效的工坊代理请求: {request.url.path}")
+                return JSONResponse(status_code=401, content={"detail": "工坊代理签名无效"})
             
             request.state.is_proxy_request = True
             request.state.proxy_instance_id = instance_id

@@ -9,6 +9,7 @@ class SessionManager {
   private checkInterval: number | null = null;
   private activityTimeout: number | null = null;
   private lastActivityTime: number = Date.now();
+  private activityListenersStarted = false;
   
   // 配置参数
   private readonly CHECK_INTERVAL = 60 * 1000; // 每分钟检查一次
@@ -22,6 +23,10 @@ class SessionManager {
    * 启动会话监控
    */
   start() {
+    if (this.checkInterval !== null) {
+      return;
+    }
+
     // 先检查是否有有效的会话
     const expireAt = this.getSessionExpireTime();
     
@@ -38,11 +43,11 @@ class SessionManager {
     }
     
     // 立即检查一次
-    this.checkSession();
+    void this.checkSession();
     
     // 定期检查会话状态
     this.checkInterval = setInterval(() => {
-      this.checkSession();
+      void this.checkSession();
     }, this.CHECK_INTERVAL);
     
     // 监听用户活动
@@ -85,8 +90,8 @@ class SessionManager {
       
       // 会话已过期
       if (remaining <= 0) {
-      this.handleSessionExpired();
-      return;
+        void this.handleSessionExpired();
+        return;
       }
       
       // 显示即将过期警告
@@ -107,8 +112,8 @@ class SessionManager {
           await this.refreshSession();
         }
       }
-    } catch {
-      // 静默处理错误
+    } catch (error) {
+      console.warn('会话状态检查失败:', error);
     }
   }
 
@@ -124,9 +129,10 @@ class SessionManager {
         content: '登录状态已自动延长',
         duration: 2,
       });
-    } catch {
+    } catch (error) {
+      console.warn('刷新会话失败:', error);
       // 刷新失败可能是会话已过期
-      this.handleSessionExpired();
+      void this.handleSessionExpired();
     }
   }
 
@@ -145,7 +151,8 @@ class SessionManager {
     // 调用登出接口清除服务器端的 Cookie
     try {
       await authApi.logout();
-    } catch {
+    } catch (error) {
+      console.warn('会话过期登出失败，继续跳转:', error);
       // 即使登出失败也继续跳转
     }
     
@@ -182,22 +189,32 @@ class SessionManager {
    * 设置用户活动监听器
    */
   private setupActivityListeners() {
+    if (this.activityListenersStarted) {
+      return;
+    }
+
     const events = ['mousedown', 'keydown', 'scroll', 'touchstart'];
     
     events.forEach(event => {
       document.addEventListener(event, this.handleUserActivity, { passive: true });
     });
+    this.activityListenersStarted = true;
   }
 
   /**
    * 移除用户活动监听器
    */
   private removeActivityListeners() {
+    if (!this.activityListenersStarted) {
+      return;
+    }
+
     const events = ['mousedown', 'keydown', 'scroll', 'touchstart'];
     
     events.forEach(event => {
       document.removeEventListener(event, this.handleUserActivity);
     });
+    this.activityListenersStarted = false;
   }
 
   /**
@@ -223,7 +240,8 @@ class SessionManager {
     try {
       await this.refreshSession();
       return true;
-    } catch {
+    } catch (error) {
+      console.warn('手动刷新会话失败:', error);
       return false;
     }
   }

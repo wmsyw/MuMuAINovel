@@ -1562,6 +1562,40 @@ export interface CareerListResponse {
   sub_careers?: Career[];
 }
 
+export interface CharacterCareerDetail {
+  id: string;
+  character_id: string;
+  career_id: string;
+  career_name: string;
+  career_type: 'main' | 'sub';
+  current_stage: number;
+  stage_name: string;
+  stage_description?: string;
+  stage_progress: number;
+  max_stage: number;
+  started_at?: string;
+  reached_current_stage_at?: string;
+  notes?: string;
+}
+
+export interface CharacterCareerResponse {
+  main_career?: CharacterCareerDetail | null;
+  sub_careers?: CharacterCareerDetail[];
+}
+
+export interface CharacterCareerAssignmentRequest {
+  career_id: string;
+  current_stage?: number;
+  started_at?: string;
+}
+
+export interface CharacterCareerStageUpdateRequest {
+  current_stage: number;
+  stage_progress: number;
+  reached_current_stage_at?: string;
+  notes?: string;
+}
+
 export interface CareerCreateRequest {
   project_id: string;
   name: string;

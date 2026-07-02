@@ -11,7 +11,7 @@ from app.models.outline import Outline
 from app.models.project import Project
 from app.models.chapter import Chapter
 from app.models.character import Character
-from app.models.relationship import CharacterRelationship, Organization, OrganizationMember
+from app.models.relationship import EntityRelationship
 from app.models.generation_history import GenerationHistory
 from app.schemas.outline import (
     OutlineCreate,
@@ -50,7 +50,7 @@ def _build_chapters_brief(outlines: List[Outline], max_recent: int = 20) -> str:
 def _build_characters_info(characters: List[Character]) -> str:
     """构建角色信息字符串"""
     return "\n".join([
-        f"- {char.name} ({'组织' if char.is_organization else '角色'}, {char.role_type}): "
+        f"- {char.name} (角色, {char.role_type}): "
         f"{char.personality[:100] if char.personality else '暂无描述'}"
         for char in characters
     ])
@@ -584,7 +584,7 @@ async def _build_outline_continue_context(
             char_texts.append("【角色信息】")
             
             for char in characters:
-                char_text = f"\n{char.name}（{'组织' if char.is_organization else '角色'}，{char.role_type}）"
+                char_text = f"\n{char.name}（角色，{char.role_type}）"
                 
                 if char.personality:
                     char_text += f"\n  性格特点：{char.personality}"
@@ -598,14 +598,15 @@ async def _build_outline_continue_context(
                 if char.traits:
                     char_text += f"\n  特征标签：{char.traits}"
                 
-                # 从 character_relationships 表查询关系
                 from sqlalchemy import or_
                 rels_result = await db.execute(
-                    select(CharacterRelationship).where(
-                        CharacterRelationship.project_id == project.id,
+                    select(EntityRelationship).where(
+                        EntityRelationship.project_id == project.id,
+                        EntityRelationship.from_entity_type == "character",
+                        EntityRelationship.to_entity_type == "character",
                         or_(
-                            CharacterRelationship.character_from_id == char.id,
-                            CharacterRelationship.character_to_id == char.id
+                            EntityRelationship.from_entity_id == char.id,
+                            EntityRelationship.to_entity_id == char.id
                         )
                     )
                 )
@@ -632,47 +633,23 @@ async def _build_outline_continue_context(
                             rel_parts.append(f"与{target_name}：{rel_name}")
                         char_text += f"\n  关系网络：{'；'.join(rel_parts)}"
                 
-                # 组织特有字段
-                if char.is_organization:
-                    if char.organization_type:
-                        char_text += f"\n  组织类型：{char.organization_type}"
-                    if char.organization_purpose:
-                        char_text += f"\n  组织宗旨：{char.organization_purpose}"
-                    # 从 OrganizationMember 表动态查询组织成员
-                    org_result = await db.execute(
-                        select(Organization).where(Organization.character_id == char.id)
+                try:
+                    career_result = await db.execute(
+                        select(Career, CharacterCareer)
+                        .join(CharacterCareer, Career.id == CharacterCareer.career_id)
+                        .where(CharacterCareer.character_id == char.id)
                     )
-                    org = org_result.scalar_one_or_none()
-                    if org:
-                        members_result = await db.execute(
-                            select(OrganizationMember, Character.name).join(
-                                Character, OrganizationMember.character_id == Character.id
-                            ).where(OrganizationMember.organization_id == org.id)
-                        )
-                        members = members_result.all()
-                        if members:
-                            member_parts = [f"{name}（{m.position}）" for m, name in members]
-                            char_text += f"\n  组织成员：{'、'.join(member_parts)}"
-                
-                # 查询角色的职业信息
-                if not char.is_organization:
-                    try:
-                        career_result = await db.execute(
-                            select(Career, CharacterCareer)
-                            .join(CharacterCareer, Career.id == CharacterCareer.career_id)
-                            .where(CharacterCareer.character_id == char.id)
-                        )
-                        career_data = career_result.first()
-                        
-                        if career_data:
-                            career, char_career = career_data
-                            char_text += f"\n  职业：{career.name}"
-                            if char_career.current_stage:
-                                char_text += f"（{char_career.current_stage}阶段）"
-                            if char_career.career_type:
-                                char_text += f"\n  职业类型：{char_career.career_type}"
-                    except Exception as e:
-                        logger.warning(f"查询角色 {char.name} 的职业信息失败: {str(e)}")
+                    career_data = career_result.first()
+
+                    if career_data:
+                        career, char_career = career_data
+                        char_text += f"\n  职业：{career.name}"
+                        if char_career.current_stage:
+                            char_text += f"（{char_career.current_stage}阶段）"
+                        if char_career.career_type:
+                            char_text += f"\n  职业类型：{char_career.career_type}"
+                except Exception as e:
+                    logger.warning(f"查询角色 {char.name} 的职业信息失败: {str(e)}")
                 
                 char_texts.append(char_text)
             
@@ -715,6 +692,7 @@ async def _check_and_create_missing_characters_from_outlines(
     db: AsyncSession,
     user_ai_service: AIService,
     user_id: str = None,
+    is_admin: bool = False,
     enable_mcp: bool = True,
     tracker = None
 ) -> dict:
@@ -750,6 +728,7 @@ async def _check_and_create_missing_characters_from_outlines(
             outline_data_list=outline_data,
             db=db,
             user_id=user_id,
+            is_admin=is_admin,
             enable_mcp=enable_mcp,
             progress_callback=progress_cb
         )
@@ -773,6 +752,7 @@ async def _check_and_create_missing_organizations_from_outlines(
     db: AsyncSession,
     user_ai_service: AIService,
     user_id: str = None,
+    is_admin: bool = False,
     enable_mcp: bool = True,
     tracker = None
 ) -> dict:
@@ -807,6 +787,7 @@ async def _check_and_create_missing_organizations_from_outlines(
             outline_data_list=outline_data,
             db=db,
             user_id=user_id,
+            is_admin=is_admin,
             enable_mcp=enable_mcp,
             progress_callback=progress_cb
         )
@@ -1310,6 +1291,7 @@ async def new_outline_generator(
                 db=db,
                 user_ai_service=user_ai_service,
                 user_id=data.get("user_id"),
+                is_admin=bool(data.get("is_admin", False)),
                 enable_mcp=data.get("enable_mcp", True),
                 tracker=tracker
             )
@@ -1331,6 +1313,7 @@ async def new_outline_generator(
                 db=db,
                 user_ai_service=user_ai_service,
                 user_id=data.get("user_id"),
+                is_admin=bool(data.get("is_admin", False)),
                 enable_mcp=data.get("enable_mcp", True),
                 tracker=tracker
             )
@@ -1685,6 +1668,7 @@ async def continue_outline_generator(
                     db=db,
                     user_ai_service=user_ai_service,
                     user_id=user_id,
+                    is_admin=bool(data.get("is_admin", False)),
                     enable_mcp=data.get("enable_mcp", True),
                     tracker=tracker
                 )
@@ -1708,6 +1692,7 @@ async def continue_outline_generator(
                     db=db,
                     user_ai_service=user_ai_service,
                     user_id=user_id,
+                    is_admin=bool(data.get("is_admin", False)),
                     enable_mcp=data.get("enable_mcp", True),
                     tracker=tracker
                 )
@@ -1830,6 +1815,7 @@ async def generate_outline_task(
         mode = "continue" if existing_outlines else "new"
 
     data["user_id"] = user_id
+    data["is_admin"] = bool(getattr(request.state, "is_admin", False))
     data["mode"] = mode
 
     if mode == "continue" and not existing_outlines:
@@ -2021,6 +2007,7 @@ async def _run_new_outline_bg(
         await _check_and_create_missing_characters_from_outlines(
             outline_data=outline_data, project_id=project_id, db=db,
             user_ai_service=user_ai_service, user_id=data.get("user_id"),
+            is_admin=bool(data.get("is_admin", False)),
             enable_mcp=data.get("enable_mcp", True), tracker=tracker
         )
     except Exception:
@@ -2031,6 +2018,7 @@ async def _run_new_outline_bg(
         await _check_and_create_missing_organizations_from_outlines(
             outline_data=outline_data, project_id=project_id, db=db,
             user_ai_service=user_ai_service, user_id=data.get("user_id"),
+            is_admin=bool(data.get("is_admin", False)),
             enable_mcp=data.get("enable_mcp", True), tracker=tracker
         )
     except Exception:
@@ -2224,11 +2212,13 @@ async def _run_continue_outline_bg(
             char_check_result = await _check_and_create_missing_characters_from_outlines(
                 outline_data=outline_data, project_id=project_id, db=db,
                 user_ai_service=user_ai_service, user_id=user_id,
+                is_admin=bool(data.get("is_admin", False)),
                 enable_mcp=data.get("enable_mcp", True), tracker=tracker
             )
             org_check_result = await _check_and_create_missing_organizations_from_outlines(
                 outline_data=outline_data, project_id=project_id, db=db,
                 user_ai_service=user_ai_service, user_id=user_id,
+                is_admin=bool(data.get("is_admin", False)),
                 enable_mcp=data.get("enable_mcp", True), tracker=tracker
             )
             if char_check_result.get("created_count", 0) or org_check_result.get("created_count", 0):
@@ -2307,6 +2297,7 @@ async def generate_outline_stream(
     # 获取用户ID
     user_id = getattr(request.state, "user_id", "system")
     data["user_id"] = user_id
+    data["is_admin"] = bool(getattr(request.state, "is_admin", False))
     # 根据模式选择生成器
     if mode == "new":
         return create_sse_response(new_outline_generator(data, db, user_ai_service))

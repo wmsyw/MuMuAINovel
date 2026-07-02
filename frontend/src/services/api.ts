@@ -89,6 +89,9 @@ import type {
   CandidateReviewResponse,
   CandidateRollbackRequest,
   Career,
+  CharacterCareerAssignmentRequest,
+  CharacterCareerResponse,
+  CharacterCareerStageUpdateRequest,
   CareerCreateRequest,
   CareerListResponse,
   CareerUpdateRequest,
@@ -839,6 +842,28 @@ export const careerApi = {
 
   deleteCareer: (careerId: string) =>
     api.delete<unknown, { message: string }>(`/careers/${careerId}`),
+
+  getCharacterCareers: (characterId: string) =>
+    api.get<unknown, CharacterCareerResponse>(`/careers/character/${characterId}/careers`),
+
+  setMainCharacterCareer: (characterId: string, data: CharacterCareerAssignmentRequest) =>
+    api.post<unknown, { message: string }>(`/careers/character/${characterId}/careers/main`, data),
+
+  addSubCharacterCareer: (characterId: string, data: CharacterCareerAssignmentRequest) =>
+    api.post<unknown, { message: string }>(`/careers/character/${characterId}/careers/sub`, data),
+
+  updateCharacterCareerStage: (
+    characterId: string,
+    careerId: string,
+    data: CharacterCareerStageUpdateRequest
+  ) =>
+    api.put<unknown, { message: string; new_stage: number }>(
+      `/careers/character/${characterId}/careers/${careerId}/stage`,
+      data
+    ),
+
+  removeSubCharacterCareer: (characterId: string, careerId: string) =>
+    api.delete<unknown, { message: string }>(`/careers/character/${characterId}/careers/${careerId}`),
 };
 
 export const relationshipApi = {

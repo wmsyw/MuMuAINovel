@@ -27,14 +27,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 try:
     import psycopg2
     from psycopg2 import sql
-    from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+    from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT, connection as PgConnection
 except ImportError:
     print("❌ 缺少psycopg2依赖，正在安装...")
     import subprocess
     subprocess.check_call([sys.executable, "-m", "pip", "install", "psycopg2-binary"])
     import psycopg2
     from psycopg2 import sql
-    from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+    from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT, connection as PgConnection
 
 # 注意: 表结构应由 Alembic 管理
 from pathlib import Path
@@ -55,10 +55,10 @@ class PostgreSQLSetup:
         host: str = "localhost",
         port: int = 5432,
         admin_user: str = "postgres",
-        admin_password: str = None,
+        admin_password: str | None = None,
         db_name: str = "mumuai_novel",
         db_user: str = "mumuai",
-        db_password: str = "123456"
+        db_password: str | None = None
     ):
         """
         初始化设置参数
@@ -72,6 +72,9 @@ class PostgreSQLSetup:
             db_user: 要创建的用户名
             db_password: 用户密码
         """
+        if not db_password:
+            raise ValueError("db_password is required")
+
         self.host = host
         self.port = port
         self.admin_user = admin_user
@@ -79,7 +82,12 @@ class PostgreSQLSetup:
         self.db_name = db_name
         self.db_user = db_user
         self.db_password = db_password
-        self.conn = None
+        self.conn: PgConnection | None = None
+
+    def require_connection(self) -> PgConnection:
+        if self.conn is None:
+            raise RuntimeError("PostgreSQL connection is not initialized")
+        return self.conn
     
     def connect_as_admin(self) -> bool:
         """连接到PostgreSQL（使用管理员权限）"""
@@ -109,7 +117,7 @@ class PostgreSQLSetup:
     
     def database_exists(self) -> bool:
         """检查数据库是否存在"""
-        cursor = self.conn.cursor()
+        cursor = self.require_connection().cursor()
         cursor.execute(
             "SELECT 1 FROM pg_database WHERE datname = %s",
             (self.db_name,)
@@ -120,7 +128,7 @@ class PostgreSQLSetup:
     
     def user_exists(self) -> bool:
         """检查用户是否存在"""
-        cursor = self.conn.cursor()
+        cursor = self.require_connection().cursor()
         cursor.execute(
             "SELECT 1 FROM pg_user WHERE usename = %s",
             (self.db_user,)
@@ -138,7 +146,7 @@ class PostgreSQLSetup:
                 # 询问是否重置密码
                 response = input(f"是否重置用户 '{self.db_user}' 的密码? (yes/no): ")
                 if response.lower() in ['yes', 'y']:
-                    cursor = self.conn.cursor()
+                    cursor = self.require_connection().cursor()
                     cursor.execute(
                         sql.SQL("ALTER USER {} WITH PASSWORD %s").format(
                             sql.Identifier(self.db_user)
@@ -151,7 +159,7 @@ class PostgreSQLSetup:
                 return True
             
             logger.info(f"👤 创建用户 '{self.db_user}'...")
-            cursor = self.conn.cursor()
+            cursor = self.require_connection().cursor()
             cursor.execute(
                 sql.SQL("CREATE USER {} WITH PASSWORD %s").format(
                     sql.Identifier(self.db_user)
@@ -176,7 +184,7 @@ class PostgreSQLSetup:
                 response = input(f"是否删除并重建数据库 '{self.db_name}'? (yes/no): ")
                 if response.lower() in ['yes', 'y']:
                     logger.warning(f"⚠️  删除数据库 '{self.db_name}'...")
-                    cursor = self.conn.cursor()
+                    cursor = self.require_connection().cursor()
                     # 断开所有连接
                     cursor.execute(
                         sql.SQL("""
@@ -198,7 +206,7 @@ class PostgreSQLSetup:
                     return True
             
             logger.info(f"🗄️  创建数据库 '{self.db_name}'...")
-            cursor = self.conn.cursor()
+            cursor = self.require_connection().cursor()
             cursor.execute(
                 sql.SQL("CREATE DATABASE {} OWNER {}").format(
                     sql.Identifier(self.db_name),
@@ -217,7 +225,7 @@ class PostgreSQLSetup:
         """授予用户权限"""
         try:
             logger.info(f"🔐 授予用户权限...")
-            cursor = self.conn.cursor()
+            cursor = self.require_connection().cursor()
             
             # 授予数据库所有权限
             cursor.execute(
@@ -285,7 +293,7 @@ class PostgreSQLSetup:
             
             # 运行 Alembic 迁移
             result = subprocess.run(
-                ["alembic", "upgrade", "head"],
+                [sys.executable, "-m", "alembic", "-c", "alembic-postgres.ini", "upgrade", "head"],
                 capture_output=True,
                 text=True,
                 cwd=Path(__file__).parent.parent
@@ -376,7 +384,11 @@ async def main():
     print("\n请输入要创建的数据库信息:\n")
     db_name = input("数据库名 [mumuai_novel]: ").strip() or "mumuai_novel"
     db_user = input("数据库用户名 [mumuai]: ").strip() or "mumuai"
-    db_password = getpass("数据库用户密码 [mumuai123]: ") or "mumuai123"
+    db_password = ""
+    while not db_password:
+        db_password = getpass("数据库用户密码 (必填): ").strip()
+        if not db_password:
+            print("数据库用户密码不能为空")
     
     print(f"\n{'='*60}")
     print(f"配置摘要:")

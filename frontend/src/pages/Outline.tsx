@@ -597,7 +597,8 @@ export default function Outline() {
             defaultModel = settings.llm_model;
             }
           }
-        } catch {
+        } catch (error) {
+          console.warn('加载模型列表失败:', error);
         }
       }
 

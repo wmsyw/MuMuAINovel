@@ -15,6 +15,8 @@ from app.services.ai_clients.openai_client import OpenAIClient
 from app.services.ai_clients.anthropic_client import AnthropicClient
 from app.services.ai_clients.gemini_client import GeminiClient
 from app.services.ai_clients.base_client import cleanup_all_clients
+from app.services.ai_clients.anthropic_client import cleanup_anthropic_clients
+from app.services.ai_clients.gemini_client import cleanup_gemini_clients
 from app.services.ai_providers.openai_provider import OpenAIProvider
 from app.services.ai_providers.anthropic_provider import AnthropicProvider
 from app.services.ai_providers.gemini_provider import GeminiProvider
@@ -22,8 +24,10 @@ from app.services.ai_providers.base_provider import BaseAIProvider
 from app.services.ai_capabilities import ReasoningConfig, build_reasoning_config
 from app.services.json_helper import clean_json_response, parse_json
 
-# 导出清理函数
-cleanup_http_clients = cleanup_all_clients
+async def cleanup_http_clients():
+    await cleanup_all_clients()
+    await cleanup_anthropic_clients()
+    await cleanup_gemini_clients()
 
 logger = get_logger(__name__)
 
@@ -111,7 +115,7 @@ class AIService:
         self.user_id = user_id
         self.db_session = db_session
         self._enable_mcp = enable_mcp
-        self._cached_tools: Optional[List[Dict]] = None
+        self._cached_tools: Optional[List[Dict[str, Any]]] = None
         self._tools_loaded = False
         
         self._openai_provider: Optional[OpenAIProvider] = None
@@ -215,6 +219,24 @@ class AIService:
         else:
             logger.error(message)
 
+    async def close(self) -> None:
+        if self._anthropic_provider:
+            await self._anthropic_provider.client.close()
+        if self._gemini_provider:
+            await self._gemini_provider.client.close()
+
+    @staticmethod
+    def _allowed_tool_names(tools: Optional[List[Dict[str, Any]]]) -> Optional[set[str]]:
+        if not tools:
+            return None
+        return {
+            tool["function"]["name"]
+            for tool in tools
+            if isinstance(tool, dict)
+            and isinstance(tool.get("function"), dict)
+            and isinstance(tool["function"].get("name"), str)
+        }
+
     def _select_reasoning_intensity(self, *, provider: str, model: str, explicit: Optional[str] = None) -> str:
         """选择本次调用的规范化推理强度。显式参数优先，其次模型覆盖，最后默认值。"""
         if explicit is not None:
@@ -244,7 +266,7 @@ class AIService:
         selected = self._select_reasoning_intensity(provider=provider_name, model=model, explicit=reasoning_intensity)
         return build_reasoning_config(provider=provider_name, model=model, intensity=selected)
 
-    async def _prepare_mcp_tools(self, auto_mcp: bool = True, force_refresh: bool = False) -> Optional[List[Dict]]:
+    async def _prepare_mcp_tools(self, auto_mcp: bool = True, force_refresh: bool = False) -> Optional[List[Dict[str, Any]]]:
         """
         预处理MCP工具
         
@@ -336,14 +358,17 @@ class AIService:
         tool_calls = response.get("tool_calls", [])
         if not tool_calls or not self.user_id:
             return response
+        allowed_tool_names = self._allowed_tool_names(kwargs.get("tools") or self._cached_tools)
 
         tool_metrics = ToolCallMetrics()
         tool_metrics.usage.add(TokenUsage.from_response(response))
         
-        result = {
+        tools_used: List[str] = []
+        tool_calls_made = 0
+        result: Dict[str, Any] = {
             "content": response.get("content", ""),
-            "tool_calls_made": 0,
-            "tools_used": [],
+            "tool_calls_made": tool_calls_made,
+            "tools_used": tools_used,
             "finish_reason": response.get("finish_reason", ""),
             "mcp_enhanced": True,
             "usage": response.get("usage"),
@@ -359,16 +384,19 @@ class AIService:
                 # 批量执行工具调用
                 tool_results = await mcp_client.batch_call_tools(
                     user_id=self.user_id,
-                    tool_calls=tool_calls
+                    tool_calls=tool_calls,
+                    allowed_function_names=allowed_tool_names,
+                    db_session=self.db_session,
                 )
                 
                 # 记录使用的工具
                 for tc in tool_calls:
                     name = tc["function"]["name"]
                     tool_metrics.add_tool_name(name)
-                    if name not in result["tools_used"]:
-                        result["tools_used"].append(name)
-                result["tool_calls_made"] += len(tool_calls)
+                    if name not in tools_used:
+                        tools_used.append(name)
+                tool_calls_made += len(tool_calls)
+                result["tool_calls_made"] = tool_calls_made
                 tool_metrics.tool_calls_count += len(tool_calls)
                 
                 # 构建工具上下文
@@ -434,7 +462,7 @@ class AIService:
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         system_prompt: Optional[str] = None,
-        tools: Optional[List[Dict]] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[str] = None,
         auto_mcp: bool = True,
         handle_tool_calls: bool = True,
@@ -513,6 +541,7 @@ class AIService:
                     tool_choice=tool_choice,
                     max_rounds=mcp_max_rounds,
                     reasoning_config=reasoning_config,
+                    tools=tools,
                 )
                 usage = TokenUsage.from_response(response)
                 tool_metrics = response.get("__tool_metrics")
@@ -568,6 +597,8 @@ class AIService:
         logger.debug(f"🔧 generate_text_stream: auto_mcp={auto_mcp}, tool_choice={tool_choice}")
         
         tools_to_use = None
+        if mcp_max_rounds is None:
+            mcp_max_rounds = app_settings.mcp_max_rounds
         target_model = model or self.default_model
         reasoning_config = self._build_reasoning_config(
             provider=provider,
@@ -578,6 +609,8 @@ class AIService:
         # 加载MCP工具
         if auto_mcp:
             tools_to_use = await self._prepare_mcp_tools(auto_mcp=auto_mcp)
+            if mcp_max_rounds <= 0:
+                tools_to_use = None
             if tools_to_use:
                 logger.info(f"🔧 已获取 {len(tools_to_use)} 个MCP工具")
 
@@ -608,6 +641,9 @@ class AIService:
                 tool_choice=tool_choice,
                 user_id=self.user_id,
                 reasoning_config=reasoning_config,
+                mcp_max_rounds=mcp_max_rounds,
+                allowed_tool_names=self._allowed_tool_names(tools_to_use),
+                db_session=self.db_session,
             ):
                 if isinstance(chunk, dict):
                     if chunk.get("usage"):
@@ -651,7 +687,7 @@ class AIService:
         model: Optional[str] = None,
         expected_type: Optional[str] = None,
         auto_mcp: bool = True,
-    ) -> Union[Dict, List]:
+    ) -> Union[Dict[str, Any], List[Any]]:
         """
         带重试的 JSON 调用（自动支持MCP工具）
         

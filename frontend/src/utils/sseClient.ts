@@ -215,6 +215,7 @@ export class SSEPostClient {
 
       } catch (error: any) {
         if (error.name === 'AbortError') {
+          reject(error);
         } else {
           console.error('SSE POST请求失败:', error);
           if (this.options.onError) {

@@ -54,7 +54,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
-        compare_server_default=True,
+        compare_server_default=False,
         render_as_batch=True,  # SQLite 必须启用批处理模式
     )
 
@@ -68,7 +68,7 @@ def do_run_migrations(connection: Connection) -> None:
         connection=connection,
         target_metadata=target_metadata,
         compare_type=True,
-        compare_server_default=True,
+        compare_server_default=False,
         render_as_batch=True,  # SQLite 必须启用批处理模式
     )
 

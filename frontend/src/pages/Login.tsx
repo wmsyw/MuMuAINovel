@@ -321,7 +321,7 @@ export default function Login() {
     ];
 
     if (localAuthEnabled) {
-      tips.unshift('本地登录默认账号：admin / admin123');
+      tips.unshift('请使用管理员配置的本地账号登录。');
     }
 
     if (emailAuthEnabled) {

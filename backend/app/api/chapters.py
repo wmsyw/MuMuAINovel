@@ -3503,11 +3503,18 @@ async def batch_generate_chapters_in_order(
     summary="查询批量生成任务状态",
 )
 async def get_batch_generation_status(
-    batch_id: str, db: AsyncSession = Depends(get_db)
+    batch_id: str, request: Request, db: AsyncSession = Depends(get_db)
 ):
     """查询批量生成任务的状态和进度"""
+    user_id = getattr(request.state, "user_id", None)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="未登录")
+
     result = await db.execute(
-        select(BatchGenerationTask).where(BatchGenerationTask.id == batch_id)
+        select(BatchGenerationTask).where(
+            BatchGenerationTask.id == batch_id,
+            BatchGenerationTask.user_id == user_id,
+        )
     )
     task = result.scalar_one_or_none()
 
@@ -3549,6 +3556,7 @@ async def get_active_batch_generation(
     result = await db.execute(
         select(BatchGenerationTask)
         .where(BatchGenerationTask.project_id == project_id)
+        .where(BatchGenerationTask.user_id == user_id)
         .where(BatchGenerationTask.status.in_(["pending", "running"]))
         .order_by(BatchGenerationTask.created_at.desc())
         .limit(1)
@@ -3574,10 +3582,17 @@ async def get_active_batch_generation(
 
 
 @router.post("/batch-generate/{batch_id}/cancel", summary="取消批量生成任务")
-async def cancel_batch_generation(batch_id: str, db: AsyncSession = Depends(get_db)):
+async def cancel_batch_generation(batch_id: str, request: Request, db: AsyncSession = Depends(get_db)):
     """取消正在进行的批量生成任务"""
+    user_id = getattr(request.state, "user_id", None)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="未登录")
+
     result = await db.execute(
-        select(BatchGenerationTask).where(BatchGenerationTask.id == batch_id)
+        select(BatchGenerationTask).where(
+            BatchGenerationTask.id == batch_id,
+            BatchGenerationTask.user_id == user_id,
+        )
     )
     task = result.scalar_one_or_none()
 

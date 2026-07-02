@@ -12,18 +12,15 @@ ARG USE_CN_MIRROR
 WORKDIR /frontend
 
 # 复制前端依赖文件
-COPY frontend/package*.json ./
+COPY frontend/package.json frontend/package-lock.json ./
 
 # 根据参数决定是否使用国内npm镜像
 RUN if [ "$USE_CN_MIRROR" = "true" ]; then \
         npm config set registry https://registry.npmmirror.com; \
     fi
 
-# 删除 package-lock.json 以避免因镜像源不一致导致的 404 错误
-RUN rm -f package-lock.json
-
 # 安装依赖
-RUN npm install
+RUN npm ci
 
 # 复制前端源代码
 COPY frontend/ ./

@@ -384,6 +384,16 @@ def _validate_skill_metadata(name: str, display_name: str, category: str, descri
         raise ValueError("至少需要一个触发词")
 
 
+def _safe_reference_path(refs_dir: str, ref_name: str) -> str:
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+", ref_name):
+        raise ValueError(f"reference 文件名不合法: {ref_name}")
+    base_dir = os.path.realpath(refs_dir)
+    ref_path = os.path.realpath(os.path.join(base_dir, f"{ref_name}.md"))
+    if os.path.commonpath([base_dir, ref_path]) != base_dir:
+        raise ValueError(f"reference 文件名越界: {ref_name}")
+    return ref_path
+
+
 def create_skill_files(
     name: str,
     description: str,
@@ -431,7 +441,7 @@ def create_skill_files(
         refs_dir = os.path.join(skill_dir, "references")
         os.makedirs(refs_dir, exist_ok=True)
         for ref_name, ref_content in references.items():
-            ref_path = os.path.join(refs_dir, f"{ref_name}.md")
+            ref_path = _safe_reference_path(refs_dir, ref_name)
             with open(ref_path, 'w', encoding='utf-8') as f:
                 f.write(ref_content)
 
@@ -508,7 +518,7 @@ def update_skill_files(
         # 写入新的 references
         for ref_name, ref_content in references.items():
             if ref_content.strip():  # 只写入非空内容
-                ref_path = os.path.join(refs_dir, f"{ref_name}.md")
+                ref_path = _safe_reference_path(refs_dir, ref_name)
                 with open(ref_path, 'w', encoding='utf-8') as f:
                     f.write(ref_content)
 

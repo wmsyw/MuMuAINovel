@@ -93,6 +93,27 @@ def _apply_provider_defaults(provider: Optional[str], api_key: Optional[str], ap
     }
 
 
+def _validated_optional_public_url(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return value
+    return validate_public_http_url(value)
+
+
+def _sanitize_settings_urls(data: Dict[str, Any]) -> Dict[str, Any]:
+    sanitized = dict(data)
+    for field_name in ("api_base_url", "cover_api_base_url"):
+        value = sanitized.get(field_name)
+        if isinstance(value, str) and value.strip():
+            sanitized[field_name] = validate_public_http_url(value)
+    return sanitized
+
+
+def _preset_config_payload(config: APIKeyPresetConfig) -> Dict[str, Any]:
+    config_data = _sanitize_settings_urls(config.model_dump())
+    config_data["api_provider"] = _normalize_raw_provider(config.api_provider)
+    return config_data
+
+
 def resolve_runtime_ai_config(provider: Optional[str], api_key: Optional[str], api_base_url: Optional[str]) -> Dict[str, str]:
     """在 API 层解析运行时 AI 配置。
 
@@ -102,11 +123,12 @@ def resolve_runtime_ai_config(provider: Optional[str], api_key: Optional[str], a
     raw_provider = _normalize_raw_provider(provider)
     resolved = _apply_provider_defaults(raw_provider, api_key, api_base_url)
     runtime_provider = "openai" if raw_provider == "xiaomi_mimo" else (normalize_provider(raw_provider) or "openai")
+    resolved_base_url = _validated_optional_public_url(resolved["api_base_url"]) or ""
     return {
         "raw_provider": raw_provider,
         "api_provider": runtime_provider,
         "api_key": resolved["api_key"],
-        "api_base_url": resolved["api_base_url"],
+        "api_base_url": resolved_base_url,
     }
 
 
@@ -374,10 +396,11 @@ async def test_cover_settings(
     data: CoverSettingsTestRequest,
     user: User = Depends(require_login),
 ):
+    cover_api_base_url = _validated_optional_public_url(data.cover_api_base_url)
     result = await cover_generation_service.test_cover_settings(
         provider=data.cover_api_provider,
         api_key=data.cover_api_key,
-        api_base_url=data.cover_api_base_url,
+        api_base_url=cover_api_base_url,
         model=data.cover_image_model,
     )
     return {
@@ -518,7 +541,7 @@ async def save_settings(
     settings = result.scalar_one_or_none()
     
     # 准备数据
-    settings_dict = data.model_dump(exclude_unset=True)
+    settings_dict = _sanitize_settings_urls(data.model_dump(exclude_unset=True))
     
     if settings:
         # 更新现有设置
@@ -591,7 +614,7 @@ async def update_settings(
         raise HTTPException(status_code=404, detail="设置不存在，请先创建设置")
     
     # 更新设置
-    update_data = data.model_dump(exclude_unset=True)
+    update_data = _sanitize_settings_urls(data.model_dump(exclude_unset=True))
     for key, value in update_data.items():
         setattr(settings, key, value)
     
@@ -821,16 +844,19 @@ async def check_function_calling_support(data: ApiTestRequest):
         )
         
         # 发送带工具的测试请求
-        response = await test_service.generate_text(
-            prompt=test_prompt,
-            provider=provider,
-            model=llm_model,
-            temperature=0.3,
-            max_tokens=200,
-            tools=test_tools,
-            tool_choice="auto",  # 让模型自动决定是否使用工具
-            auto_mcp=False  # 禁用 MCP 自动加载
-        )
+        try:
+            response = await test_service.generate_text(
+                prompt=test_prompt,
+                provider=provider,
+                model=llm_model,
+                temperature=0.3,
+                max_tokens=200,
+                tools=test_tools,
+                tool_choice="auto",  # 让模型自动决定是否使用工具
+                auto_mcp=False  # 禁用 MCP 自动加载
+            )
+        finally:
+            await test_service.close()
         
         end_time = time.time()
         response_time = round((end_time - start_time) * 1000, 2)
@@ -1020,14 +1046,17 @@ async def test_api_connection(data: ApiTestRequest):
         logger.info(f"  - Temperature: {temperature}")
         logger.info(f"  - Max Tokens: {max_tokens}")
         
-        response = await test_service.generate_text(
-            prompt=test_prompt,
-            provider=provider,
-            model=llm_model,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            auto_mcp=False  # 测试时不加载MCP工具
-        )
+        try:
+            response = await test_service.generate_text(
+                prompt=test_prompt,
+                provider=provider,
+                model=llm_model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                auto_mcp=False  # 测试时不加载MCP工具
+            )
+        finally:
+            await test_service.close()
         
         end_time = time.time()
         response_time = round((end_time - start_time) * 1000, 2)  # 转换为毫秒
@@ -1257,8 +1286,7 @@ async def create_preset(
         "is_active": False,
         "created_at": datetime.now().isoformat(),
         "config": {
-            **data.config.model_dump(),
-            "api_provider": _normalize_raw_provider(data.config.api_provider)
+            **_preset_config_payload(data.config)
         }
     }
     
@@ -1309,10 +1337,7 @@ async def update_preset(
     if data.description is not None:
         target_preset['description'] = data.description
     if data.config is not None:
-        target_preset['config'] = {
-            **data.config.model_dump(),
-            'api_provider': _normalize_raw_provider(data.config.api_provider)
-        }
+        target_preset['config'] = _preset_config_payload(data.config)
     
     # 保存回preferences
     prefs['api_presets'] = api_presets
@@ -1403,7 +1428,7 @@ async def activate_preset(
     resolved_config = _apply_provider_defaults(config.get('api_provider'), config.get('api_key'), config.get('api_base_url'))
     settings.api_provider = _normalize_raw_provider(config['api_provider'])
     settings.api_key = config.get('api_key') or ""
-    settings.api_base_url = resolved_config["api_base_url"]
+    settings.api_base_url = _validated_optional_public_url(resolved_config["api_base_url"]) or ""
     settings.llm_model = config['llm_model']
     settings.temperature = config['temperature']
     settings.max_tokens = config['max_tokens']

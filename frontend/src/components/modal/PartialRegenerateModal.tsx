@@ -94,6 +94,7 @@ export const PartialRegenerateModal: React.FC<PartialRegenerateModalProps> = ({
           target_word_count: lengthMode === 'custom' ? customWordCount : undefined,
         },
         {
+          signal: abortControllerRef.current.signal,
           onProgress: (msg, prog) => {
             setProgress(prog);
             setProgressMessage(msg);
@@ -118,7 +119,7 @@ export const PartialRegenerateModal: React.FC<PartialRegenerateModalProps> = ({
       );
     } catch (error) {
       console.error('生成失败:', error);
-      if ((error as Error).name !== 'AbortError') {
+      if (!(error instanceof DOMException && error.name === 'AbortError')) {
         message.error('生成失败，请重试');
       }
       setIsGenerating(false);

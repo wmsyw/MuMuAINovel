@@ -47,7 +47,7 @@ class OpenAIProvider(BaseAIProvider):
         temperature: float,
         max_tokens: int,
         system_prompt: Optional[str] = None,
-        tools: Optional[List[Dict]] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[str] = None,
         reasoning_config: Optional[ReasoningConfig] = None,
     ) -> Dict[str, Any]:
@@ -84,15 +84,20 @@ class OpenAIProvider(BaseAIProvider):
         temperature: float,
         max_tokens: int,
         system_prompt: Optional[str] = None,
-        tools: Optional[List[Dict]] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[str] = None,
         user_id: Optional[str] = None,
         reasoning_config: Optional[ReasoningConfig] = None,
-    ) -> AsyncGenerator[str, None]:
+        mcp_max_rounds: int = 3,
+        allowed_tool_names: Optional[set[str]] = None,
+        db_session: Any = None,
+    ) -> AsyncGenerator[str | Dict[str, Any], None]:
         messages = self._build_messages(prompt, system_prompt)
         use_responses = self._uses_responses_api(reasoning_config)
         reasoning_payload = reasoning_config.provider_payload if reasoning_config and reasoning_config.provider_payload else None
         provider_compatibility = self._provider_compatibility(reasoning_config)
+        if mcp_max_rounds <= 0:
+            tools = None
 
         # 如果有工具，使用真正的流式工具调用
         if tools:
@@ -137,7 +142,9 @@ class OpenAIProvider(BaseAIProvider):
                         actual_user_id = user_id or ""
                         tool_results = await mcp_client.batch_call_tools(
                             user_id=actual_user_id,
-                            tool_calls=tool_calls_buffer
+                            tool_calls=tool_calls_buffer,
+                            allowed_function_names=allowed_tool_names,
+                            db_session=db_session,
                         )
                         # 将工具结果注入到上下文中
                         tool_context = mcp_client.build_tool_context(tool_results, format="markdown")
@@ -149,7 +156,16 @@ class OpenAIProvider(BaseAIProvider):
                         
                         # 递归调用生成最终结果
                         async for final_chunk in self._generate_with_tools(
-                            final_messages, model, temperature, max_tokens, tools, user_id, reasoning_config
+                            final_messages,
+                            model,
+                            temperature,
+                            max_tokens,
+                            tools,
+                            user_id,
+                            reasoning_config,
+                            rounds_remaining=mcp_max_rounds - 1,
+                            allowed_tool_names=allowed_tool_names,
+                            db_session=db_session,
                         ):
                             yield final_chunk
                     if chunk.get("finish_reason"):
@@ -201,24 +217,28 @@ class OpenAIProvider(BaseAIProvider):
 
     async def _generate_with_tools(
         self,
-        messages: list,
+        messages: list[Dict[str, Any]],
         model: str,
         temperature: float,
         max_tokens: int,
-        tools: list,
+        tools: list[Dict[str, Any]],
         user_id: Optional[str] = None,
         reasoning_config: Optional[ReasoningConfig] = None,
-    ) -> AsyncGenerator[str, None]:
+        rounds_remaining: int = 1,
+        allowed_tool_names: Optional[set[str]] = None,
+        db_session: Any = None,
+    ) -> AsyncGenerator[str | Dict[str, Any], None]:
         """辅助方法：带工具的流式生成（无tool_choice，AI自由决定）"""
         reasoning_payload = reasoning_config.provider_payload if reasoning_config and reasoning_config.provider_payload else None
+        active_tools = tools if rounds_remaining > 0 else None
         if self._uses_responses_api(reasoning_config):
             stream_chunks = self.client.create_response_stream(
                 messages=messages,
                 model=model,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                tools=tools,
-                tool_choice="auto",
+                tools=active_tools,
+                tool_choice="auto" if active_tools else None,
                 reasoning_payload=reasoning_payload,
             )
         else:
@@ -227,19 +247,21 @@ class OpenAIProvider(BaseAIProvider):
                 model=model,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                tools=tools,
-                tool_choice="auto",
+                tools=active_tools,
+                tool_choice="auto" if active_tools else None,
                 reasoning_payload=reasoning_payload,
                 provider_compatibility=self._provider_compatibility(reasoning_config),
             )
 
         async for chunk in stream_chunks:
-            if chunk.get("tool_calls"):
+            if chunk.get("tool_calls") and rounds_remaining > 0:
                 from app.mcp import mcp_client
                 actual_user_id = user_id or ""
                 tool_results = await mcp_client.batch_call_tools(
                     user_id=actual_user_id,
-                    tool_calls=chunk["tool_calls"]
+                    tool_calls=chunk["tool_calls"],
+                    allowed_function_names=allowed_tool_names,
+                    db_session=db_session,
                 )
                 tool_context = mcp_client.build_tool_context(tool_results, format="markdown")
                 
@@ -247,7 +269,16 @@ class OpenAIProvider(BaseAIProvider):
                 messages.append({"role": "user", "content": f"{tool_context}\n\n请基于以上工具查询结果，给出完整详细的回答。"})
                 
                 async for final_chunk in self._generate_with_tools(
-                    messages, model, temperature, max_tokens, tools, user_id, reasoning_config
+                    messages,
+                    model,
+                    temperature,
+                    max_tokens,
+                    tools,
+                    user_id,
+                    reasoning_config,
+                    rounds_remaining=rounds_remaining - 1,
+                    allowed_tool_names=allowed_tool_names,
+                    db_session=db_session,
                 ):
                     yield final_chunk
                 break

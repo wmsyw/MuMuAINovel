@@ -22,7 +22,7 @@ class AnthropicProvider(BaseAIProvider):
         temperature: float,
         max_tokens: int,
         system_prompt: Optional[str] = None,
-        tools: Optional[List[Dict]] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[str] = None,
         reasoning_config: Optional[ReasoningConfig] = None,
     ) -> Dict[str, Any]:
@@ -45,11 +45,16 @@ class AnthropicProvider(BaseAIProvider):
         temperature: float,
         max_tokens: int,
         system_prompt: Optional[str] = None,
-        tools: Optional[List[Dict]] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[str] = None,
         user_id: Optional[str] = None,
         reasoning_config: Optional[ReasoningConfig] = None,
-    ) -> AsyncGenerator[str, None]:
+        mcp_max_rounds: int = 3,
+        allowed_tool_names: Optional[set[str]] = None,
+        db_session: Any = None,
+    ) -> AsyncGenerator[str | Dict[str, Any], None]:
+        if mcp_max_rounds <= 0:
+            tools = None
         # 如果有工具，使用真正的流式工具调用
         if tools:
             logger.debug(f"🔧 AnthropicProvider: 有 {len(tools)} 个工具，使用流式处理")
@@ -81,7 +86,9 @@ class AnthropicProvider(BaseAIProvider):
                         actual_user_id = user_id or ""
                         tool_results = await mcp_client.batch_call_tools(
                             user_id=actual_user_id,
-                            tool_calls=tool_calls_buffer
+                            tool_calls=tool_calls_buffer,
+                            allowed_function_names=allowed_tool_names,
+                            db_session=db_session,
                         )
                         # 将工具结果注入到上下文中
                         tool_context = mcp_client.build_tool_context(tool_results, format="markdown")
@@ -92,7 +99,17 @@ class AnthropicProvider(BaseAIProvider):
                         
                         # 递归调用生成最终结果
                         async for final_chunk in self._generate_with_tools(
-                            final_messages, model, temperature, max_tokens, system_prompt, tools, user_id, reasoning_config
+                            final_messages,
+                            model,
+                            temperature,
+                            max_tokens,
+                            system_prompt,
+                            tools,
+                            user_id,
+                            reasoning_config,
+                            rounds_remaining=mcp_max_rounds - 1,
+                            allowed_tool_names=allowed_tool_names,
+                            db_session=db_session,
                         ):
                             yield final_chunk
                     if chunk.get("finish_reason"):
@@ -129,17 +146,21 @@ class AnthropicProvider(BaseAIProvider):
 
     async def _generate_with_tools(
         self,
-        messages: list,
+        messages: list[Dict[str, Any]],
         model: str,
         temperature: float,
         max_tokens: int,
         system_prompt: Optional[str] = None,
-        tools: list = None,
+        tools: Optional[list[Dict[str, Any]]] = None,
         user_id: Optional[str] = None,
         reasoning_config: Optional[ReasoningConfig] = None,
-    ) -> AsyncGenerator[str, None]:
+        rounds_remaining: int = 1,
+        allowed_tool_names: Optional[set[str]] = None,
+        db_session: Any = None,
+    ) -> AsyncGenerator[str | Dict[str, Any], None]:
         """辅助方法：带工具的流式生成"""
         tool_calls_buffer = []
+        active_tools = tools if rounds_remaining > 0 else None
         
         async for chunk in self.client.chat_completion_stream(
             messages=messages,
@@ -147,11 +168,11 @@ class AnthropicProvider(BaseAIProvider):
             temperature=temperature,
             max_tokens=max_tokens,
             system_prompt=system_prompt,
-            tools=tools,
-            tool_choice="auto",
+            tools=active_tools,
+            tool_choice="auto" if active_tools else None,
             reasoning_payload=reasoning_config.provider_payload if reasoning_config else None,
         ):
-            if chunk.get("tool_calls"):
+            if chunk.get("tool_calls") and rounds_remaining > 0:
                 tool_calls_buffer.extend(chunk["tool_calls"])
                 logger.debug(f"🔧 _generate_with_tools 收到工具调用: {len(chunk['tool_calls'])} 个")
             
@@ -161,14 +182,26 @@ class AnthropicProvider(BaseAIProvider):
                     actual_user_id = user_id or ""
                     tool_results = await mcp_client.batch_call_tools(
                         user_id=actual_user_id,
-                        tool_calls=tool_calls_buffer
+                        tool_calls=tool_calls_buffer,
+                        allowed_function_names=allowed_tool_names,
+                        db_session=db_session,
                     )
                     tool_context = mcp_client.build_tool_context(tool_results, format="markdown")
                     
                     messages.append({"role": "user", "content": f"{tool_context}\n\n请基于以上工具查询结果，给出完整详细的回答。"})
                     
                     async for final_chunk in self._generate_with_tools(
-                        messages, model, temperature, max_tokens, system_prompt, tools, user_id, reasoning_config
+                        messages,
+                        model,
+                        temperature,
+                        max_tokens,
+                        system_prompt,
+                        tools,
+                        user_id,
+                        reasoning_config,
+                        rounds_remaining=rounds_remaining - 1,
+                        allowed_tool_names=allowed_tool_names,
+                        db_session=db_session,
                     ):
                         yield final_chunk
                 if chunk.get("finish_reason"):

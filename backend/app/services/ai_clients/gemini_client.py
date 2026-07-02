@@ -6,6 +6,7 @@ from app.services.ai_config import AIClientConfig, default_config
 from app.logger import get_logger
 
 logger = get_logger(__name__)
+_gemini_clients: list["GeminiClient"] = []
 
 
 def _merge_provider_payload(base: Dict[str, Any], provider_payload: Optional[Dict[str, Any]]) -> Dict[str, Any]:
@@ -40,8 +41,15 @@ class GeminiClient:
                 pool=http_cfg.pool_timeout
             )
         )
+        _gemini_clients.append(self)
 
-    def _convert_tools_to_gemini(self, tools: list) -> list:
+    async def close(self) -> None:
+        if not self.client.is_closed:
+            await self.client.aclose()
+        if self in _gemini_clients:
+            _gemini_clients.remove(self)
+
+    def _convert_tools_to_gemini(self, tools: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
         """将 OpenAI 格式工具转换为 Gemini 格式"""
         gemini_tools = []
         for tool in tools:
@@ -63,12 +71,12 @@ class GeminiClient:
 
     async def chat_completion(
         self,
-        messages: list,
+        messages: list[Dict[str, Any]],
         model: str,
         temperature: float,
         max_tokens: int,
         system_prompt: Optional[str] = None,
-        tools: Optional[list] = None,
+        tools: Optional[list[Dict[str, Any]]] = None,
         tool_choice: Optional[str] = None,
         reasoning_payload: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
@@ -134,12 +142,12 @@ class GeminiClient:
 
     async def chat_completion_stream(
         self,
-        messages: list,
+        messages: list[Dict[str, Any]],
         model: str,
         temperature: float,
         max_tokens: int,
         system_prompt: Optional[str] = None,
-        tools: Optional[list] = None,
+        tools: Optional[list[Dict[str, Any]]] = None,
         tool_choice: Optional[str] = None,
         reasoning_payload: Optional[Dict[str, Any]] = None,
     ) -> AsyncGenerator[Dict[str, Any], None]:
@@ -226,3 +234,8 @@ class GeminiClient:
         except Exception as e:
             logger.error(f"Gemini 流式请求出错: {str(e)}")
             raise
+
+
+async def cleanup_gemini_clients() -> None:
+    for client in list(_gemini_clients):
+        await client.close()

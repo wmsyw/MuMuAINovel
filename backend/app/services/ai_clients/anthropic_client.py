@@ -8,6 +8,7 @@ from app.logger import get_logger
 from app.services.ai_config import AIClientConfig, default_config
 
 logger = get_logger(__name__)
+_anthropic_clients: list["AnthropicClient"] = []
 
 
 def _merge_provider_payload(base: Dict[str, Any], provider_payload: Optional[Dict[str, Any]]) -> Dict[str, Any]:
@@ -31,19 +32,25 @@ class AnthropicClient:
 
     def __init__(self, api_key: str, base_url: Optional[str] = None, config: Optional[AIClientConfig] = None):
         self.config = config or default_config
-        kwargs = {"api_key": api_key}
         if base_url:
-            kwargs["base_url"] = base_url
-        self.client = AsyncAnthropic(**kwargs)
+            self.client = AsyncAnthropic(api_key=api_key, base_url=base_url)
+        else:
+            self.client = AsyncAnthropic(api_key=api_key)
+        _anthropic_clients.append(self)
+
+    async def close(self) -> None:
+        await self.client.close()
+        if self in _anthropic_clients:
+            _anthropic_clients.remove(self)
 
     async def chat_completion(
         self,
-        messages: list,
+        messages: list[Dict[str, Any]],
         model: str,
         temperature: float,
         max_tokens: int,
         system_prompt: Optional[str] = None,
-        tools: Optional[list] = None,
+        tools: Optional[list[Dict[str, Any]]] = None,
         tool_choice: Optional[str] = None,
         reasoning_payload: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
@@ -94,12 +101,12 @@ class AnthropicClient:
 
     async def chat_completion_stream(
         self,
-        messages: list,
+        messages: list[Dict[str, Any]],
         model: str,
         temperature: float,
         max_tokens: int,
         system_prompt: Optional[str] = None,
-        tools: Optional[list] = None,
+        tools: Optional[list[Dict[str, Any]]] = None,
         tool_choice: Optional[str] = None,
         reasoning_payload: Optional[Dict[str, Any]] = None,
     ) -> AsyncGenerator[Dict[str, Any], None]:
@@ -152,11 +159,13 @@ class AnthropicClient:
                                 tool_calls[-1]["function"]["arguments"] = ""
                             tool_calls[-1]["function"]["arguments"] += chunk.input_gets_new_text or ""
                         elif chunk.type == "message_delta":
-                            if chunk.stop_reason:
+                            delta = getattr(chunk, "delta", None)
+                            stop_reason = getattr(delta, "stop_reason", None)
+                            if stop_reason:
                                 # 流结束
                                 if tool_calls:
                                     yield {"tool_calls": tool_calls}
-                                yield {"done": True, "finish_reason": chunk.stop_reason}
+                                yield {"done": True, "finish_reason": stop_reason}
                 except GeneratorExit:
                     # 生成器被关闭，这是正常的清理过程
                     logger.debug("Anthropic 流式响应生成器被关闭(GeneratorExit)")
@@ -170,3 +179,8 @@ class AnthropicClient:
         except Exception as e:
             logger.error(f"Anthropic 流式请求出错: {str(e)}")
             raise
+
+
+async def cleanup_anthropic_clients() -> None:
+    for client in list(_anthropic_clients):
+        await client.close()

@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { InspirationGenerationContext, InspirationStoryBibleDraft } from '../../../types';
 import type { SSEClientOptions } from '../../../utils/sseClient';
-import type { GenerationConfig } from '../AIProjectGenerator';
+import type { GenerationConfig } from '../types';
 
 const mocks = vi.hoisted(() => ({
   generateWorldBuildingStream: vi.fn(),
