@@ -17,6 +17,7 @@ from app.models.settings import Settings
 from app.services.cover_generation_service import cover_generation_service
 from app.schemas.settings import (
     SettingsCreate, SettingsUpdate, SettingsResponse,
+    ReasoningCapabilitiesResponse,
     APIKeyPreset, APIKeyPresetConfig, PresetCreateRequest,
     PresetUpdateRequest, PresetResponse, PresetListResponse,
     ChapterAnalysisPresetSelectionRequest,
@@ -25,6 +26,7 @@ from app.schemas.settings import (
 from app.user_manager import User
 from app.logger import get_logger, safe_preview
 from app.config import settings as app_settings, PROJECT_ROOT
+from app.services.ai_capabilities import get_reasoning_registry_metadata
 from app.services.ai_service import AIService, create_user_ai_service, create_user_ai_service_with_mcp, normalize_provider
 from app.services.email_service import email_service
 from app.security import validate_public_http_url
@@ -389,6 +391,13 @@ async def get_settings(
     
     logger.info(f"用户 {user.user_id} 获取已保存的设置")
     return settings
+
+
+@router.get("/reasoning-capabilities", response_model=ReasoningCapabilitiesResponse)
+async def get_reasoning_capabilities(
+    _user: User = Depends(require_login),
+) -> Dict[str, Any]:
+    return get_reasoning_registry_metadata()
 
 
 @router.post("/cover/test")

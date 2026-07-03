@@ -183,6 +183,130 @@ const api = axios.create({
   withCredentials: true,
 });
 
+type AxiosErrorResponseData = {
+  readonly detail?: unknown;
+  readonly message?: unknown;
+  readonly errors?: unknown;
+};
+
+type ValidationErrorLogSummary = {
+  readonly validationErrorCount: number;
+};
+
+type AxiosErrorLogKind = 'http_error' | 'network_error' | 'setup_error' | 'validation_error';
+
+type SanitizedAxiosErrorLogContext = {
+  readonly errorKind: AxiosErrorLogKind;
+  readonly status?: number;
+  readonly method?: string;
+  readonly path?: string;
+  readonly validationErrorCount?: number;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const getAxiosErrorResponse = (error: unknown) => {
+  if (!isRecord(error)) {
+    return undefined;
+  }
+  return isRecord(error.response) ? error.response : undefined;
+};
+
+const getAxiosErrorConfig = (error: unknown) => {
+  if (!isRecord(error)) {
+    return undefined;
+  }
+  return isRecord(error.config) ? error.config : undefined;
+};
+
+const getAxiosResponseData = (response: Record<string, unknown>): AxiosErrorResponseData | undefined =>
+  isRecord(response.data) ? response.data : undefined;
+
+const getAxiosResponseStatus = (response: Record<string, unknown>) =>
+  typeof response.status === 'number' ? response.status : undefined;
+
+const getDataMessage = (data: AxiosErrorResponseData | undefined, key: 'detail' | 'message') => {
+  const value = data?.[key];
+  return typeof value === 'string' && value ? value : undefined;
+};
+
+const hasAxiosRequest = (error: unknown) =>
+  isRecord(error) && error.request !== undefined;
+
+const getUnknownErrorMessage = (error: unknown) => {
+  if (!isRecord(error)) {
+    return undefined;
+  }
+  return typeof error.message === 'string' && error.message ? error.message : undefined;
+};
+
+const getSafeRequestMethod = (error: unknown) => {
+  const method = getAxiosErrorConfig(error)?.method;
+  if (typeof method !== 'string') {
+    return undefined;
+  }
+  const normalizedMethod = method.trim().toUpperCase();
+  return /^[A-Z]+$/.test(normalizedMethod) ? normalizedMethod : undefined;
+};
+
+const getSafeRequestPath = (error: unknown) => {
+  const url = getAxiosErrorConfig(error)?.url;
+  if (typeof url !== 'string' || !url.trim()) {
+    return undefined;
+  }
+  try {
+    return new URL(url, 'http://localhost').pathname;
+  } catch {
+    const [path] = url.split(/[?#]/);
+    return path?.startsWith('/') ? path : undefined;
+  }
+};
+
+const getValidationErrorLogSummary = (errors: unknown): ValidationErrorLogSummary | undefined => {
+  if (Array.isArray(errors)) {
+    return { validationErrorCount: errors.length };
+  }
+  if (isRecord(errors)) {
+    return { validationErrorCount: Object.keys(errors).length };
+  }
+  return errors === undefined || errors === null ? undefined : { validationErrorCount: 1 };
+};
+
+const getValidationErrorLogPayload = (data: AxiosErrorResponseData | undefined) => {
+  if (data?.errors !== undefined) {
+    return data.errors;
+  }
+  return Array.isArray(data?.detail) ? data.detail : undefined;
+};
+
+const getAxiosErrorLogKind = (error: unknown, status?: number): AxiosErrorLogKind => {
+  if (status === 422) {
+    return 'validation_error';
+  }
+  if (status !== undefined) {
+    return 'http_error';
+  }
+  return hasAxiosRequest(error) ? 'network_error' : 'setup_error';
+};
+
+const getSanitizedAxiosErrorLogContext = (error: unknown): SanitizedAxiosErrorLogContext => {
+  const response = getAxiosErrorResponse(error);
+  const status = response ? getAxiosResponseStatus(response) : undefined;
+  const data = response ? getAxiosResponseData(response) : undefined;
+  const validationSummary = getValidationErrorLogSummary(getValidationErrorLogPayload(data));
+  const method = getSafeRequestMethod(error);
+  const path = getSafeRequestPath(error);
+
+  return {
+    errorKind: getAxiosErrorLogKind(error, status),
+    ...(method ? { method } : {}),
+    ...(path ? { path } : {}),
+    ...(status === undefined ? {} : { status }),
+    ...(validationSummary ?? {}),
+  };
+};
+
 api.interceptors.request.use(
   (config) => {
     return config;
@@ -196,26 +320,28 @@ api.interceptors.response.use(
   (response) => {
     return response.data;
   },
-  (error) => {
+  (error: unknown) => {
     let errorMessage = '请求失败';
 
-    if (error.response) {
-      const status = error.response.status;
-      const data = error.response.data;
+    const response = getAxiosErrorResponse(error);
+
+    if (response) {
+      const status = getAxiosResponseStatus(response);
+      const data = getAxiosResponseData(response);
 
       switch (status) {
         case 400:
-          errorMessage = data?.detail || '请求参数错误';
+          errorMessage = getDataMessage(data, 'detail') || '请求参数错误';
           break;
         case 401: {
-          const backendDetail = data?.detail || data?.message;
+          const backendDetail = getDataMessage(data, 'detail') || getDataMessage(data, 'message');
           const unauthenticatedDetails = [
             '未登录',
             '需要登录',
             '未登录或用户ID缺失',
             '未登录，无法刷新会话',
           ];
-          const isUnauthenticated = unauthenticatedDetails.includes(backendDetail);
+          const isUnauthenticated = backendDetail !== undefined && unauthenticatedDetails.includes(backendDetail);
 
           errorMessage = backendDetail || '登录状态已失效，请重新登录';
 
@@ -225,34 +351,37 @@ api.interceptors.response.use(
           break;
         }
         case 403:
-          errorMessage = data?.detail || '没有权限访问';
+          errorMessage = getDataMessage(data, 'detail') || '没有权限访问';
           break;
         case 404:
-          errorMessage = data?.detail || '请求的资源不存在';
+          errorMessage = getDataMessage(data, 'detail') || '请求的资源不存在';
           break;
         case 422:
-          errorMessage = data?.detail || '请求参数验证失败';
-          if (data?.errors) {
-            console.error('验证错误详情:', data.errors);
+          errorMessage = getDataMessage(data, 'detail') || '请求参数验证失败';
+          {
+            const validationSummary = getValidationErrorLogSummary(getValidationErrorLogPayload(data));
+            if (validationSummary) {
+              console.error('验证错误详情:', validationSummary);
+            }
           }
           break;
         case 500:
-          errorMessage = data?.detail || '服务器内部错误';
+          errorMessage = getDataMessage(data, 'detail') || '服务器内部错误';
           break;
         case 503:
           errorMessage = '服务暂时不可用，请稍后重试';
           break;
         default:
-          errorMessage = data?.detail || data?.message || `请求失败 (${status})`;
+          errorMessage = getDataMessage(data, 'detail') || getDataMessage(data, 'message') || `请求失败 (${status})`;
       }
-    } else if (error.request) {
+    } else if (hasAxiosRequest(error)) {
       errorMessage = '网络错误，请检查网络连接';
     } else {
-      errorMessage = error.message || '请求失败';
+      errorMessage = getUnknownErrorMessage(error) || '请求失败';
     }
 
     message.error(errorMessage);
-    console.error('API Error:', errorMessage, error);
+    console.error('API Error:', getSanitizedAxiosErrorLogContext(error));
 
     return Promise.reject(error);
   }

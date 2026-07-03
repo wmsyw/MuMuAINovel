@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import pytest
 from fastapi import HTTPException
+from httpx import AsyncClient
 
 from app.api.settings import _sanitize_settings_urls, resolve_runtime_ai_config
+
+pytestmark = pytest.mark.anyio
 
 
 def test_settings_url_sanitizer_rejects_loopback_base_url() -> None:
@@ -26,3 +29,13 @@ def test_settings_url_sanitizer_normalizes_public_base_urls() -> None:
 def test_runtime_ai_config_revalidates_stored_base_url() -> None:
     with pytest.raises(HTTPException):
         resolve_runtime_ai_config("openai", "test-key", "http://localhost:11434/v1")
+
+
+async def test_reasoning_capabilities_endpoint_returns_registry_metadata(test_client: AsyncClient) -> None:
+    response = await test_client.get("/api/settings/reasoning-capabilities")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["intensities"] == ["auto", "off", "low", "medium", "high", "maximum"]
+    assert body["capabilities"]
+    assert body["capabilities"][0]["provider_metadata"]["read_only"] is True

@@ -3,10 +3,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-import json
 from pathlib import Path
-from typing import Optional
-from urllib.parse import quote
+from typing import Any, Optional
+from urllib.parse import quote, urlsplit, urlunsplit
 
 import httpx
 from fastapi import HTTPException
@@ -20,6 +19,7 @@ from app.models.settings import Settings
 from app.services.cover_providers.base_cover_provider import BaseCoverProvider, CoverGenerationResult
 from app.services.cover_providers.gemini_cover_provider import GeminiCoverProvider
 from app.services.cover_providers.grok_cover_provider import GrokCoverProvider
+from app.services.cover_providers.openai_image_cover_provider import OpenAIImageCoverProvider
 from app.services.prompt_service import PromptService
 
 logger = get_logger(__name__)
@@ -28,6 +28,7 @@ COVER_WIDTH = 1024
 COVER_HEIGHT = 1536
 GENERATED_COVER_STORAGE_DIR = PROJECT_ROOT / "storage" / "generated_covers"
 GENERATED_COVER_PUBLIC_PREFIX = "/generated-assets/covers"
+GENERIC_COVER_FAILURE_MESSAGE = "封面生成失败，请稍后重试"
 
 
 @dataclass
@@ -48,7 +49,7 @@ class CoverGenerationService:
         user_id: str,
         project_id: str,
         overwrite: bool = True,
-    ) -> dict:
+    ) -> dict[str, Any]:
         project = await self._get_project(db=db, user_id=user_id, project_id=project_id)
         settings = await self._get_settings(db=db, user_id=user_id)
         self._validate_cover_settings(settings)
@@ -102,7 +103,11 @@ class CoverGenerationService:
                 "message": "封面生成成功",
             }
         except httpx.HTTPStatusError as exc:
-            logger.error("封面生成上游 HTTP 错误: project_id=%s error=%s", project.id, exc, exc_info=True)
+            logger.error(
+                "封面生成上游 HTTP 错误: project_id=%s fields=%s",
+                project.id,
+                self._http_status_error_log_fields(exc),
+            )
             detail = self._extract_upstream_error_detail(exc)
             project.cover_status = "failed"
             project.cover_error = detail
@@ -115,11 +120,11 @@ class CoverGenerationService:
             await db.commit()
             raise
         except Exception as exc:
-            logger.error("封面生成失败: project_id=%s error=%s", project.id, exc, exc_info=True)
+            logger.error("封面生成失败: project_id=%s exception_type=%s", project.id, type(exc).__name__)
             project.cover_status = "failed"
-            project.cover_error = str(exc)
+            project.cover_error = GENERIC_COVER_FAILURE_MESSAGE
             await db.commit()
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
+            raise HTTPException(status_code=500, detail=GENERIC_COVER_FAILURE_MESSAGE) from None
 
     async def test_cover_settings(
         self,
@@ -136,6 +141,7 @@ class CoverGenerationService:
             provider=provider,
             api_key=api_key,
             api_base_url=api_base_url,
+            model=model,
         )
         test_prompt = (
             "Create a clean fantasy novel cover illustration, vertical book cover, "
@@ -210,6 +216,7 @@ class CoverGenerationService:
             provider=settings.cover_api_provider or "",
             api_key=settings.cover_api_key or "",
             api_base_url=settings.cover_api_base_url,
+            model=settings.cover_image_model or "",
         )
 
     def _build_provider_from_values(
@@ -218,6 +225,7 @@ class CoverGenerationService:
         provider: str,
         api_key: str,
         api_base_url: Optional[str],
+        model: str,
     ) -> BaseCoverProvider:
         provider_value = (provider or "").lower().strip()
         normalized_base_url = (api_base_url or "").rstrip("/")
@@ -225,11 +233,18 @@ class CoverGenerationService:
             return GeminiCoverProvider(api_key=api_key, base_url=normalized_base_url)
         if provider_value == "grok":
             return GrokCoverProvider(api_key=api_key, base_url=normalized_base_url)
+        if provider_value == "openai":
+            return OpenAIImageCoverProvider(api_key=api_key, base_url=normalized_base_url)
         if provider_value == "mumu":
             if normalized_base_url.endswith("/v1beta"):
                 return GeminiCoverProvider(api_key=api_key, base_url=normalized_base_url)
+            if (model or "").lower().strip().startswith("gpt-image-"):
+                return OpenAIImageCoverProvider(
+                    api_key=api_key,
+                    base_url=normalized_base_url or "https://api.mumuverse.space/v1",
+                )
             return GrokCoverProvider(api_key=api_key, base_url=normalized_base_url or "https://api.mumuverse.space/v1")
-        raise HTTPException(status_code=400, detail="当前版本仅支持 Gemini、Grok 或 MuMuのAPI 作为封面图片 Provider")
+        raise HTTPException(status_code=400, detail="当前版本仅支持 OpenAI、Gemini、Grok 或 MuMuのAPI 作为封面图片 Provider")
 
     def _save_cover_file(
         self,
@@ -267,33 +282,46 @@ class CoverGenerationService:
     def _extract_upstream_error_detail(exc: httpx.HTTPStatusError) -> str:
         response = exc.response
         if response is None:
-            return str(exc)
+            return "上游图片服务请求失败"
+        return CoverGenerationService._generic_upstream_error_detail(response)
 
+    @staticmethod
+    def _generic_upstream_error_detail(response: httpx.Response) -> str:
+        return f"上游图片服务请求失败 (HTTP {response.status_code})"
+
+    @staticmethod
+    def _http_status_error_log_fields(exc: httpx.HTTPStatusError) -> dict[str, int | str | dict[str, str]]:
+        response = exc.response
+        request = exc.request
+        fields: dict[str, int | str | dict[str, str]] = {
+            "status": response.status_code,
+            "request_url": CoverGenerationService._sanitize_url_for_log(str(request.url)),
+        }
+        content_type = response.headers.get("content-type")
+        if content_type:
+            fields["content_type"] = content_type
+        request_ids = {
+            header: value
+            for header in ("x-request-id", "request-id", "openai-request-id")
+            if (value := response.headers.get(header))
+        }
+        if request_ids:
+            fields["request_ids"] = request_ids
+        return fields
+
+    @staticmethod
+    def _sanitize_url_for_log(value: str) -> str:
         try:
-            data = response.json()
-        except json.JSONDecodeError:
-            text = response.text.strip()
-            return text or str(exc)
+            parts = urlsplit(value)
+            port = parts.port
+        except ValueError:
+            return "<invalid-url>"
+        if not parts.hostname:
+            return urlunsplit((parts.scheme, parts.netloc.rsplit("@", 1)[-1], parts.path, "", ""))
 
-        if isinstance(data, dict):
-            for key in ("detail", "message", "error", "msg"):
-                value = data.get(key)
-                if isinstance(value, str) and value.strip():
-                    return value.strip()
-                if isinstance(value, dict):
-                    for nested_key in ("message", "detail", "msg"):
-                        nested_value = value.get(nested_key)
-                        if isinstance(nested_value, str) and nested_value.strip():
-                            return nested_value.strip()
-                if isinstance(value, list) and value:
-                    first_item = value[0]
-                    if isinstance(first_item, str) and first_item.strip():
-                        return first_item.strip()
-
-        text = response.text.strip()
-        if text:
-            return text
-        return str(exc)
+        host = f"[{parts.hostname}]" if ":" in parts.hostname else parts.hostname
+        netloc = f"{host}:{port}" if port is not None else host
+        return urlunsplit((parts.scheme, netloc, parts.path, "", ""))
 
 
 cover_generation_service = CoverGenerationService()

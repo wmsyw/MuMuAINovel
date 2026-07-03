@@ -106,34 +106,181 @@ const getReasoningSelectionError = (
   return `模型 ${capability.provider}/${model || capability.model_pattern} 不支持推理强度 ${selectedIntensity}；支持: ${supportedLabels}`;
 };
 
-const getApiErrorMessage = (error: unknown, fallback: string) => {
-  const maybeError = error as {
-    response?: {
-      data?: {
-        detail?: string | { msg?: string }[];
-        message?: string;
-      };
-    };
-    message?: string;
-  };
-  const detail = maybeError.response?.data?.detail;
+type SanitizedApiErrorLogContext = {
+  readonly status?: number;
+  readonly error: string;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> => (
+  typeof value === 'object' && value !== null
+);
+
+const getApiErrorData = (error: unknown) => {
+  if (!isRecord(error) || !isRecord(error.response) || !isRecord(error.response.data)) {
+    return undefined;
+  }
+  return error.response.data;
+};
+
+const getApiErrorStatus = (error: unknown) => {
+  if (!isRecord(error) || !isRecord(error.response)) {
+    return undefined;
+  }
+  return typeof error.response.status === 'number' ? error.response.status : undefined;
+};
+
+const getApiDetailMessage = (detail: unknown) => {
   if (typeof detail === 'string' && detail.trim()) {
     return detail;
   }
-  if (Array.isArray(detail)) {
-    const firstMessage = detail.find(item => item?.msg)?.msg;
-    if (firstMessage) {
-      return firstMessage;
+  if (!Array.isArray(detail)) {
+    return undefined;
+  }
+  for (const item of detail) {
+    if (isRecord(item) && typeof item.msg === 'string' && item.msg) {
+      return item.msg;
     }
   }
-  return maybeError.response?.data?.message || maybeError.message || fallback;
+  return undefined;
 };
+
+const getApiErrorMessage = (error: unknown, fallback: string) => {
+  const errorData = getApiErrorData(error);
+  const detailMessage = getApiDetailMessage(errorData?.detail);
+  if (detailMessage) {
+    return detailMessage;
+  }
+  if (typeof errorData?.message === 'string' && errorData.message) {
+    return errorData.message;
+  }
+  if (isRecord(error) && typeof error.message === 'string' && error.message) {
+    return error.message;
+  }
+  return fallback;
+};
+
+const getSanitizedApiErrorLogContext = (error: unknown, fallback: string): SanitizedApiErrorLogContext => {
+  const status = getApiErrorStatus(error);
+  return status === undefined ? { error: fallback } : { status, error: fallback };
+};
+
+const isFormValidationError = (error: unknown) => isRecord(error) && 'errorFields' in error;
 
 const normalizeSettingsFormDefaults = <T extends Partial<SettingsUpdate>>(settings?: T) => ({
   ...settings,
   default_reasoning_intensity: settings?.default_reasoning_intensity || DEFAULT_REASONING_INTENSITY,
   allow_ai_entity_generation: settings?.allow_ai_entity_generation ?? false,
 });
+
+type CoverApiProvider = {
+  readonly value: string;
+  readonly label: string;
+  readonly defaultUrl?: string;
+  readonly defaultModel?: string;
+};
+
+type MumuCoverBaseUrlOption = {
+  readonly value: string;
+  readonly label: string;
+  readonly defaultModel: string;
+};
+
+type CoverProviderUpdateValues = Partial<Pick<SettingsUpdate, 'cover_api_base_url' | 'cover_image_model' | 'cover_api_key'>>;
+type MumuCoverBaseUrlUpdateValues = Pick<SettingsUpdate, 'cover_api_base_url' | 'cover_image_model'>;
+
+const mumuTextDefaultUrl = 'https://api.mumuverse.space/v1';
+const mumuRegisterUrl = 'https://api.mumuverse.space/register?aff=4NN8';
+const xiaomiMimoDefaultUrl = 'https://token-plan-cn.xiaomimimo.com/v1';
+const builtInKeyProviders = ['xiaomi_mimo'];
+const xiaomiMimoDefaultModel = 'mimo-v2.5';
+const xiaomiMimoDefaultModels = [
+  { value: xiaomiMimoDefaultModel, label: xiaomiMimoDefaultModel, description: 'Xiaomi MiMo 官方内置推荐模型' },
+];
+const defaultMumuCoverBaseUrlOption: MumuCoverBaseUrlOption = {
+  value: 'https://api.mumuverse.space/v1beta',
+  label: 'https://api.mumuverse.space/v1beta',
+  defaultModel: 'gemini-3.1-flash-image-preview',
+};
+const mumuV1CoverBaseUrlOption: MumuCoverBaseUrlOption = {
+  value: 'https://api.mumuverse.space/v1',
+  label: 'https://api.mumuverse.space/v1',
+  defaultModel: 'gpt-image-1.5',
+};
+const mumuCoverBaseUrlOptions: MumuCoverBaseUrlOption[] = [
+  defaultMumuCoverBaseUrlOption,
+  mumuV1CoverBaseUrlOption,
+];
+const coverApiProviders: CoverApiProvider[] = [
+  {
+    value: 'mumu',
+    label: 'MuMuのAPI',
+    defaultUrl: defaultMumuCoverBaseUrlOption.value,
+    defaultModel: defaultMumuCoverBaseUrlOption.defaultModel,
+  },
+  { value: 'openai', label: 'OpenAI Images', defaultUrl: 'https://api.openai.com/v1', defaultModel: 'gpt-image-2' },
+  { value: 'gemini', label: 'Google Gemini', defaultUrl: 'https://generativelanguage.googleapis.com/v1beta' },
+  { value: 'grok', label: 'Grok', defaultUrl: 'https://api.x.ai/v1' },
+];
+const defaultCoverSettings = {
+  cover_enabled: false,
+  cover_api_provider: 'mumu',
+  cover_api_key: '',
+  cover_api_base_url: defaultMumuCoverBaseUrlOption.value,
+  cover_image_model: defaultMumuCoverBaseUrlOption.defaultModel,
+};
+
+const getCoverApiBaseUrlPlaceholder = (provider?: string) => {
+  switch (provider) {
+    case 'openai':
+      return 'https://api.openai.com/v1';
+    case 'grok':
+      return 'https://api.x.ai/v1';
+    case 'gemini':
+    default:
+      return 'https://generativelanguage.googleapis.com/v1beta';
+  }
+};
+
+const getCoverImageModelPlaceholder = (provider?: string) => {
+  switch (provider) {
+    case 'mumu':
+      return '选择地址后自动填入推荐模型';
+    case 'openai':
+      return 'gpt-image-2';
+    case 'grok':
+      return 'grok-2-image';
+    case 'gemini':
+    default:
+      return 'gemini-2.0-flash-exp-image-generation';
+  }
+};
+
+const getCoverProviderUpdateValues = (providerValue: string): CoverProviderUpdateValues | undefined => {
+  const provider = coverApiProviders.find(item => item.value === providerValue);
+  if (!provider) {
+    return undefined;
+  }
+
+  const nextValues: CoverProviderUpdateValues = {};
+  if (provider.defaultUrl) {
+    nextValues.cover_api_base_url = provider.defaultUrl;
+  }
+  if (provider.defaultModel) {
+    nextValues.cover_image_model = provider.defaultModel;
+  }
+  if (provider.value === 'mumu') {
+    nextValues.cover_api_key = '';
+  }
+  return nextValues;
+};
+
+const getMumuCoverBaseUrlUpdateValues = (value: string): MumuCoverBaseUrlUpdateValues => {
+  const option = mumuCoverBaseUrlOptions.find(item => item.value === value);
+  return {
+    cover_api_base_url: value,
+    cover_image_model: option?.defaultModel || defaultMumuCoverBaseUrlOption.defaultModel,
+  };
+};
 
 function SettingsPage() {
   const { token } = theme.useToken();
@@ -219,7 +366,7 @@ function SettingsPage() {
       const capabilities = await settingsApi.getReasoningCapabilities();
       setReasoningCapabilities(capabilities);
     } catch (error) {
-      console.error('加载推理能力元数据失败:', error);
+      console.error('加载推理能力元数据失败:', getSanitizedApiErrorLogContext(error, '加载推理能力元数据失败'));
       message.error(getApiErrorMessage(error, '加载推理能力元数据失败'));
     } finally {
       setFetchingReasoningCapabilities(false);
@@ -296,11 +443,11 @@ function SettingsPage() {
             verifiedConfig.provider !== normalizedValues.api_provider ||
             verifiedConfig.baseUrl !== normalizedValues.api_base_url ||
             verifiedConfig.model !== normalizedValues.llm_model;
-        } catch (e) {
-          console.error('Failed to parse verified config:', e);
+        } catch {
+          console.error('Failed to parse verified config:', { error: 'Failed to parse verified config' });
         }
       }
-await settingsApi.saveSettings(normalizedValues);
+      await settingsApi.saveSettings(normalizedValues);
       message.success('设置已保存');
       setHasSettings(true);
       setIsDefaultSettings(false);
@@ -380,7 +527,7 @@ await settingsApi.saveSettings(normalizedValues);
             });
           }
         } catch (err) {
-          console.error('Failed to disable MCP plugins:', err);
+          console.error('Failed to disable MCP plugins:', getSanitizedApiErrorLogContext(err, 'Failed to disable MCP plugins'));
         }
       }
     } catch (error) {
@@ -438,25 +585,6 @@ await settingsApi.saveSettings(normalizedValues);
     });
   };
 
-  const mumuTextDefaultUrl = 'https://api.mumuverse.space/v1';
-  const mumuRegisterUrl = 'https://api.mumuverse.space/register?aff=4NN8';
-  const xiaomiMimoDefaultUrl = 'https://token-plan-cn.xiaomimimo.com/v1';
-  const builtInKeyProviders = ['xiaomi_mimo'];
-  const xiaomiMimoDefaultModels = [
-    { value: 'mimo-v2.5', label: 'mimo-v2.5', description: 'Xiaomi MiMo 官方内置推荐模型' },
-  ];
-  const mumuCoverBaseUrlOptions = [
-    { value: 'https://api.mumuverse.space/v1beta', label: 'https://api.mumuverse.space/v1beta', defaultModel: 'gemini-3.1-flash-image-preview' },
-    { value: 'https://api.mumuverse.space/v1', label: 'https://api.mumuverse.space/v1', defaultModel: 'gpt-image-1.5' },
-  ];
-  const defaultCoverSettings = {
-    cover_enabled: false,
-    cover_api_provider: 'mumu',
-    cover_api_key: '',
-    cover_api_base_url: mumuCoverBaseUrlOptions[0].value,
-    cover_image_model: mumuCoverBaseUrlOptions[0].defaultModel,
-  };
-
   const apiProviders = [
     {
       value: 'mumu',
@@ -468,7 +596,7 @@ await settingsApi.saveSettings(normalizedValues);
       value: 'xiaomi_mimo',
       label: 'Xiaomi MiMo（内置）',
       defaultUrl: xiaomiMimoDefaultUrl,
-      defaultModel: xiaomiMimoDefaultModels[0].value,
+      defaultModel: xiaomiMimoDefaultModel,
       builtInKey: true,
     },
     { value: 'openai', label: 'OpenAI Compatible', defaultUrl: 'https://api.openai.com/v1' },
@@ -527,7 +655,7 @@ await settingsApi.saveSettings(normalizedValues);
 nextValues.default_reasoning_intensity = DEFAULT_REASONING_INTENSITY;
       if (builtInKeyProviders.includes(provider.value)) {
         nextValues.api_key = '';
-        nextValues.llm_model = provider.defaultModel || xiaomiMimoDefaultModels[0].value;
+        nextValues.llm_model = provider.defaultModel || xiaomiMimoDefaultModel;
       }
       form.setFieldsValue(nextValues);
     }
@@ -536,31 +664,11 @@ nextValues.default_reasoning_intensity = DEFAULT_REASONING_INTENSITY;
     setModelsFetched(false);
   };
 
-  const coverApiProviders = [
-    {
-      value: 'mumu',
-      label: 'MuMuのAPI',
-      defaultUrl: mumuCoverBaseUrlOptions[0].value,
-      defaultModel: mumuCoverBaseUrlOptions[0].defaultModel,
-    },
-    { value: 'gemini', label: 'Google Gemini', defaultUrl: 'https://generativelanguage.googleapis.com/v1beta' },
-    { value: 'grok', label: 'Grok', defaultUrl: 'https://api.x.ai/v1' },
-  ];
-
   const handleCoverProviderChange = (value: string) => {
-    const provider = coverApiProviders.find(p => p.value === value);
-    if (!provider) {
+    const nextValues = getCoverProviderUpdateValues(value);
+    if (!nextValues) {
       setCoverTestResult(null);
       return;
-    }
-
-    const nextValues: Record<string, string> = {};
-    if (provider.defaultUrl) {
-      nextValues.cover_api_base_url = provider.defaultUrl;
-    }
-    if (provider.value === 'mumu') {
-      nextValues.cover_api_key = '';
-      nextValues.cover_image_model = provider.defaultModel || mumuCoverBaseUrlOptions[0].defaultModel;
     }
 
     form.setFieldsValue(nextValues);
@@ -568,11 +676,7 @@ nextValues.default_reasoning_intensity = DEFAULT_REASONING_INTENSITY;
   };
 
   const handleMumuCoverBaseUrlChange = (value: string) => {
-    const option = mumuCoverBaseUrlOptions.find(item => item.value === value);
-    form.setFieldsValue({
-      cover_api_base_url: value,
-      cover_image_model: option?.defaultModel || mumuCoverBaseUrlOptions[0].defaultModel,
-    });
+    form.setFieldsValue(getMumuCoverBaseUrlUpdateValues(value));
     setCoverTestResult(null);
   };
 
@@ -603,7 +707,7 @@ nextValues.default_reasoning_intensity = DEFAULT_REASONING_INTENSITY;
         message.error(result.message || '封面图片接口测试失败');
       }
     } catch (error) {
-      console.error('封面图片接口测试失败:', error);
+      console.error('封面图片接口测试失败:', getSanitizedApiErrorLogContext(error, '封面图片接口测试失败'));
       setCoverTestResult({
         success: false,
         message: '封面图片接口测试失败',
@@ -744,7 +848,7 @@ nextValues.default_reasoning_intensity = DEFAULT_REASONING_INTENSITY;
       setChapterAnalysisPresetId(response.chapter_analysis_preset_id);
     } catch (error) {
       message.error('加载预设失败');
-      console.error(error);
+      console.error('加载预设失败:', getSanitizedApiErrorLogContext(error, '加载预设失败'));
     } finally {
       setPresetsLoading(false);
     }
@@ -899,8 +1003,8 @@ const reasoningError = validateReasoningSelection(values, presetForm);
       handlePresetCancel();
       loadPresets();
     } catch (error) {
-      console.error('保存失败:', error);
-      if (!(typeof error === 'object' && error !== null && 'errorFields' in error)) {
+      if (!isFormValidationError(error)) {
+        console.error('保存失败:', getSanitizedApiErrorLogContext(error, '保存预设失败'));
         message.error(getApiErrorMessage(error, '保存预设失败'));
       }
     }
@@ -917,7 +1021,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       message.error(error.response?.data?.detail || '设置章节内容分析API配置失败');
-      console.error(error);
+      console.error('设置章节内容分析API配置失败:', getSanitizedApiErrorLogContext(error, '设置章节内容分析API配置失败'));
     } finally {
       setSavingChapterAnalysisPreset(false);
     }
@@ -931,7 +1035,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       message.error(error.response?.data?.detail || '删除失败');
-      console.error(error);
+      console.error('删除预设失败:', getSanitizedApiErrorLogContext(error, '删除失败'));
     }
   };
 
@@ -966,8 +1070,8 @@ const reasoningError = validateReasoningSelection(values, presetForm);
               verifiedConfig.provider !== preset.config.api_provider ||
               verifiedConfig.baseUrl !== preset.config.api_base_url ||
               verifiedConfig.model !== preset.config.llm_model;
-          } catch (e) {
-            console.error('Failed to parse verified config:', e);
+          } catch {
+            console.error('Failed to parse verified config:', { error: 'Failed to parse verified config' });
             configChanged = true; // 解析失败也视为配置变化
           }
         } else {
@@ -1030,13 +1134,13 @@ const reasoningError = validateReasoningSelection(values, presetForm);
               });
             }
           } catch (err) {
-            console.error('Failed to disable MCP plugins:', err);
+            console.error('Failed to disable MCP plugins:', getSanitizedApiErrorLogContext(err, 'Failed to disable MCP plugins'));
           }
         }
       }
     } catch (error) {
       message.error('激活失败');
-      console.error(error);
+      console.error('激活预设失败:', getSanitizedApiErrorLogContext(error, '激活失败'));
     }
   };
 
@@ -1171,7 +1275,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
       }
     } catch (error) {
       message.error('测试失败');
-      console.error(error);
+      console.error('测试预设失败:', getSanitizedApiErrorLogContext(error, '测试失败'));
     } finally {
       setTestingPresetId(null);
     }
@@ -2204,18 +2308,14 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                               }))}
                             />
                           ) : (
-                            <Input size={isMobile ? 'middle' : 'large'} placeholder={selectedCoverProvider === 'grok' ? 'https://api.x.ai/v1' : 'https://generativelanguage.googleapis.com/v1beta'} />
+                            <Input size={isMobile ? 'middle' : 'large'} placeholder={getCoverApiBaseUrlPlaceholder(selectedCoverProvider)} />
                           )}
                         </Form.Item>
 
                         <Form.Item label="封面图片模型" name="cover_image_model" rules={[{ required: true, message: '请输入封面图片模型名称' }]}>
                           <Input
                             size={isMobile ? 'middle' : 'large'}
-                            placeholder={selectedCoverProvider === 'mumu'
-                              ? '选择地址后自动填入推荐模型'
-                              : selectedCoverProvider === 'grok'
-                                ? 'grok-2-image'
-                                : 'gemini-2.0-flash-exp-image-generation'}
+                            placeholder={getCoverImageModelPlaceholder(selectedCoverProvider)}
                           />
                         </Form.Item>
 
@@ -2602,7 +2702,10 @@ const reasoningError = validateReasoningSelection(values, presetForm);
 const settingsTestUtils = {
   ENTITY_GENERATION_WARNING_COPY,
   findReasoningCapability,
+  getCoverProviderUpdateValues,
+  getMumuCoverBaseUrlUpdateValues,
   getApiErrorMessage,
+  getSanitizedApiErrorLogContext,
   getReasoningIntensityOptions,
   getReasoningSelectionError,
   normalizeReasoningProvider,

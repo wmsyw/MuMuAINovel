@@ -5,12 +5,22 @@ import SettingsPage from '../Settings'
 
 interface SettingsTestUtils {
   ENTITY_GENERATION_WARNING_COPY: string;
+  getCoverProviderUpdateValues: (
+    providerValue: string,
+  ) => Partial<Pick<SettingsUpdate, 'cover_api_base_url' | 'cover_image_model' | 'cover_api_key'>> | undefined;
+  getMumuCoverBaseUrlUpdateValues: (
+    value: string,
+  ) => Pick<SettingsUpdate, 'cover_api_base_url' | 'cover_image_model'>;
   findReasoningCapability: (
     provider: string | undefined,
     model: string | undefined,
     capabilities?: ReasoningCapability[],
   ) => ReasoningCapability | undefined;
   getApiErrorMessage: (error: unknown, fallback: string) => string;
+  getSanitizedApiErrorLogContext: (
+    error: unknown,
+    fallback: string,
+  ) => { readonly status?: number; readonly error: string };
   getReasoningIntensityOptions: (
     registry: ReasoningCapabilitiesResponse | null,
     provider?: string,
@@ -32,7 +42,10 @@ interface SettingsTestUtils {
 const {
   ENTITY_GENERATION_WARNING_COPY,
   findReasoningCapability,
+  getCoverProviderUpdateValues,
+  getMumuCoverBaseUrlUpdateValues,
   getApiErrorMessage,
+  getSanitizedApiErrorLogContext,
   getReasoningIntensityOptions,
   getReasoningSelectionError,
   normalizeReasoningProvider,
@@ -155,5 +168,84 @@ describe('Settings advanced entity generation override defaults', () => {
 
   it('keeps the required advanced warning copy exact', () => {
     expect(ENTITY_GENERATION_WARNING_COPY).toBe('默认从正文自动提取角色/组织/职业；开启后才允许 AI 直接生成入库')
+  })
+})
+
+describe('Settings cover provider defaults', () => {
+  it('applies OpenAI Images defaults through provider change production logic', () => {
+    expect(getCoverProviderUpdateValues('openai')).toEqual({
+      cover_api_base_url: 'https://api.openai.com/v1',
+      cover_image_model: 'gpt-image-2',
+    })
+  })
+
+  it('clears MuMu cover keys and preserves MuMu /v1 model through base-url change production logic', () => {
+    expect(getCoverProviderUpdateValues('mumu')).toEqual({
+      cover_api_key: '',
+      cover_api_base_url: 'https://api.mumuverse.space/v1beta',
+      cover_image_model: 'gemini-3.1-flash-image-preview',
+    })
+    expect(getMumuCoverBaseUrlUpdateValues('https://api.mumuverse.space/v1')).toEqual({
+      cover_api_base_url: 'https://api.mumuverse.space/v1',
+      cover_image_model: 'gpt-image-1.5',
+    })
+  })
+
+  it('ignores unsupported cover providers through provider change production logic', () => {
+    expect(getCoverProviderUpdateValues('unsupported')).toBeUndefined()
+  })
+})
+
+describe('Settings API error log sanitization', () => {
+  it('omits response-body and secret-bearing axios fields from sanitized log context', () => {
+    const error = {
+      response: {
+        status: 502,
+        data: {
+          detail: [
+            {
+              loc: ['body', 'cover_api_key'],
+              msg: 'fastapi-array-secret',
+            },
+          ],
+          message: 'response-message-secret',
+        },
+      },
+      message: 'raw-error-message-secret',
+      config: {
+        data: {
+          cover_api_key: 'cover-secret',
+          api_key: 'preset-secret',
+          download_api_key: 'download-secret',
+        },
+        headers: {
+          Authorization: 'Bearer authorization-secret',
+        },
+      },
+      request: {
+        body: 'cover-secret preset-secret download-secret authorization-secret',
+      },
+    }
+
+    const context = getSanitizedApiErrorLogContext(error, 'fallback')
+    const serializedContext = JSON.stringify(context)
+
+    expect(context).toEqual({
+      status: 502,
+      error: 'fallback',
+    })
+    expect(serializedContext).not.toContain('fastapi-array-secret')
+    expect(serializedContext).not.toContain('response-message-secret')
+    expect(serializedContext).not.toContain('raw-error-message-secret')
+    expect(serializedContext).not.toContain('cover-secret')
+    expect(serializedContext).not.toContain('preset-secret')
+    expect(serializedContext).not.toContain('download-secret')
+    expect(serializedContext).not.toContain('authorization-secret')
+    expect(serializedContext).not.toContain('detail')
+    expect(serializedContext).not.toContain('message')
+    expect(serializedContext).not.toContain('Authorization')
+    expect(serializedContext).not.toContain('headers')
+    expect(serializedContext).not.toContain('config')
+    expect(serializedContext).not.toContain('request')
   })
 })
