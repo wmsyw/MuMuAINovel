@@ -136,7 +136,8 @@ const SkillChat: React.FC = () => {
         }
       }
     } catch (error: unknown) {
-      const isAbortError = error instanceof DOMException && error.name === 'AbortError';
+      const isAbortError =
+        (error instanceof DOMException || error instanceof Error) && error.name === 'AbortError';
       if (!isAbortError) {
         message.error('请求失败，请检查 AI 配置');
         setMessages(prev => {
