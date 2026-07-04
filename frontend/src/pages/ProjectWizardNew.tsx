@@ -69,7 +69,11 @@ export default function ProjectWizardNew() {
       setGenerationConfig(config);
       setCurrentStep('generating');
     } catch (error) {
-      console.error('恢复生成失败:', error);
+      if (error instanceof Error) {
+        console.error('恢复生成失败:', error.message);
+      } else {
+        console.error('恢复生成失败:', error);
+      }
       message.error('恢复生成失败,请重试');
       navigate('/');
     }

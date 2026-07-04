@@ -128,8 +128,12 @@ const SkillChat: React.FC = () => {
                 message.error(data.error || '生成失败');
               }
             } catch (parseError) {
-              if (import.meta.env.DEV) {
-                console.debug('忽略无法解析的 Skill 流数据:', parseError);
+              if (parseError instanceof SyntaxError) {
+                if (import.meta.env.DEV) {
+                  console.debug('忽略无法解析的 Skill 流数据:', parseError);
+                }
+              } else {
+                throw parseError;
               }
             }
           }
