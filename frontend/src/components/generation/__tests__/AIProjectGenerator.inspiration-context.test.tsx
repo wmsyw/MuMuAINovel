@@ -133,7 +133,7 @@ const baseConfig: GenerationConfig = {
   character_count: 5,
 };
 
-async function renderGenerator(config: GenerationConfig) {
+async function renderGenerator(config: GenerationConfig, resumeProjectId?: string, storagePrefix: 'wizard' | 'inspiration' = 'inspiration') {
   const container = document.createElement('div');
   document.body.appendChild(container);
   const root = createRoot(container);
@@ -142,8 +142,9 @@ async function renderGenerator(config: GenerationConfig) {
     root.render(
       <AIProjectGenerator
         config={config}
-        storagePrefix="inspiration"
+        storagePrefix={storagePrefix}
         onComplete={vi.fn()}
+        resumeProjectId={resumeProjectId}
       />,
     );
     await delay();
@@ -230,7 +231,7 @@ describe('AIProjectGenerator inspiration context handoff', () => {
     }
   });
 
-  it('navigates generated projects to the sponsor entry route', async () => {
+  it('navigates generated projects to the world setting entry route', async () => {
     const view = await renderGenerator(baseConfig);
 
     try {
@@ -240,7 +241,7 @@ describe('AIProjectGenerator inspiration context handoff', () => {
         await delay(1050);
       });
 
-      expect(mocks.navigate).toHaveBeenCalledWith('/project/project-generated/sponsor');
+      expect(mocks.navigate).toHaveBeenCalledWith('/project/project-generated/world-setting');
     } finally {
       await view.cleanup();
     }
@@ -272,6 +273,37 @@ describe('AIProjectGenerator inspiration context handoff', () => {
       });
     } finally {
       await view.cleanup();
+    }
+  });
+
+  it('restores inspiration context only for the matching resumed project', async () => {
+    localStorage.setItem('wizard_project_id', 'project-resumed');
+    localStorage.setItem('wizard_generation_data', JSON.stringify({
+      ...baseConfig,
+      inspiration_context: inspirationContext,
+    }));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        wizard_step: 3,
+        world_time_period: '星桥纪元',
+        world_location: '断裂星桥',
+        world_atmosphere: '浪漫冒险',
+        world_rules: '记忆可作为燃料',
+      }),
+    }));
+
+    const view = await renderGenerator(baseConfig, 'project-resumed', 'wizard');
+
+    try {
+      await waitForAssertion(() => expect(mocks.generateCompleteOutlineStream).toHaveBeenCalledTimes(1));
+      expect(mocks.generateCompleteOutlineStream.mock.calls[0][0]).toMatchObject({
+        project_id: 'project-resumed',
+        inspiration_context: inspirationContext,
+      });
+    } finally {
+      await view.cleanup();
+      vi.unstubAllGlobals();
     }
   });
 });

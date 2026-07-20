@@ -1,8 +1,9 @@
 """Extraction run and candidate review API."""
 
 from __future__ import annotations
+from datetime import UTC, datetime
 
-from typing import Callable, NoReturn
+from typing import Callable, Literal, NoReturn
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import func, select
@@ -15,6 +16,9 @@ from app.models.project import Project
 from app.models.relationship import ExtractionCandidate, ExtractionRun
 from app.schemas.extraction import (
     CandidateAcceptRequest,
+    CandidateBatchReviewFailure,
+    CandidateBatchReviewRequest,
+    CandidateBatchReviewResponse,
     CandidateMergeRequest,
     CandidateRejectRequest,
     CandidateReviewResponse,
@@ -32,6 +36,7 @@ from app.schemas.extraction import (
     ManualReextractResponse,
 )
 from app.services.candidate_merge_service import CandidateMergeService, MergeResult
+from app.services.goldfinger_sync_service import GoldfingerSyncResult, GoldfingerSyncService
 from app.services.extraction_service import ExtractionTriggerService
 
 router = APIRouter(prefix="/extraction", tags=["抽取评审"])
@@ -95,19 +100,110 @@ def _apply_canonical_target_filter(query, canonical_target: str | None):
     return query.where(ExtractionCandidate.canonical_target_id == target)
 
 
+ReviewResult = MergeResult | GoldfingerSyncResult
+
+
+def _accept_candidate_sync(
+    session: Session,
+    candidate_id: str,
+    *,
+    reviewer_user_id: str,
+    target_type: str | None = None,
+    target_id: str | None = None,
+    override: bool = False,
+    supersedes_candidate_id: str | None = None,
+) -> ReviewResult:
+    candidate = session.get(ExtractionCandidate, candidate_id)
+    if candidate is not None and candidate.candidate_type == "goldfinger":
+        result = GoldfingerSyncService(session).accept_candidate(
+            candidate_id,
+            reviewer_user_id=reviewer_user_id,
+            target_id=target_id,
+            override=override,
+        )
+        if result.changed and supersedes_candidate_id:
+            superseded = session.get(ExtractionCandidate, supersedes_candidate_id)
+            if superseded is not None and superseded.id != candidate_id:
+                superseded.status = "superseded"
+                superseded.reviewed_at = superseded.reviewed_at or datetime.now(UTC).replace(tzinfo=None)
+                candidate.supersedes_candidate_id = superseded.id
+        session.flush()
+        return result
+    return CandidateMergeService(session).accept_candidate(
+        candidate_id,
+        reviewer_user_id=reviewer_user_id,
+        target_type=target_type,
+        target_id=target_id,
+        override=override,
+        supersedes_candidate_id=supersedes_candidate_id,
+    )
+
+
+def _preserve_review_reason(session: Session, candidate_id: str, reason: str | None) -> None:
+    if not reason:
+        return
+    candidate = session.get(ExtractionCandidate, candidate_id)
+    if candidate is not None and candidate.status == "pending":
+        candidate.review_required_reason = reason
+        session.flush()
+
+
+def _run_batch_review_item(
+    session: Session,
+    candidate: ExtractionCandidate,
+    *,
+    action: Literal["accept", "reject"],
+    reviewer_user_id: str,
+    reason: str,
+) -> ReviewResult:
+    savepoint = session.begin_nested()
+    try:
+        if action == "accept":
+            result = _accept_candidate_sync(
+                session,
+                candidate.id,
+                reviewer_user_id=reviewer_user_id,
+                target_type=candidate.canonical_target_type,
+                target_id=candidate.canonical_target_id,
+            )
+        else:
+            result = CandidateMergeService(session).reject_candidate(
+                candidate.id,
+                reviewer_user_id=reviewer_user_id,
+                reason=reason,
+            )
+        if result.changed:
+            savepoint.commit()
+        else:
+            savepoint.rollback()
+            _preserve_review_reason(session, candidate.id, result.reason)
+        return result
+    except Exception:
+        if savepoint.is_active:
+            savepoint.rollback()
+        raise
+
+
 async def _review_candidate(
     *,
     candidate_id: str,
     user_id: str,
     db: AsyncSession,
-    operation: Callable[[Session], MergeResult],
+    operation: Callable[[Session], ReviewResult],
     failure_code: str,
     failure_message: str,
 ) -> CandidateReviewResponse:
     _ = await _get_candidate_for_user(candidate_id, user_id, db)
-    result = await db.run_sync(operation)
+    try:
+        result = await db.run_sync(operation)
+    except Exception as exc:
+        await db.rollback()
+        _structured_error(400, code=failure_code, message=str(exc) or failure_message)
     if not result.changed:
         await db.rollback()
+        if result.reason:
+            await db.run_sync(lambda session: _preserve_review_reason(session, candidate_id, result.reason))
+            await db.commit()
         _structured_error(
             400,
             code=failure_code,
@@ -217,6 +313,81 @@ async def list_extraction_candidates(
         total=count_result.scalar_one(),
         items=[ExtractionCandidateResponse.model_validate(candidate) for candidate in result.scalars().all()],
     )
+
+
+@router.post("/candidates/batch-accept", response_model=CandidateBatchReviewResponse, summary="批量接受抽取候选")
+async def batch_accept_extraction_candidates(
+    payload: CandidateBatchReviewRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> CandidateBatchReviewResponse:
+    user_id = _current_user_id(request)
+    candidates = [await _get_candidate_for_user(candidate_id, user_id, db) for candidate_id in payload.candidate_ids]
+    priority = {
+        "character": 0,
+        "organization": 0,
+        "profession": 0,
+        "goldfinger": 0,
+        "relationship": 1,
+        "organization_affiliation": 2,
+        "profession_assignment": 2,
+    }
+    candidates.sort(key=lambda candidate: priority.get(candidate.candidate_type, 3))
+    changed_ids: list[str] = []
+    failures: list[CandidateBatchReviewFailure] = []
+    for candidate in candidates:
+        try:
+            result = await db.run_sync(
+                lambda session, row=candidate: _run_batch_review_item(
+                    session,
+                    row,
+                    action="accept",
+                    reviewer_user_id=user_id,
+                    reason="批量接受",
+                )
+            )
+            if result.changed:
+                changed_ids.append(candidate.id)
+            else:
+                failures.append(CandidateBatchReviewFailure(candidate_id=candidate.id, reason=result.reason or "候选未发生变化"))
+        except Exception as exc:
+            failures.append(CandidateBatchReviewFailure(candidate_id=candidate.id, reason=str(exc) or "候选接受失败"))
+    await db.commit()
+    reviewed = [await _candidate_response(candidate_id, db) for candidate_id in changed_ids]
+    return CandidateBatchReviewResponse(changed=len(reviewed), failures=failures, candidates=reviewed)
+
+
+@router.post("/candidates/batch-reject", response_model=CandidateBatchReviewResponse, summary="批量拒绝抽取候选")
+async def batch_reject_extraction_candidates(
+    payload: CandidateBatchReviewRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> CandidateBatchReviewResponse:
+    user_id = _current_user_id(request)
+    candidates = [await _get_candidate_for_user(candidate_id, user_id, db) for candidate_id in payload.candidate_ids]
+    changed_ids: list[str] = []
+    failures: list[CandidateBatchReviewFailure] = []
+    reject_reason = payload.reason or "批量拒绝"
+    for candidate in candidates:
+        try:
+            result = await db.run_sync(
+                lambda session, row=candidate: _run_batch_review_item(
+                    session,
+                    row,
+                    action="reject",
+                    reviewer_user_id=user_id,
+                    reason=reject_reason,
+                )
+            )
+            if result.changed:
+                changed_ids.append(candidate.id)
+            else:
+                failures.append(CandidateBatchReviewFailure(candidate_id=candidate.id, reason=result.reason or "候选未发生变化"))
+        except Exception as exc:
+            failures.append(CandidateBatchReviewFailure(candidate_id=candidate.id, reason=str(exc) or "候选拒绝失败"))
+    await db.commit()
+    reviewed = [await _candidate_response(candidate_id, db) for candidate_id in changed_ids]
+    return CandidateBatchReviewResponse(changed=len(reviewed), failures=failures, candidates=reviewed)
 
 
 @router.get("/candidates/{candidate_id}", response_model=ExtractionCandidateResponse, summary="获取抽取候选详情")
@@ -345,7 +516,8 @@ async def accept_extraction_candidate(
         candidate_id=candidate_id,
         user_id=user_id,
         db=db,
-        operation=lambda session: CandidateMergeService(session).accept_candidate(
+        operation=lambda session: _accept_candidate_sync(
+            session,
             candidate_id,
             reviewer_user_id=user_id,
             target_type=payload.target_type,
@@ -392,11 +564,12 @@ async def merge_extraction_candidate(
         candidate_id=candidate_id,
         user_id=user_id,
         db=db,
-        operation=lambda session: CandidateMergeService(session).merge_candidate(
+        operation=lambda session: _accept_candidate_sync(
+            session,
             candidate_id,
+            reviewer_user_id=user_id,
             target_type=payload.target_type,
             target_id=payload.target_id,
-            reviewer_user_id=user_id,
             override=payload.override,
         ),
         failure_code="candidate_merge_failed",

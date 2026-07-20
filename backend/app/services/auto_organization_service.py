@@ -16,6 +16,7 @@ from app.services.entity_generation_policy_service import entity_generation_poli
 from app.services.organization_compat import add_organization_member, create_organization_entity_from_payload
 from app.services.prompt_service import PromptService
 from app.logger import get_logger
+from app.services.world_setting_data_service import dynamic_world_setting_context
 
 logger = get_logger(__name__)
 
@@ -92,6 +93,9 @@ class AutoOrganizationService:
             organization_specification=json.dumps(spec, ensure_ascii=False, indent=2),
             mcp_references=""  # 暂时不使用MCP增强
         )
+        dynamic_context = dynamic_world_setting_context(project)
+        if dynamic_context:
+            prompt = f"{prompt}\n\n【动态世界设定】\n{dynamic_context}"
         
         # 调用AI生成（使用统一的JSON调用方法）
         try:

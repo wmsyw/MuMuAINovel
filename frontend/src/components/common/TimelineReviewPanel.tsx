@@ -14,6 +14,7 @@ import type {
   TimelineStateQuery,
   TimelineStateResponse,
 } from '../../types';
+import { sx } from '../../styles/sx';
 
 const { Paragraph, Text } = Typography;
 
@@ -307,15 +308,15 @@ const TimelineReviewPanelImpl = ({
   );
 
   const renderEvidence = (event: TimelineEvent) => (
-    <Space direction="vertical" size={2} style={{ maxWidth: 420 }}>
-      <Paragraph style={{ marginBottom: 0 }} ellipsis={{ rows: 2, tooltip: event.evidence_text || undefined }}>
+    <Space direction="vertical" size={2} className="u-4568mf">
+      <Paragraph className="u-1sezbee" ellipsis={{ rows: 2, tooltip: event.evidence_text || undefined }}>
         {event.evidence_text || '暂无证据片段'}
       </Paragraph>
       <Space size={4} wrap>
-        <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>置信度：{formatConfidence(event.confidence)}</Text>
+        <Text type="secondary" className={sx({ fontSize: token.fontSizeSM })}>置信度：{formatConfidence(event.confidence)}</Text>
         {isNumber(event.source_chapter_order) && <Tag>来源第 {event.source_chapter_order} 章</Tag>}
         {isNumber(event.source_start_offset) && isNumber(event.source_end_offset) && (
-          <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>位置：{event.source_start_offset}–{event.source_end_offset}</Text>
+          <Text type="secondary" className={sx({ fontSize: token.fontSizeSM })}>位置：{event.source_start_offset}–{event.source_end_offset}</Text>
         )}
       </Space>
     </Space>
@@ -341,7 +342,7 @@ const TimelineReviewPanelImpl = ({
         return (
           <Space direction="vertical" size={2}>
             <Text strong>{description.primary}</Text>
-            <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>{description.secondary}</Text>
+            <Text type="secondary" className={sx({ fontSize: token.fontSizeSM })}>{description.secondary}</Text>
           </Space>
         );
       },
@@ -356,7 +357,7 @@ const TimelineReviewPanelImpl = ({
             {semanticTagsForEvent(event, mode).map(tag => <Tag key={tag.key} color={tag.color}>{tag.label}</Tag>)}
           </Space>
           {event.supersedes_event_id && (
-            <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>替换事件 {getShortId(event.supersedes_event_id)}</Text>
+            <Text type="secondary" className={sx({ fontSize: token.fontSizeSM })}>替换事件 {getShortId(event.supersedes_event_id)}</Text>
           )}
         </Space>
       ),
@@ -404,10 +405,10 @@ const TimelineReviewPanelImpl = ({
     <Card
       size="small"
       title={title}
-      style={{ borderColor: token.colorBorderSecondary, borderRadius: token.borderRadiusLG }}
+      className={sx({ borderColor: token.colorBorderSecondary, borderRadius: token.borderRadiusLG })}
       styles={{ body: { padding: token.paddingMD } }}
     >
-      <Space direction="vertical" style={{ width: '100%' }} size="middle">
+      <Space direction="vertical" className="u-1f3r3s" size="middle">
         <Alert
           type="info"
           showIcon

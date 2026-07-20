@@ -30,6 +30,7 @@ import {
 } from '@ant-design/icons';
 import { projectAssetApi } from '../services/api';
 import type { ProjectAsset, ProjectAssetType } from '../types';
+import { sx } from '../styles/sx';
 
 const { Dragger } = Upload;
 const { Paragraph, Text, Title } = Typography;
@@ -141,15 +142,15 @@ export default function LocalAssets() {
   };
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: token.paddingMD }}>
+    <div className={sx({ height: '100%', display: 'flex', flexDirection: 'column', gap: token.paddingMD })}>
       <Card>
-        <Space align="start" style={{ width: '100%', justifyContent: 'space-between' }} wrap>
+        <Space align="start" className="u-1qos3j5" wrap>
           <Space direction="vertical" size={token.marginXXS}>
             <Space>
-              <PictureOutlined style={{ color: token.colorPrimary, fontSize: token.fontSizeHeading3 }} />
-              <Title level={3} style={{ margin: 0 }}>本地资源</Title>
+              <PictureOutlined className={sx({ color: token.colorPrimary, fontSize: token.fontSizeHeading3 })} />
+              <Title level={3} className="u-avalr8">本地资源</Title>
             </Space>
-            <Paragraph type="secondary" style={{ marginBottom: 0 }}>
+            <Paragraph type="secondary" className="u-1sezbee">
               为当前项目保存头像、背景和立绘等本地图片。资源只从本机上传，不支持远程URL导入；文件名会归一化为服务端生成路径，不与角色身份绑定。
             </Paragraph>
           </Space>
@@ -163,26 +164,26 @@ export default function LocalAssets() {
 
       {error && <Alert type="warning" showIcon message={error} />}
 
-      <Row gutter={[token.marginMD, token.marginMD]} style={{ flex: 1, minHeight: 0 }}>
-        <Col xs={24} xl={8} style={{ minHeight: 0 }}>
-          <Card title="上传安全资源" style={{ height: '100%', overflow: 'hidden' }} bodyStyle={{ height: 'calc(100% - 57px)', overflow: 'auto' }}>
-            <Space direction="vertical" size={token.marginMD} style={{ width: '100%' }}>
+      <Row gutter={[token.marginMD, token.marginMD]} className="u-15gdg2w">
+        <Col xs={24} xl={8} className="u-536cka">
+          <Card title="上传安全资源" className="u-1ftff3t" bodyStyle={{ height: 'calc(100% - 57px)', overflow: 'auto' }}>
+            <Space direction="vertical" size={token.marginMD} className="u-1f3r3s">
               <Alert
                 type="info"
                 showIcon
                 message="服务端安全校验"
                 description="仅接受 PNG/JPG/GIF/WEBP 图片；服务端会校验扩展名、MIME、文件头、大小、路径归一化和项目归属。"
               />
-              <Space direction="vertical" size={token.marginXS} style={{ width: '100%' }}>
+              <Space direction="vertical" size={token.marginXS} className="u-1f3r3s">
                 <Text strong>资源类型</Text>
                 <Select<ProjectAssetType>
                   value={assetType}
                   onChange={setAssetType}
                   options={ASSET_TYPE_OPTIONS.map(({ label, value }) => ({ label, value }))}
-                  style={{ width: '100%' }}
+                  className="u-1f3r3s"
                 />
               </Space>
-              <Space direction="vertical" size={token.marginXS} style={{ width: '100%' }}>
+              <Space direction="vertical" size={token.marginXS} className="u-1f3r3s">
                 <Text strong>展示名称（可选）</Text>
                 <Input
                   maxLength={200}
@@ -210,7 +211,7 @@ export default function LocalAssets() {
           </Card>
         </Col>
 
-        <Col xs={24} xl={16} style={{ minHeight: 0 }}>
+        <Col xs={24} xl={16} className="u-536cka">
           <Card
             title="项目资源库"
             extra={(
@@ -220,19 +221,19 @@ export default function LocalAssets() {
                 value={filterType}
                 onChange={setFilterType}
                 options={ASSET_TYPE_OPTIONS.map(({ label, value }) => ({ label, value }))}
-                style={{ minWidth: token.controlHeightLG * 4 }}
+                className={sx({ minWidth: token.controlHeightLG * 4 })}
               />
             )}
-            style={{ height: '100%', overflow: 'hidden' }}
+            className="u-1ftff3t"
             bodyStyle={{ height: 'calc(100% - 57px)', overflow: 'auto' }}
           >
-            <Space wrap style={{ marginBottom: token.marginMD }}>
+            <Space wrap className={sx({ marginBottom: token.marginMD })}>
               {ASSET_TYPE_OPTIONS.map(option => (
                 <Tag key={option.value}>{option.tag} {typeCounts[option.value]}</Tag>
               ))}
             </Space>
             {loading ? (
-              <div style={{ minHeight: previewHeight, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div className={sx({ minHeight: previewHeight, display: 'flex', alignItems: 'center', justifyContent: 'center' })}>
                 <Spin />
               </div>
             ) : assets.length === 0 ? (
@@ -243,21 +244,21 @@ export default function LocalAssets() {
                   <Col xs={24} md={12} xxl={8} key={asset.id}>
                     <Card
                       hoverable
-                      style={{
+                      className={sx({
                         height: '100%',
                         borderRadius: token.borderRadiusLG,
                         borderColor: token.colorBorderSecondary,
                         boxShadow: token.boxShadowTertiary,
                         overflow: 'hidden',
-                      }}
+                      })}
                       cover={(
-                        <div style={{ background: token.colorFillQuaternary, height: previewHeight, overflow: 'hidden' }}>
+                        <div className={sx({ background: token.colorFillQuaternary, height: previewHeight, overflow: 'hidden' })}>
                           <Image
                             src={asset.file_url}
                             alt={asset.display_name}
                             width="100%"
                             height={previewHeight}
-                            style={{ objectFit: 'cover' }}
+                            className="u-1pg6vwc"
                           />
                         </div>
                       )}
@@ -272,9 +273,9 @@ export default function LocalAssets() {
                         </Popconfirm>,
                       ]}
                     >
-                      <Space direction="vertical" size={token.marginXXS} style={{ width: '100%' }}>
-                        <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-                          <Text strong ellipsis style={{ maxWidth: '70%' }}>{asset.display_name}</Text>
+                      <Space direction="vertical" size={token.marginXXS} className="u-1f3r3s">
+                        <Space className="u-1qos3j5">
+                          <Text strong ellipsis className="u-lfz8in">{asset.display_name}</Text>
                           <Tag>{assetTypeLabel(asset.asset_type)}</Tag>
                         </Space>
                         <Text type="secondary" ellipsis>{asset.original_filename}</Text>

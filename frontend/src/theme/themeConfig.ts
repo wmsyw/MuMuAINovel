@@ -1,23 +1,24 @@
 import type { ThemeConfig } from 'antd';
 import { theme } from 'antd';
 import type { ThemeMode } from './themeStorage';
+import { themeTokens } from './tokens';
 
 export type ResolvedThemeMode = Exclude<ThemeMode, 'system'>;
 
 const sharedToken: ThemeConfig['token'] = {
-  colorPrimary: '#4D8088',
-  borderRadius: 8,
+  colorPrimary: themeTokens.colorPrimary,
+  borderRadius: themeTokens.borderRadius,
   wireframe: false,
-  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif",
+  fontFamily: themeTokens.fontFamily,
 };
 
 const sharedComponents: ThemeConfig['components'] = {
   Button: {
-    borderRadius: 8,
-    controlHeight: 36,
+    borderRadius: themeTokens.borderRadius,
+    controlHeight: themeTokens.controlHeight,
   },
   Card: {
-    borderRadiusLG: 12,
+    borderRadiusLG: themeTokens.borderRadiusLG,
   },
   Tooltip: {
     colorBgSpotlight: sharedToken.colorPrimary,
@@ -28,17 +29,17 @@ const lightThemeConfig: ThemeConfig = {
   algorithm: theme.defaultAlgorithm,
   token: {
     ...sharedToken,
-    colorBgBase: '#F8F6F1',
-    colorTextBase: '#2B2B2B',
-    colorBgLayout: '#F8F6F1',
-    colorBgContainer: '#FFFFFF',
+    colorBgBase: themeTokens.light.colorBgBase,
+    colorTextBase: themeTokens.light.colorTextBase,
+    colorBgLayout: themeTokens.light.colorBgBase,
+    colorBgContainer: themeTokens.light.colorBgContainer,
   },
   components: {
     ...sharedComponents,
     Layout: {
-      bodyBg: '#F8F6F1',
-      headerBg: '#FFFFFF',
-      siderBg: '#FFFFFF',
+      bodyBg: themeTokens.light.colorBgBase,
+      headerBg: themeTokens.light.colorBgContainer,
+      siderBg: themeTokens.light.colorBgContainer,
     },
   },
 };
@@ -47,15 +48,17 @@ const darkThemeConfig: ThemeConfig = {
   algorithm: theme.darkAlgorithm,
   token: {
     ...sharedToken,
-    colorBgBase: '#141414',
-    colorTextBase: '#f5f5f5',
+    colorBgBase: themeTokens.dark.colorBgBase,
+    colorTextBase: themeTokens.dark.colorTextBase,
+    colorBgLayout: themeTokens.dark.colorBgLayout,
+    colorBgContainer: themeTokens.dark.colorBgContainer,
   },
   components: {
     ...sharedComponents,
     Layout: {
-      bodyBg: '#0f1115',
-      headerBg: '#141414',
-      siderBg: '#141414',
+      bodyBg: themeTokens.dark.colorBgLayout,
+      headerBg: themeTokens.dark.colorBgContainer,
+      siderBg: themeTokens.dark.colorBgContainer,
     },
   },
 };

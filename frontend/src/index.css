@@ -14,12 +14,34 @@ body,
   -moz-osx-font-smoothing: grayscale;
   -webkit-text-size-adjust: 100%;
   -ms-text-size-adjust: 100%;
+  --color-primary: var(--ant-color-primary, #4D8088);
+  --color-primary-hover: var(--ant-color-primary-hover, #5F929A);
+  --color-primary-active: var(--ant-color-primary-active, #376970);
+  --color-success: var(--ant-color-success, #52C41A);
+  --color-warning: var(--ant-color-warning, #FAAD14);
+  --color-error: var(--ant-color-error, #FF4D4F);
+  --color-info: var(--ant-color-info, #1677FF);
+  --color-text-primary: var(--ant-color-text, #2B2B2B);
+  --color-text-secondary: var(--ant-color-text-secondary, rgba(43, 43, 43, 0.65));
+  --color-text-tertiary: var(--ant-color-text-tertiary, rgba(43, 43, 43, 0.45));
+  --color-bg-layout: var(--ant-color-bg-layout, #F8F6F1);
+  --color-bg-container: var(--ant-color-bg-container, #FFFFFF);
+  --color-border: var(--ant-color-border, #D9D9D9);
+  --color-border-secondary: var(--ant-color-border-secondary, #F0F0F0);
+  --color-error-bg: var(--ant-color-error-bg, #FFF2F0);
+  --color-error-border: var(--ant-color-error-border, #FFCCC7);
+  --color-info-bg: var(--ant-color-info-bg, #E6F4FF);
+  --color-info-border: var(--ant-color-info-border, #91CAFF);
 }
+
 
 body {
   margin: 0;
   min-height: 100vh;
   touch-action: manipulation;
+  color: var(--color-text-primary);
+  background: var(--color-bg-layout);
+  transition: color 0.2s ease, background-color 0.2s ease;
 }
 
 * {
@@ -66,6 +88,20 @@ body {
 
 [data-theme-resolved='dark'] * {
   scrollbar-color: rgba(255, 255, 255, 0.28) rgba(255, 255, 255, 0.08);
+}
+
+[data-theme-resolved='dark'] {
+  --color-text-primary: var(--ant-color-text, #F5F5F5);
+  --color-text-secondary: var(--ant-color-text-secondary, rgba(245, 245, 245, 0.65));
+  --color-text-tertiary: var(--ant-color-text-tertiary, rgba(245, 245, 245, 0.45));
+  --color-bg-layout: var(--ant-color-bg-layout, #0F1115);
+  --color-bg-container: var(--ant-color-bg-container, #141414);
+  --color-border: var(--ant-color-border, #424242);
+  --color-border-secondary: var(--ant-color-border-secondary, #303030);
+  --color-error-bg: var(--ant-color-error-bg, #2A1215);
+  --color-error-border: var(--ant-color-error-border, #58181C);
+  --color-info-bg: var(--ant-color-info-bg, #111A2C);
+  --color-info-border: var(--ant-color-info-border, #15325B);
 }
 
 /* 主题切换转场（暗色扩散、亮色收缩） */
@@ -139,7 +175,7 @@ body {
 }
 
 /* 移动端响应式样式 */
-@media (max-width: 768px) {
+@media (max-width: 767px) {
   :root {
     font-size: 14px;
   }
@@ -190,7 +226,7 @@ body {
   }
 }
 
-@media (max-width: 576px) {
+@media (max-width: 575px) {
   :root {
     font-size: 13px;
   }
@@ -231,7 +267,7 @@ body {
   overflow-y: auto;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767px) {
   .ant-tooltip {
     max-width: calc(100vw - 16px);
   }

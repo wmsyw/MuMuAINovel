@@ -3,6 +3,7 @@ import { EditOutlined, DeleteOutlined, UserOutlined, BankOutlined, ExportOutline
 import { characterCardStyles } from '../common/CardStyles';
 import type { Character } from '../../types';
 import { getOrganizationPurpose, getOrganizationType, isOrganizationEntity } from '../../utils/entityCompatibility';
+import { sx } from '../../styles/sx';
 
 const { Text, Paragraph } = Typography;
 
@@ -57,16 +58,16 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({ character, onEdit,
     };
     const config = statusConfig[charStatus];
     if (!config) return null;
-    return <Tag color={config.color} style={{ marginLeft: 4 }}>{config.label}</Tag>;
+    return <Tag color={config.color} className="u-54p264">{config.label}</Tag>;
   };
 
   return (
     <Card
       hoverable
-      style={{
+      className={sx({
         ...(isOrganization ? characterCardStyles.organizationCard : characterCardStyles.characterCard),
         ...(isInactive ? { opacity: 0.6, filter: 'grayscale(40%)' } : {}),
-      }}
+      })}
       styles={{
         body: {
           flex: 1,
@@ -95,14 +96,14 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({ character, onEdit,
       <Card.Meta
         avatar={
           isOrganization ? (
-            <BankOutlined style={{ fontSize: 32, color: token.colorSuccess }} />
+            <BankOutlined className={sx({ fontSize: 32, color: token.colorSuccess })} />
           ) : (
-            <UserOutlined style={{ fontSize: 32, color: token.colorPrimary }} />
+            <UserOutlined className={sx({ fontSize: 32, color: token.colorPrimary })} />
           )
         }
         title={
           <Space>
-            <span style={characterCardStyles.nameEllipsis}>{character.name}</span>
+            <span className={sx(characterCardStyles.nameEllipsis)}>{character.name}</span>
             {isOrganization ? (
               <Tag color="green">组织</Tag>
             ) : (
@@ -116,27 +117,27 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({ character, onEdit,
           </Space>
         }
         description={
-          <div style={characterCardStyles.descriptionBlock}>
+          <div className={sx(characterCardStyles.descriptionBlock)}>
             {/* 角色特有字段 */}
             {!isOrganization && (
               <>
                 {character.age && (
-                  <div style={{ marginBottom: 8, display: 'flex', alignItems: 'flex-start' }}>
-                    <Text type="secondary" style={{ flexShrink: 0 }}>年龄：</Text>
-                    <Text style={{ flex: 1 }}>{character.age}</Text>
+                  <div className="u-qddwav">
+                    <Text type="secondary" className="u-xj35t1">年龄：</Text>
+                    <Text className="u-e4rq7y">{character.age}</Text>
                   </div>
                 )}
                 {character.gender && (
-                  <div style={{ marginBottom: 8, display: 'flex', alignItems: 'flex-start' }}>
-                    <Text type="secondary" style={{ flexShrink: 0 }}>性别：</Text>
-                    <Text style={{ flex: 1 }}>{character.gender}</Text>
+                  <div className="u-qddwav">
+                    <Text type="secondary" className="u-xj35t1">性别：</Text>
+                    <Text className="u-e4rq7y">{character.gender}</Text>
                   </div>
                 )}
                 {character.personality && (
-                  <div style={{ marginBottom: 8, display: 'flex', alignItems: 'flex-start' }}>
-                    <Text type="secondary" style={{ flexShrink: 0 }}>性格：</Text>
+                  <div className="u-qddwav">
+                    <Text type="secondary" className="u-xj35t1">性格：</Text>
                     <Text
-                      style={{ flex: 1, minWidth: 0 }}
+                      className="u-niv4z9"
                       ellipsis={{ tooltip: character.personality }}
                     >
                       {character.personality}
@@ -144,10 +145,10 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({ character, onEdit,
                   </div>
                 )}
                 {character.relationships && (
-                  <div style={{ marginBottom: 8, display: 'flex', alignItems: 'flex-start' }}>
-                    <Text type="secondary" style={{ flexShrink: 0 }}>关系：</Text>
+                  <div className="u-qddwav">
+                    <Text type="secondary" className="u-xj35t1">关系：</Text>
                     <Text
-                      style={{ flex: 1, minWidth: 0 }}
+                      className="u-niv4z9"
                       ellipsis={{ tooltip: character.relationships }}
                     >
                       {character.relationships}
@@ -156,21 +157,21 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({ character, onEdit,
                 )}
                 {writingFields.length > 0 && (
                   <div
-                    style={{
+                    className={sx({
                       marginTop: 10,
                       paddingTop: 10,
                       borderTop: `1px dashed ${token.colorBorderSecondary}`,
-                    }}
+                    })}
                   >
-                    <div style={{ marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <Text type="secondary" style={{ fontSize: 12 }}>写作卡片</Text>
+                    <div className="u-1fb5q26">
+                      <Text type="secondary" className="u-1pw6xki">写作卡片</Text>
                       <Tag color="blue">v{character.card_version || 1}</Tag>
                     </div>
                     {writingFields.map((item) => (
-                      <div key={item.label} style={{ marginBottom: 6, display: 'flex', alignItems: 'flex-start' }}>
-                        <Text type="secondary" style={{ flexShrink: 0 }}>{item.label}：</Text>
+                      <div key={item.label} className="u-b5f58h">
+                        <Text type="secondary" className="u-xj35t1">{item.label}：</Text>
                         <Text
-                          style={{ flex: 1, minWidth: 0 }}
+                          className="u-niv4z9"
                           ellipsis={{ tooltip: item.value }}
                         >
                           {item.value}
@@ -186,24 +187,24 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({ character, onEdit,
             {isOrganization && (
               <>
                 {organizationType && (
-                  <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center' }}>
-                    <Text type="secondary" style={{ flexShrink: 0 }}>类型：</Text>
+                  <div className="u-1d1vsb6">
+                    <Text type="secondary" className="u-xj35t1">类型：</Text>
                     <Tag color="cyan">{organizationType}</Tag>
                   </div>
                 )}
                 {character.power_level !== undefined && character.power_level !== null && (
-                  <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center' }}>
-                    <Text type="secondary" style={{ flexShrink: 0 }}>势力等级：</Text>
+                  <div className="u-1d1vsb6">
+                    <Text type="secondary" className="u-xj35t1">势力等级：</Text>
                     <Tag color={character.power_level >= 70 ? 'red' : character.power_level >= 50 ? 'orange' : 'default'}>
                       {character.power_level}
                     </Tag>
                   </div>
                 )}
                 {character.location && (
-                  <div style={{ marginBottom: 8, display: 'flex', alignItems: 'flex-start' }}>
-                    <Text type="secondary" style={{ flexShrink: 0 }}>所在地：</Text>
+                  <div className="u-qddwav">
+                    <Text type="secondary" className="u-xj35t1">所在地：</Text>
                     <Text
-                      style={{ flex: 1, minWidth: 0 }}
+                      className="u-niv4z9"
                       ellipsis={{ tooltip: character.location }}
                     >
                       {character.location}
@@ -211,16 +212,16 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({ character, onEdit,
                   </div>
                 )}
                 {character.color && (
-                  <div style={{ marginBottom: 8, display: 'flex', alignItems: 'flex-start' }}>
-                    <Text type="secondary" style={{ flexShrink: 0 }}>代表颜色：</Text>
-                    <Text style={{ flex: 1, minWidth: 0 }}>{character.color}</Text>
+                  <div className="u-qddwav">
+                    <Text type="secondary" className="u-xj35t1">代表颜色：</Text>
+                    <Text className="u-niv4z9">{character.color}</Text>
                   </div>
                 )}
                 {character.motto && (
-                  <div style={{ marginBottom: 8, display: 'flex', alignItems: 'flex-start' }}>
-                    <Text type="secondary" style={{ flexShrink: 0 }}>格言：</Text>
+                  <div className="u-qddwav">
+                    <Text type="secondary" className="u-xj35t1">格言：</Text>
                     <Text
-                      style={{ flex: 1, minWidth: 0 }}
+                      className="u-niv4z9"
                       ellipsis={{ tooltip: character.motto }}
                     >
                       {character.motto}
@@ -228,10 +229,10 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({ character, onEdit,
                   </div>
                 )}
                 {organizationPurpose && (
-                  <div style={{ marginBottom: 8, display: 'flex', alignItems: 'flex-start' }}>
-                    <Text type="secondary" style={{ flexShrink: 0 }}>目的：</Text>
+                  <div className="u-qddwav">
+                    <Text type="secondary" className="u-xj35t1">目的：</Text>
                     <Text
-                      style={{ flex: 1, minWidth: 0 }}
+                      className="u-niv4z9"
                       ellipsis={{ tooltip: organizationPurpose }}
                     >
                       {organizationPurpose}
@@ -239,9 +240,9 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({ character, onEdit,
                   </div>
                 )}
                 {character.organization_members && (
-                  <div style={{ marginBottom: 8, display: 'flex', alignItems: 'flex-start' }}>
-                    <Text type="secondary" style={{ flexShrink: 0 }}>成员：</Text>
-                    <Text style={{ flex: 1, minWidth: 0, fontSize: 12, lineHeight: 1.6, wordBreak: 'break-all' }}>
+                  <div className="u-qddwav">
+                    <Text type="secondary" className="u-xj35t1">成员：</Text>
+                    <Text className="u-1gxsf4d">
                       {typeof character.organization_members === 'string'
                         ? character.organization_members
                         : JSON.stringify(character.organization_members)}
@@ -253,10 +254,10 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({ character, onEdit,
 
             {/* 通用字段 - 背景信息截断显示 */}
             {character.background && (
-              <div style={{ marginTop: 12 }}>
+              <div className="u-nj5fkd">
                 <Paragraph
                   type="secondary"
-                  style={{ fontSize: 12, marginBottom: 0 }}
+                  className="u-k4wxjw"
                   ellipsis={{ tooltip: character.background, rows: 3 }}
                 >
                   {character.background}

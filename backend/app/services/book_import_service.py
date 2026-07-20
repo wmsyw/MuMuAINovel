@@ -49,6 +49,12 @@ from app.services.character_card_service import normalize_character_card_fields
 from app.services.extraction_service import run_project_extraction_trigger_after_commit
 from app.services.prompt_service import PromptService
 from app.services.relationship_merge_service import RelationshipMergeService
+from app.services.world_setting_data_service import (
+    dynamic_prompt_values,
+    merge_project_world_setting_data,
+    normalize_world_setting_data,
+    world_setting_context,
+)
 from app.services.txt_parser_service import txt_parser_service
 
 logger = get_logger(__name__)
@@ -738,6 +744,17 @@ class BookImportService:
                 wizard_step=1,
                 outline_mode="one-to-one",
                 current_words=0,
+                world_setting_data=normalize_world_setting_data(
+                    None,
+                    legacy_values={
+                        "world_time_period": world_time_period,
+                        "world_location": world_location,
+                        "world_atmosphere": world_atmosphere,
+                        "world_rules": world_rules,
+                    },
+                    default_template_name="拆书导入世界设定",
+                    require_required=False,
+                ),
                 target_words=max(1000, int(suggestion.target_words or 100000)),
                 narrative_perspective=(suggestion.narrative_perspective or "第三人称")[:50],
                 world_time_period=world_time_period,
@@ -768,6 +785,15 @@ class BookImportService:
             project.world_location = world_location
             project.world_atmosphere = world_atmosphere
             project.world_rules = world_rules
+            merge_project_world_setting_data(
+                project,
+                legacy_updates={
+                    "world_time_period": world_time_period,
+                    "world_location": world_location,
+                    "world_atmosphere": world_atmosphere,
+                    "world_rules": world_rules,
+                },
+            )
 
         await self._ensure_project_default_style(db=db, project_id=project.id)
         return project
@@ -1775,7 +1801,9 @@ class BookImportService:
                 genre=project.genre or "通用",
                 theme=project.theme or "未设定",
                 description=project.description or "暂无简介",
+                **dynamic_prompt_values(project),
             )
+            prompt = f"{prompt}\n\n【当前世界设定】\n{world_setting_context(project)}"
 
             await _notify("🌍 AI正在生成世界观...", 0.3)
             world_data = await ai_service.call_with_json_retry(
@@ -1805,6 +1833,15 @@ class BookImportService:
             if rules:
                 project.world_rules = rules
                 updated = 1
+            merge_project_world_setting_data(
+                project,
+                legacy_updates={
+                    "world_time_period": time_period if time_period else project.world_time_period,
+                    "world_location": location if location else project.world_location,
+                    "world_atmosphere": atmosphere if atmosphere else project.world_atmosphere,
+                    "world_rules": rules if rules else project.world_rules,
+                },
+            )
 
             await _notify("🌍 世界观写入完成", 1.0)
             return updated

@@ -1,9 +1,9 @@
 """项目数据模型"""
-from sqlalchemy import Column, String, Text, DateTime, Integer, CheckConstraint
+from sqlalchemy import Column, String, Text, DateTime, Integer, CheckConstraint, JSON
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import func
 from app.database import Base
 import uuid
-
 
 class Project(Base):
     """项目表"""
@@ -27,6 +27,10 @@ class Project(Base):
     world_location = Column(Text, comment="地理位置")
     world_atmosphere = Column(Text, comment="氛围基调")
     world_rules = Column(Text, comment="世界规则")
+    world_setting_data = Column(
+        JSON().with_variant(JSONB(astext_type=Text()), "postgresql"),
+        comment="动态世界设定字段、定义与模板来源",
+    )
     
     # 项目配置
     chapter_count = Column(Integer, comment="章节数量")

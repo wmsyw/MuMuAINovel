@@ -1,6 +1,7 @@
 import React from 'react';
 import { Modal, Spin, Button, theme } from 'antd';
 import { LoadingOutlined, StopOutlined } from '@ant-design/icons';
+import { sx } from '../../styles/sx';
 
 interface SSEProgressModalProps {
   visible: boolean;
@@ -50,36 +51,33 @@ export const SSEProgressModal: React.FC<SSEProgressModalProps> = ({
       <div>
         {/* 标题和图标 */}
         {showIcon && (
-          <div style={{
-            textAlign: 'center',
-            marginBottom: 24
-          }}>
+          <div className="u-cjci96">
             <Spin
-              indicator={<LoadingOutlined style={{ fontSize: 48, color: token.colorPrimary }} spin />}
+              indicator={<LoadingOutlined className={sx({ fontSize: 48, color: token.colorPrimary })} spin />}
             />
-            <div style={{
+            <div className={sx({
               fontSize: 20,
               fontWeight: 'bold',
               marginTop: 16,
               color: token.colorText
-            }}>
+            })}>
               {title}
             </div>
           </div>
         )}
 
         {/* 进度条 */}
-        <div style={{
+        <div className={sx({
           marginBottom: showPercentage ? 16 : 24
-        }}>
-          <div style={{
+        })}>
+          <div className={sx({
             height: 12,
             background: token.colorBgLayout,
             borderRadius: 6,
             overflow: 'hidden',
             marginBottom: showPercentage ? 12 : 0
-          }}>
-            <div style={{
+          })}>
+            <div className={sx({
               height: '100%',
               background: progress === 100
                 ? `linear-gradient(90deg, ${token.colorSuccess} 0%, ${token.colorSuccess} 100%)`
@@ -88,51 +86,48 @@ export const SSEProgressModal: React.FC<SSEProgressModalProps> = ({
               transition: 'all 0.3s ease',
               borderRadius: 6,
               boxShadow: progress > 0 ? token.boxShadow : 'none'
-            }} />
+            })} />
           </div>
 
           {/* 进度百分比 */}
           {showPercentage && (
-            <div style={{
+            <div className={sx({
               textAlign: 'center',
               fontSize: 32,
               fontWeight: 'bold',
               color: progress === 100 ? token.colorSuccess : token.colorPrimary,
               marginBottom: 8
-            }}>
+            })}>
               {progress}%
             </div>
           )}
         </div>
 
         {/* 状态消息 */}
-        <div style={{
+        <div className={sx({
           textAlign: 'center',
           fontSize: 16,
           color: token.colorTextSecondary,
           minHeight: 24,
           padding: '0 20px',
           marginBottom: 16
-        }}>
+        })}>
           {message || '准备生成...'}
         </div>
 
         {/* 提示文字 */}
-        <div style={{
+        <div className={sx({
           textAlign: 'center',
           fontSize: 13,
           color: token.colorTextTertiary,
           marginBottom: onCancel ? 16 : 0
-        }}>
+        })}>
           请勿关闭页面，生成过程需要一定时间
         </div>
 
         {/* 取消按钮 */}
         {onCancel && (
-          <div style={{
-            textAlign: 'center',
-            marginTop: 16
-          }}>
+          <div className="u-l9dl0h">
             <Button
               danger
               size="large"

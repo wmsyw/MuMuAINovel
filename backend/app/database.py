@@ -24,7 +24,7 @@ from app.models import (
     RelationshipTimelineEvent, WorldSettingResult,
     StoryMemory, PlotAnalysis, AnalysisTask, BatchGenerationTask,
 RegenerationTask, Career, CharacterCareer, Goldfinger, GoldfingerHistoryEvent,
-    User, MCPPlugin, PromptTemplate,
+    User, MCPPlugin, PromptTemplate, InspirationTemplate, WorldSettingTemplate,
     BackgroundTask, Announcement, CreativeSession, CreativeSessionMessage, ProjectAsset
 )
 

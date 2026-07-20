@@ -11,6 +11,7 @@ import GoldfingerImportExportModal from '../components/goldfingers/GoldfingerImp
 import GoldfingerList from '../components/goldfingers/GoldfingerList';
 import GoldfingerPendingReviewPanel from '../components/goldfingers/GoldfingerPendingReviewPanel';
 import { formatConfidence, getGoldfingerStatusMeta, stringifyGoldfingerValue } from '../components/goldfingers/constants';
+import { sx } from '../styles/sx';
 
 const { Title, Paragraph, Text } = Typography;
 
@@ -155,16 +156,16 @@ export default function Goldfingers() {
   const selectedStatus = selected ? getGoldfingerStatusMeta(selected.status) : null;
 
   return (
-    <div style={{ height: '100%', overflow: 'auto', paddingRight: 4 }}>
-      <Space direction="vertical" size="large" style={{ width: '100%' }}>
+    <div className="u-1hfyjka">
+      <Space direction="vertical" size="large" className="u-1f3r3s">
         <Card>
-          <Space align="start" style={{ width: '100%', justifyContent: 'space-between' }} wrap>
+          <Space align="start" className="u-1qos3j5" wrap>
             <Space direction="vertical" size={4}>
               <Space>
-                <ThunderboltOutlined style={{ color: token.colorWarning, fontSize: 24 }} />
-                <Title level={3} style={{ margin: 0 }}>金手指管理</Title>
+                <ThunderboltOutlined className={sx({ color: token.colorWarning, fontSize: 24 })} />
+                <Title level={3} className="u-avalr8">金手指管理</Title>
               </Space>
-              <Paragraph type="secondary" style={{ marginBottom: 0 }}>
+              <Paragraph type="secondary" className="u-1sezbee">
                 独立维护项目中的系统、神器、血脉、外挂能力等金手指设定，并审核正文同步产生的候选变更。
               </Paragraph>
             </Space>
@@ -244,7 +245,7 @@ export default function Goldfingers() {
         extra={selected && <Button type="primary" onClick={() => openEdit(selected)}>编辑</Button>}
       >
         {selected && (
-          <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <Space direction="vertical" size="middle" className="u-1f3r3s">
             <Descriptions bordered column={1} size="small">
               <Descriptions.Item label="名称">{selected.name}</Descriptions.Item>
               <Descriptions.Item label="规范名">{selected.normalized_name || '—'}</Descriptions.Item>
@@ -256,11 +257,11 @@ export default function Goldfingers() {
               <Descriptions.Item label="最后来源章节">{selected.last_source_chapter_id || '—'}</Descriptions.Item>
             </Descriptions>
             <Card size="small" title="概要">
-              <Paragraph style={{ marginBottom: 0 }}>{selected.summary || '暂无概要'}</Paragraph>
+              <Paragraph className="u-1sezbee">{selected.summary || '暂无概要'}</Paragraph>
             </Card>
             {detailFields.map(([field, label]) => (
               <Card size="small" title={label} key={field}>
-                <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit' }}>
+                <pre className="u-1sxafqx">
                   {stringifyGoldfingerValue(selected[field])}
                 </pre>
               </Card>

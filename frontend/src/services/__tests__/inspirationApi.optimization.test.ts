@@ -123,4 +123,29 @@ describe('inspirationApi shared optimization contracts', () => {
       issue_ids: ['consistency-1'],
     });
   });
+  it('serializes platform, channel, and refinement fields for batch generation', async () => {
+    await inspirationApi.batchGenerate({
+      base_idea: '星桥断裂后的归乡故事',
+      platform: 'qidian',
+      channel: '男频',
+      genre_tags: ['科幻'],
+      plot_keywords: ['归乡'],
+      character_traits: ['失忆'],
+      count: 3,
+      extra_requirement: '强化第一章悬念',
+      previous_cards: [sampleCard],
+    });
+
+    expect(mocks.post).toHaveBeenCalledWith('/inspiration/batch-generate', {
+      base_idea: '星桥断裂后的归乡故事',
+      platform: 'qidian',
+      channel: '男频',
+      genre_tags: ['科幻'],
+      plot_keywords: ['归乡'],
+      character_traits: ['失忆'],
+      count: 3,
+      extra_requirement: '强化第一章悬念',
+      previous_cards: [sampleCard],
+    });
+  });
 });

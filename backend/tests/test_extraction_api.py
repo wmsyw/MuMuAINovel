@@ -12,7 +12,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.database import Base, get_db
 from app.middleware import auth_middleware
-from app.models import Character, Chapter, EntityProvenance, ExtractionCandidate, ExtractionRun, Project
+from app.models import Character, Chapter, EntityProvenance, ExtractionCandidate, ExtractionRun, Goldfinger, OrganizationEntity, Project
 from app.security import create_session_token
 
 
@@ -215,6 +215,7 @@ def _candidate(
     status: str = "pending",
     canonical_target_type: str | None = None,
     canonical_target_id: str | None = None,
+    payload: dict[str, Any] | None = None,
 ) -> ExtractionCandidate:
     return ExtractionCandidate(
         id=candidate_id,
@@ -241,7 +242,7 @@ def _candidate(
         valid_from_chapter_id="chapter-api-1",
         valid_from_chapter_order=1,
         story_time_label="第一章",
-        payload={"display_name": display_name, "name": display_name, "aliases": []},
+        payload={"display_name": display_name, "name": display_name, "aliases": [], **(payload or {})},
         raw_payload={"candidate_type": candidate_type, "display_name": display_name},
     )
 
@@ -303,6 +304,7 @@ def test_router_is_registered_under_api_and_lists_stable_json(api_client: tuple[
         "payload",
         "canonical_target_type",
         "canonical_target_id",
+        "review_required_reason",
     }.issubset(first)
 
     targeted = client.get("/api/extraction/candidates", params={"project_id": PROJECT_ID, "canonical_target": "character:char-existing"})
@@ -373,6 +375,64 @@ def test_rollback_candidate_supersedes_merge_side_effects(api_client: tuple[Test
             return [str(status) for status in result.scalars().all()]
 
     assert provenance_statuses() == ["rolled_back"]
+
+
+def test_batch_accept_uses_item_savepoints_and_exposes_ambiguity_reason(api_client: tuple[TestClient, sessionmaker[Session]]) -> None:
+    client, session_factory = api_client
+    _seed_base(session_factory)
+    with session_factory() as session:
+        session.add(
+            _candidate(
+                "cand-affiliation-ambiguous",
+                "新组织",
+                candidate_type="organization_affiliation",
+                payload={"character": "不存在角色", "current_organization": "新组织"},
+            )
+        )
+        session.commit()
+
+    before_organizations = _count(session_factory, OrganizationEntity)
+    response = client.post(
+        "/api/extraction/candidates/batch-accept",
+        json={"candidate_ids": ["cand-accept", "cand-affiliation-ambiguous"]},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["changed"] == 1
+    assert [failure["candidate_id"] for failure in payload["failures"]] == ["cand-affiliation-ambiguous"]
+    assert _candidate_status(session_factory, "cand-accept") == "accepted"
+    assert _candidate_status(session_factory, "cand-affiliation-ambiguous") == "pending"
+    assert _count(session_factory, OrganizationEntity) == before_organizations
+    detail = client.get("/api/extraction/candidates/cand-affiliation-ambiguous")
+    assert detail.status_code == 200
+    assert detail.json()["review_required_reason"] == "affiliation character or organization is ambiguous"
+
+
+def test_batch_accept_dispatches_goldfinger_and_returns_committed_candidate(api_client: tuple[TestClient, sessionmaker[Session]]) -> None:
+    client, session_factory = api_client
+    _seed_base(session_factory)
+    with session_factory() as session:
+        session.add(
+            _candidate(
+                "cand-goldfinger",
+                "命运系统",
+                candidate_type="goldfinger",
+                payload={"type": "system", "summary": "发布任务", "status": "active"},
+            )
+        )
+        session.commit()
+
+    response = client.post("/api/extraction/candidates/batch-accept", json={"candidate_ids": ["cand-goldfinger"]})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["changed"] == 1
+    assert payload["candidates"][0]["status"] == "accepted"
+    assert payload["candidates"][0]["canonical_target_type"] == "goldfinger"
+    assert payload["candidates"][0]["canonical_target_id"]
+    assert payload["candidates"][0]["review_required_reason"] is None
+    assert _count(session_factory, Goldfinger) == 1
 
 
 def test_openapi_schema_generation_includes_extraction_paths(api_client: tuple[TestClient, sessionmaker[Session]]) -> None:

@@ -1,5 +1,6 @@
 import React, { useMemo, useEffect, useRef } from 'react';
 import { theme } from 'antd';
+import { sx } from '../../styles/sx';
 
 // 标注数据类型
 export interface MemoryAnnotation {
@@ -33,7 +34,7 @@ interface AnnotatedTextProps {
   onAnnotationClick?: (annotation: MemoryAnnotation) => void;
   activeAnnotationId?: string;
   scrollToAnnotation?: string;
-  style?: React.CSSProperties;
+  className?: string;
 }
 
 // 类型图标映射
@@ -42,6 +43,14 @@ const TYPE_ICONS = {
   foreshadow: '🌟',
   plot_point: '💎',
   character_event: '👤',
+};
+const ANNOTATED_SEGMENT_STYLE = {
+  position: 'relative',
+  borderBottom: '2px solid var(--annotation-color)',
+  cursor: 'pointer',
+  backgroundColor: 'var(--annotation-background-color, transparent)',
+  transition: 'all 0.2s',
+  padding: '2px 0',
 };
 
 /**
@@ -54,7 +63,7 @@ const AnnotatedText: React.FC<AnnotatedTextProps> = ({
   onAnnotationClick,
   activeAnnotationId,
   scrollToAnnotation,
-  style,
+  className,
 }) => {
   const annotationRefs = useRef<Record<string, HTMLSpanElement | null>>({});
 
@@ -227,37 +236,28 @@ const AnnotatedText: React.FC<AnnotatedTextProps> = ({
           if (annotation) {
             annotationRefs.current[annotation.id] = el;
           }
+          if (!el) return;
+          el.style.setProperty('--annotation-color', color);
+          el.style.setProperty(
+            '--annotation-background-color',
+            isActive ? `color-mix(in srgb, ${color} 13%, transparent)` : 'transparent',
+          );
+          el.style.setProperty('--annotation-hover-bg', `color-mix(in srgb, ${color} 20%, transparent)`);
         }}
         data-annotation-id={annotation?.id}
-        className={`annotated-text ${isActive ? 'active' : ''}`}
-        style={{
-          position: 'relative',
-          borderBottom: `2px solid ${color}`,
-          cursor: 'pointer',
-          backgroundColor: isActive ? `color-mix(in srgb, ${color} 13%, transparent)` : 'transparent',
-          transition: 'all 0.2s',
-          padding: '2px 0',
-        }}
+        className={sx(`annotated-text ${isActive ? 'active' : ''}`, ANNOTATED_SEGMENT_STYLE)}
         onClick={() => onAnnotationClick?.(annotation)}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = `color-mix(in srgb, ${color} 20%, transparent)`;
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = isActive
-            ? `color-mix(in srgb, ${color} 13%, transparent)`
-            : 'transparent';
-        }}
       >
         {segment.content}
         <span
-          style={{
+          className={sx({
             position: 'absolute',
             top: -20,
             left: '50%',
             transform: 'translateX(-50%)',
             fontSize: 14,
             pointerEvents: 'none',
-          }}
+          })}
         >
           {icon}
         </span>
@@ -267,13 +267,12 @@ const AnnotatedText: React.FC<AnnotatedTextProps> = ({
 
   return (
     <div
-      style={{
+      className={sx(className, {
         lineHeight: 2,
         fontSize: 16,
         whiteSpace: 'pre-wrap',
         wordBreak: 'break-word',
-        ...style,
-      }}
+      })}
     >
       {segments.map((segment, index) => renderAnnotatedSegment(segment, index))}
     </div>

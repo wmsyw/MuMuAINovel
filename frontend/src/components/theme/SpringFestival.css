@@ -6,6 +6,13 @@
 
 /* ===== 控制按钮 ===== */
 .sf-toggle-btn {
+  position: fixed;
+  left: calc(var(--sf-btn-x, 50vw) - 22px);
+  top: calc(var(--sf-btn-y, 50vh) - 22px);
+  transition: left 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), top 0.1s ease;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
   z-index: 9999;
   width: 44px;
   height: 44px;
@@ -29,6 +36,8 @@
 }
 
 .sf-toggle-btn.sf-dragging {
+  cursor: grabbing;
+  transition: none;
   animation: none;
   box-shadow: 0 8px 32px rgba(255, 0, 0, 0.6), 0 0 40px rgba(255, 215, 0, 0.6);
   transform: scale(1.1);
@@ -277,7 +286,11 @@
 .sf-falling-item {
   position: absolute;
   top: -40px;
+  left: var(--sf-falling-left, 0%);
   animation: sf-fall linear forwards;
+  animation-delay: var(--sf-falling-delay, 0s);
+  animation-duration: var(--sf-falling-duration, 8s);
+  font-size: var(--sf-falling-size, 16px);
   opacity: 0.8;
   will-change: transform;
 }
@@ -327,7 +340,7 @@
 }
 
 /* ===== 移动端适配 ===== */
-@media (max-width: 768px) {
+@media (max-width: 767px) {
   /* 灯笼缩小并调整位置 */
   .sf-lantern-left {
     left: calc(50% - 160px);
@@ -390,7 +403,7 @@
 }
 
 /* 更小屏幕 */
-@media (max-width: 576px) {
+@media (max-width: 575px) {
   .sf-lantern-left {
     left: calc(50% - 100px);
   }

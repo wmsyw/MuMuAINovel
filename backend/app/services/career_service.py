@@ -12,6 +12,7 @@ from app.services.entity_generation_policy_service import (
     entity_generation_policy_service,
 )
 from app.logger import get_logger
+from app.services.world_setting_data_service import dynamic_world_setting_context
 
 logger = get_logger(__name__)
 
@@ -45,6 +46,7 @@ class CareerService:
 - 地理位置：{project.world_location or '未设定'}
 - 氛围基调：{project.world_atmosphere or '未设定'}
 - 世界规则：{project.world_rules or '未设定'}
+{dynamic_world_setting_context(project)}
 """
         
         user_requirements = f"""

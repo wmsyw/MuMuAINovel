@@ -30,9 +30,13 @@ function compareVersion(v1: string, v2: string): number {
  * 优点：无 CORS 问题，自动从 GitHub 获取，无需维护
  */
 export async function checkLatestVersion(): Promise<VersionCheckResult> {
+  const repositorySlug = (import.meta.env.VITE_REPOSITORY_SLUG || '').trim();
+  if (!repositorySlug) {
+    return { hasUpdate: false, latestVersion: VERSION_INFO.version, releaseUrl: VERSION_INFO.githubUrl };
+  }
   try {
     // 使用 shields.io 的 GitHub release badge API
-    const badgeUrl = 'https://img.shields.io/github/v/release/xiamuceer-j/MuMuAINovel';
+    const badgeUrl = `https://img.shields.io/github/v/release/${repositorySlug}`;
     
     const response = await fetch(badgeUrl, {
       method: 'GET',
@@ -63,7 +67,7 @@ export async function checkLatestVersion(): Promise<VersionCheckResult> {
         return {
           hasUpdate,
           latestVersion,
-          releaseUrl: `https://github.com/xiamuceer-j/MuMuAINovel/releases/tag/v${latestVersion}`,
+          releaseUrl: `https://github.com/${repositorySlug}/releases/tag/v${latestVersion}`,
         };
       }
     }

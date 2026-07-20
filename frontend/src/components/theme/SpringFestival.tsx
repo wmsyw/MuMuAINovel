@@ -104,6 +104,16 @@ export default function SpringFestival() {
   const [hasDragged, setHasDragged] = useState(false);
   const dragStartRef = useRef<{ startX: number; startY: number; startBtnX: number; startBtnY: number } | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
+  const applyButtonPosition = useCallback((position: BtnPosition) => {
+    const button = btnRef.current;
+    if (!button) return;
+    button.style.setProperty('--sf-btn-x', `${position.x}px`);
+    button.style.setProperty('--sf-btn-y', `${position.y}px`);
+  }, []);
+
+  useEffect(() => {
+    applyButtonPosition(btnPos);
+  }, [applyButtonPosition, btnPos]);
 
   // 生成飘落物
   const createFallingItem = useCallback((): FallingItem => {
@@ -425,24 +435,14 @@ export default function SpringFestival() {
     }
   };
 
-  // 计算按钮样式
-  const btnStyle: React.CSSProperties = {
-    position: 'fixed',
-    left: btnPos.x - 22,
-    top: btnPos.y - 22,
-    transition: isDragging ? 'none' : 'left 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), top 0.1s ease',
-    cursor: isDragging ? 'grabbing' : 'grab',
-    touchAction: 'none',
-    userSelect: 'none',
-  };
 
   return (
     <>
       {/* 控制按钮 - 始终显示，可拖动 */}
       <button
         ref={btnRef}
-        className={`sf-toggle-btn ${isDragging ? 'sf-dragging' : ''}`}
-        style={btnStyle}
+        
+        className={isDragging ? 'sf-toggle-btn sf-dragging' : 'sf-toggle-btn'}
         onMouseDown={handleDragStart}
         onTouchStart={handleDragStart}
         onClick={handleBtnClick}
@@ -531,13 +531,15 @@ export default function SpringFestival() {
             {fallingItems.map(item => (
               <span
                 key={item.id}
-                className="sf-falling-item"
-                style={{
-                  left: `${item.left}%`,
-                  animationDelay: `${item.delay}s`,
-                  animationDuration: `${item.duration}s`,
-                  fontSize: `${item.size}px`,
+                
+                ref={(element) => {
+                  if (!element) return;
+                  element.style.setProperty('--sf-falling-left', `${item.left}%`);
+                  element.style.setProperty('--sf-falling-delay', `${item.delay}s`);
+                  element.style.setProperty('--sf-falling-duration', `${item.duration}s`);
+                  element.style.setProperty('--sf-falling-size', `${item.size}px`);
                 }}
+                className="sf-falling-item"
               >
                 {item.emoji}
               </span>

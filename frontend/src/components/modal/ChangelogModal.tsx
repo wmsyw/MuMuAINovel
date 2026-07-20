@@ -21,6 +21,7 @@ import {
   clearChangelogCache,
   type ChangelogEntry,
 } from '../../services/changelogService';
+import { sx } from '../../styles/sx';
 
 interface ChangelogModalProps {
   visible: boolean;
@@ -154,20 +155,13 @@ export default function ChangelogModal({ visible, onClose }: ChangelogModalProps
       }}
     >
       {error && (
-        <div style={{
-          padding: '16px',
-          marginBottom: '16px',
-          background: 'var(--color-error-bg)',
-          border: '1px solid var(--color-error-border)',
-          borderRadius: '4px',
-          color: 'var(--color-error)',
-        }}>
+        <div className="u-1u2ziqe">
           {error}
         </div>
       )}
 
       {loading && changelog.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '40px 0' }}>
+        <div className="u-xyu2f7">
           <Spin size="large" tip="加载更新日志中..." />
         </div>
       ) : changelog.length === 0 ? (
@@ -178,16 +172,9 @@ export default function ChangelogModal({ visible, onClose }: ChangelogModalProps
             const entries = groupedChangelog.get(date) || [];
 
             return (
-              <div key={date} style={{ marginBottom: '32px' }}>
-                <div style={{
-                  fontSize: '16px',
-                  fontWeight: 600,
-                  color: 'var(--color-primary)',
-                  marginBottom: '16px',
-                  paddingBottom: '8px',
-                  borderBottom: '2px solid var(--color-border-secondary)',
-                }}>
-                  <ClockCircleOutlined style={{ marginRight: '8px' }} />
+              <div key={date} className="u-yplvzz">
+                <div className="u-19serfh">
+                  <ClockCircleOutlined className="u-1vcwmpp" />
                   {formatDate(date)}
                 </div>
 
@@ -199,7 +186,7 @@ export default function ChangelogModal({ visible, onClose }: ChangelogModalProps
                       <Timeline.Item
                         key={entry.id}
                         dot={
-                          <div style={{
+                          <div className={sx({
                             width: '24px',
                             height: '24px',
                             borderRadius: '50%',
@@ -209,12 +196,12 @@ export default function ChangelogModal({ visible, onClose }: ChangelogModalProps
                             alignItems: 'center',
                             justifyContent: 'center',
                             fontSize: '12px',
-                          }}>
+                          })}>
                             {config.icon}
                           </div>
                         }
                       >
-                        <div style={{ marginLeft: '8px' }}>
+                        <div className="u-12ggiv4">
                           <Space size="small" wrap>
                             <Tag color={config.color} icon={config.icon}>
                               {config.label}
@@ -222,32 +209,27 @@ export default function ChangelogModal({ visible, onClose }: ChangelogModalProps
                             {entry.scope && (
                               <Tag color="blue">{entry.scope}</Tag>
                             )}
-                            <span style={{ color: 'var(--color-text-tertiary)', fontSize: '12px' }}>
+                            <span className="u-1f4syj3">
                               {formatTime(entry.date)}
                             </span>
                           </Space>
 
-                          <div style={{
-                            marginTop: '8px',
-                            fontSize: '14px',
-                            lineHeight: '1.6',
-                            color: 'var(--color-text-primary)',
-                          }}>
+                          <div className="u-h4u2wc">
                             {entry.message}
                           </div>
 
-                          <Space size="small" style={{ marginTop: '8px' }}>
+                          <Space size="small" className="u-u35y5u">
                             {entry.author.avatar && (
                               <Avatar size="small" src={entry.author.avatar} />
                             )}
-                            <span style={{ color: 'var(--color-text-secondary)', fontSize: '13px' }}>
+                            <span className="u-12wdqqg">
                               {entry.author.username || entry.author.name}
                             </span>
                             <a
                               href={entry.commitUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              style={{ fontSize: '12px' }}
+                              className="u-1pw6xki"
                             >
                               查看提交
                             </a>
@@ -263,7 +245,7 @@ export default function ChangelogModal({ visible, onClose }: ChangelogModalProps
 
           {
             hasMore && (
-              <div style={{ textAlign: 'center', marginTop: '24px' }}>
+              <div className="u-hpsvta">
                 <Button
                   type="default"
                   onClick={handleLoadMore}
@@ -277,12 +259,7 @@ export default function ChangelogModal({ visible, onClose }: ChangelogModalProps
 
           {
             !hasMore && changelog.length > 0 && (
-              <div style={{
-                textAlign: 'center',
-                color: 'var(--color-text-tertiary)',
-                padding: '16px 0',
-                fontSize: '14px',
-              }}>
+              <div className="u-k3kv3j">
                 已显示所有更新日志
               </div>
             )
@@ -290,15 +267,7 @@ export default function ChangelogModal({ visible, onClose }: ChangelogModalProps
         </>
       )}
 
-      <div style={{
-        marginTop: '24px',
-        padding: '12px',
-        background: 'var(--color-info-bg)',
-        borderRadius: '4px',
-        border: '1px solid var(--color-info-border)',
-        fontSize: '13px',
-        color: 'var(--color-primary)',
-      }}>
+      <div className="u-1yfyau8">
         💡 提示：每次打开窗口时自动获取最新更新日志，数据来源于 GitHub 提交历史
       </div>
     </Modal >

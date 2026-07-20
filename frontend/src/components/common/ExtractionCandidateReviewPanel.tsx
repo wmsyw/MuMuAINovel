@@ -11,6 +11,7 @@ import type {
   ExtractionCandidateType,
   Settings,
 } from '../../types';
+import { sx } from '../../styles/sx';
 
 const { Paragraph, Text } = Typography;
 
@@ -289,11 +290,11 @@ const ExtractionCandidateReviewPanelImpl = ({
       <Card
         key={candidate.id}
         size="small"
-        style={{
+        className={sx({
           marginBottom: 12,
           borderColor: token.colorBorderSecondary,
           borderRadius: token.borderRadiusLG,
-        }}
+        })}
         title={
           <Space wrap>
             <Tag color="geekblue">{formatCandidateType(candidate.candidate_type)}</Tag>
@@ -302,47 +303,50 @@ const ExtractionCandidateReviewPanelImpl = ({
           </Space>
         }
       >
-        <Space direction="vertical" style={{ width: '100%' }} size="middle">
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
+        <Space direction="vertical" className="u-1f3r3s" size="middle">
+          <div className="u-1i1vrcf">
             <Text type="secondary">来源：{candidate.source_chapter_number ? `第 ${candidate.source_chapter_number} 章` : '未知章节'}</Text>
             <Text type="secondary">位置：{candidate.source_start_offset}–{candidate.source_end_offset}</Text>
             {candidate.story_time_label && <Tag>{candidate.story_time_label}</Tag>}
-            <div style={{ minWidth: 160, flex: '0 1 220px' }} aria-label={`置信度 ${confidence}%`}>
+            <div className="u-ojmyea" aria-label={`置信度 ${confidence}%`}>
               <Progress percent={confidence} size="small" strokeColor={confidence >= 80 ? token.colorSuccess : token.colorPrimary} />
-              <Text type="secondary" style={{ fontSize: 12 }}>置信度 {confidence}%</Text>
+              <Text type="secondary" className="u-1pw6xki">置信度 {confidence}%</Text>
             </div>
           </div>
 
           <div
-            style={{
+            className={sx({
               padding: '10px 12px',
               background: token.colorFillTertiary,
               border: `1px solid ${token.colorBorderSecondary}`,
               borderRadius: token.borderRadius,
-            }}
+            })}
           >
-            <Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>证据片段</Text>
-            <Paragraph style={{ marginBottom: 0, whiteSpace: 'pre-wrap' }} ellipsis={{ rows: 3, expandable: true, symbol: '展开' }}>
+            <Text type="secondary" className="u-187isz9">证据片段</Text>
+            <Paragraph className="u-19o9sm6" ellipsis={{ rows: 3, expandable: true, symbol: '展开' }}>
               {candidate.evidence_text}
             </Paragraph>
           </div>
 
           {summaryFields.length > 0 && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8 }}>
+            <div className="u-bup003">
               {summaryFields.map(field => (
                 <div key={`${candidate.id}-${field.label}`}>
-                  <Text type="secondary" style={{ fontSize: 12 }}>{field.label}</Text>
+                  <Text type="secondary" className="u-1pw6xki">{field.label}</Text>
                   <div><Text>{field.value}</Text></div>
                 </div>
               ))}
             </div>
           )}
 
+          {candidate.review_required_reason && (
+            <Alert type="warning" showIcon message="需要人工评审" description={candidate.review_required_reason} />
+          )}
           {candidate.rejection_reason && (
             <Alert type="warning" showIcon message="拒绝原因" description={candidate.rejection_reason} />
           )}
 
-          <Space wrap style={{ justifyContent: 'space-between', width: '100%' }}>
+          <Space wrap className="u-1ysyvux">
             {canReview && (
               <Space wrap>
                 <Select
@@ -350,7 +354,7 @@ const ExtractionCandidateReviewPanelImpl = ({
                   showSearch
                   placeholder={`选择已入库${entityLabel}用于合并`}
                   value={targetId}
-                  style={{ minWidth: 220 }}
+                  className="u-1376ovb"
                   optionFilterProp="label"
                   onChange={(value) => setSelectedTargets(prev => ({ ...prev, [candidate.id]: value }))}
                   options={canonicalOptions.map(option => ({
@@ -403,7 +407,7 @@ const ExtractionCandidateReviewPanelImpl = ({
 
   const renderCandidateList = (items: ExtractionCandidate[], emptyText: string) => {
     if (loading) {
-      return <div style={{ padding: 32, textAlign: 'center' }}><Spin tip="加载正文发现候选..." /></div>;
+      return <div className="u-1ntu15k"><Spin tip="加载正文发现候选..." /></div>;
     }
 
     if (items.length === 0) {
@@ -438,7 +442,7 @@ const ExtractionCandidateReviewPanelImpl = ({
   ];
 
   return (
-    <Space direction="vertical" style={{ width: '100%', minHeight: 0 }} size="middle">
+    <Space direction="vertical" className="u-1qdhz5q" size="middle">
       <Alert
         type="info"
         showIcon

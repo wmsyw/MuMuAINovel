@@ -33,6 +33,7 @@ import type {
   ProjectOptimizeRequest,
   ProjectOptimizeResult,
 } from '../types';
+import { sx } from '../styles/sx';
 
 const { TextArea } = Input;
 const { Paragraph, Text, Title } = Typography;
@@ -443,12 +444,12 @@ const ProjectOptimizeModal: React.FC<ProjectOptimizeModalProps> = ({
 
     return (
       <Paragraph
-        style={{
+        className={sx({
           margin: 0,
           color: token.colorTextSecondary,
           whiteSpace: 'pre-wrap',
           wordBreak: 'break-word',
-        }}
+        })}
       >
         {value}
       </Paragraph>
@@ -463,16 +464,16 @@ const ProjectOptimizeModal: React.FC<ProjectOptimizeModalProps> = ({
     return (
       <Card
         size="small"
-        style={{
+        className={sx({
           marginTop: token.marginMD,
           borderRadius: token.borderRadiusLG,
           borderColor: isLoading ? token.colorPrimaryBorder : token.colorBorderSecondary,
           background: `linear-gradient(135deg, ${token.colorBgContainer} 0%, ${token.colorFillQuaternary} 100%)`,
-        }}
+        })}
       >
         <Spin spinning={isLoading} indicator={<LoadingOutlined spin />}>
-          <Space direction="vertical" style={{ width: '100%' }} size="small">
-            <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+          <Space direction="vertical" className="u-1f3r3s" size="small">
+            <Space className="u-1qos3j5">
               <Text strong>流式进度</Text>
               <Text type="secondary">{progress}%</Text>
             </Space>
@@ -486,14 +487,14 @@ const ProjectOptimizeModal: React.FC<ProjectOptimizeModalProps> = ({
             </Text>
             {streamText && (
               <Paragraph
-                style={{
+                className={sx({
                   margin: 0,
                   padding: token.paddingSM,
                   borderRadius: token.borderRadius,
                   background: token.colorFillTertiary,
                   whiteSpace: 'pre-wrap',
                   wordBreak: 'break-word',
-                }}
+                })}
               >
                 {streamText}
               </Paragraph>
@@ -520,49 +521,49 @@ const ProjectOptimizeModal: React.FC<ProjectOptimizeModalProps> = ({
         key={field}
         size="small"
         data-omo-field={field}
-        style={{
+        className={sx({
           borderRadius: token.borderRadiusLG,
           borderColor: fieldAccepted ? token.colorPrimaryBorder : token.colorBorderSecondary,
           background: fieldAccepted
             ? `linear-gradient(135deg, ${token.colorBgContainer} 0%, ${token.colorFillQuaternary} 100%)`
             : token.colorFillQuaternary,
-        }}
+        })}
       >
         <div
-          style={{
+          className={sx({
             display: 'grid',
             gridTemplateColumns: 'minmax(110px, 0.7fr) minmax(180px, 1.2fr) minmax(220px, 1.6fr) minmax(120px, 0.6fr)',
             gap: token.marginMD,
             alignItems: 'start',
-          }}
+          })}
         >
           <Space direction="vertical" size={4}>
             <Space wrap>
               <Text strong>{FIELD_LABELS[field]}</Text>
               {unchanged && <Tag color="default">无变化</Tag>}
             </Space>
-            <Text type="secondary" style={{ fontSize: 12 }}>{field}</Text>
+            <Text type="secondary" className="u-1pw6xki">{field}</Text>
           </Space>
 
           <div>
-            <Text type="secondary" style={{ display: 'block', marginBottom: token.marginXXS }}>
+            <Text type="secondary" className={sx({ display: 'block', marginBottom: token.marginXXS })}>
               原值
             </Text>
             <div
-              style={{
+              className={sx({
                 minHeight: 44,
                 padding: token.paddingSM,
                 borderRadius: token.borderRadius,
                 background: token.colorFillTertiary,
                 border: `1px solid ${token.colorBorderSecondary}`,
-              }}
+              })}
             >
               {renderOriginalValue(field)}
             </div>
           </div>
 
           <div>
-            <Text type="secondary" style={{ display: 'block', marginBottom: token.marginXXS }}>
+            <Text type="secondary" className={sx({ display: 'block', marginBottom: token.marginXXS })}>
               建议值（可编辑）
             </Text>
             <TextArea
@@ -573,12 +574,12 @@ const ProjectOptimizeModal: React.FC<ProjectOptimizeModalProps> = ({
               disabled={isBusy || !fieldAccepted}
               onChange={event => updateEditedValue(field, event.target.value)}
             />
-            <Text type="secondary" style={{ display: 'block', marginTop: token.marginXS, lineHeight: 1.6 }}>
+            <Text type="secondary" className={sx({ display: 'block', marginTop: token.marginXS, lineHeight: 1.6 })}>
               理由：{suggestion.reason || 'AI 未提供理由'}
             </Text>
           </div>
 
-          <Space direction="vertical" size={8} style={{ width: '100%' }}>
+          <Space direction="vertical" size={8} className="u-1f3r3s">
             <Text type="secondary">接受 / 拒绝</Text>
             <Switch
               checked={fieldAccepted}
@@ -599,7 +600,7 @@ const ProjectOptimizeModal: React.FC<ProjectOptimizeModalProps> = ({
     }
 
     return (
-      <Space direction="vertical" style={{ width: '100%', marginTop: token.marginMD }} size="middle">
+      <Space direction="vertical" className={sx({ width: '100%', marginTop: token.marginMD })} size="middle">
         <Alert
           type={suggestionFields.length > 0 ? 'success' : 'warning'}
           showIcon
@@ -627,7 +628,7 @@ const ProjectOptimizeModal: React.FC<ProjectOptimizeModalProps> = ({
             }
             size="small"
           >
-            <Space direction="vertical" style={{ width: '100%' }} size="middle">
+            <Space direction="vertical" className="u-1f3r3s" size="middle">
               {suggestionFields.map(renderFieldReview)}
             </Space>
           </Card>
@@ -648,7 +649,7 @@ const ProjectOptimizeModal: React.FC<ProjectOptimizeModalProps> = ({
             <Form.Item
               label="追加诉求"
               tooltip="会携带当前已接受且编辑后的字段草稿，以及本弹窗内的临时对话历史再次请求。关闭弹窗后历史会清空。"
-              style={{ marginBottom: token.marginSM }}
+              className={sx({ marginBottom: token.marginSM })}
             >
               <TextArea
                 rows={3}
@@ -678,7 +679,7 @@ const ProjectOptimizeModal: React.FC<ProjectOptimizeModalProps> = ({
     <Modal
       title={
         <Space>
-          <EditOutlined style={{ color: token.colorPrimary }} />
+          <EditOutlined className={sx({ color: token.colorPrimary })} />
           <span>AI 项目优化</span>
         </Space>
       }
@@ -688,7 +689,7 @@ const ProjectOptimizeModal: React.FC<ProjectOptimizeModalProps> = ({
       centered
       maskClosable={!isBusy}
       footer={
-        <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+        <Space className="u-1qyyh4r">
           <Button icon={<CloseOutlined />} onClick={handleCancel} disabled={isApplying}>
             取消
           </Button>
@@ -710,7 +711,7 @@ const ProjectOptimizeModal: React.FC<ProjectOptimizeModalProps> = ({
         },
       }}
     >
-      <Space direction="vertical" style={{ width: '100%' }} size="middle">
+      <Space direction="vertical" className="u-1f3r3s" size="middle">
         <Alert
           type="info"
           showIcon
@@ -720,16 +721,16 @@ const ProjectOptimizeModal: React.FC<ProjectOptimizeModalProps> = ({
 
         <Card
           size="small"
-          style={{
+          className={sx({
             borderRadius: token.borderRadiusLG,
             background: `linear-gradient(135deg, ${token.colorBgContainer} 0%, ${token.colorFillQuaternary} 100%)`,
-          }}
+          })}
         >
           <Form layout="vertical" disabled={isApplying}>
             <Form.Item
               label="优化诉求（可选）"
               tooltip="留空表示均衡改进；重新点击开始优化会开启一轮新的临时对话。"
-              style={{ marginBottom: token.marginSM }}
+              className={sx({ marginBottom: token.marginSM })}
             >
               <TextArea
                 rows={3}
@@ -769,11 +770,11 @@ const ProjectOptimizeModal: React.FC<ProjectOptimizeModalProps> = ({
 
         {renderProgressPanel()}
 
-        {result && <Divider style={{ margin: `${token.marginSM}px 0` }} />}
+        {result && <Divider className={sx({ margin: `${token.marginSM}px 0` })} />}
 
         {result && (
           <div>
-            <Title level={5} style={{ marginTop: 0 }}>
+            <Title level={5} className="u-v3zsje">
               建议审阅
             </Title>
             {renderComparison()}

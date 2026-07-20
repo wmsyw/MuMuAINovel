@@ -3,6 +3,7 @@ import { Card, Button, Modal, Form, Select, InputNumber, Input, message, Progres
 import { EditOutlined, PlusOutlined, DeleteOutlined, TrophyOutlined } from '@ant-design/icons';
 import { careerApi } from '../../services/api';
 import type { Career, CharacterCareerAssignmentRequest, CharacterCareerDetail, CharacterCareerStageUpdateRequest } from '../../types';
+import { sx } from '../../styles/sx';
 
 const { TextArea } = Input;
 const { Text, Paragraph } = Typography;
@@ -138,10 +139,10 @@ export const CharacterCareerCard: React.FC<Props> = ({
     };
 
     const renderCareerInfo = (career: CharacterCareerDetail, isMain: boolean = false) => (
-        <div key={career.id} style={{ marginBottom: 16 }}>
-            <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+        <div key={career.id} className="u-6srbul">
+            <Space className="u-1qos3j5">
                 <Space>
-                    <TrophyOutlined style={{ color: isMain ? token.colorPrimary : token.colorTextTertiary }} />
+                    <TrophyOutlined className={sx({ color: isMain ? token.colorPrimary : token.colorTextTertiary })} />
                     <Text strong={isMain}>{career.career_name}</Text>
                     {isMain && <Tag color="blue">主</Tag>}
                 </Space>
@@ -160,28 +161,28 @@ export const CharacterCareerCard: React.FC<Props> = ({
                 )}
             </Space>
 
-            <div style={{ marginLeft: 24, marginTop: 8 }}>
+            <div className="u-umdm4q">
                 <Text type="secondary">
                     {career.stage_name}（第{career.current_stage}/{career.max_stage}阶段）
                 </Text>
                 {career.stage_description && (
-                    <Paragraph type="secondary" style={{ fontSize: 12, marginTop: 4 }}>
+                    <Paragraph type="secondary" className="u-1r8rzeo">
                         {career.stage_description}
                     </Paragraph>
                 )}
                 <Progress
                     percent={career.stage_progress}
                     size="small"
-                    style={{ marginTop: 8 }}
+                    className="u-u35y5u"
                     format={(percent) => `${percent}%`}
                 />
                 {career.started_at && (
-                    <Text type="secondary" style={{ fontSize: 12 }}>
+                    <Text type="secondary" className="u-1pw6xki">
                         开始时间：{career.started_at}
                     </Text>
                 )}
                 {career.notes && (
-                    <Paragraph type="secondary" style={{ fontSize: 12, marginTop: 4 }}>
+                    <Paragraph type="secondary" className="u-1r8rzeo">
                         备注：{career.notes}
                     </Paragraph>
                 )}
@@ -226,14 +227,14 @@ export const CharacterCareerCard: React.FC<Props> = ({
                             <>
                                 <Divider />
                                 <Text type="secondary">副职业</Text>
-                                <div style={{ marginTop: 8 }}>
+                                <div className="u-u35y5u">
                                     {subCareers.map(career => renderCareerInfo(career, false))}
                                 </div>
                             </>
                         )}
 
                         {editable && subCareers.length < 5 && (
-                            <div style={{ textAlign: 'center', marginTop: 16 }}>
+                            <div className="u-l9dl0h">
                                 <Button
                                     size="small"
                                     icon={<PlusOutlined />}
@@ -248,7 +249,7 @@ export const CharacterCareerCard: React.FC<Props> = ({
                         )}
                     </>
                 ) : (
-                    <Text type="secondary" style={{ display: 'block', textAlign: 'center', padding: '20px 0' }}>
+                    <Text type="secondary" className="u-6q5kqi">
                         暂无职业信息
                     </Text>
                 )}
@@ -272,13 +273,13 @@ export const CharacterCareerCard: React.FC<Props> = ({
                         </Select>
                     </Form.Item>
                     <Form.Item label="当前阶段" name="current_stage" initialValue={1}>
-                        <InputNumber min={1} style={{ width: '100%' }} />
+                        <InputNumber min={1} className="u-1f3r3s" />
                     </Form.Item>
                     <Form.Item label="开始时间" name="started_at">
                         <Input placeholder="如：修仙历3000年" />
                     </Form.Item>
                     <Form.Item>
-                        <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+                        <Space className="u-1qyyh4r">
                             <Button onClick={() => setIsMainModalOpen(false)}>取消</Button>
                             <Button type="primary" htmlType="submit">确定</Button>
                         </Space>
@@ -304,13 +305,13 @@ export const CharacterCareerCard: React.FC<Props> = ({
                         </Select>
                     </Form.Item>
                     <Form.Item label="当前阶段" name="current_stage" initialValue={1}>
-                        <InputNumber min={1} style={{ width: '100%' }} />
+                        <InputNumber min={1} className="u-1f3r3s" />
                     </Form.Item>
                     <Form.Item label="开始时间" name="started_at">
                         <Input placeholder="如：修仙历3000年" />
                     </Form.Item>
                     <Form.Item>
-                        <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+                        <Space className="u-1qyyh4r">
                             <Button onClick={() => setIsSubModalOpen(false)}>取消</Button>
                             <Button type="primary" htmlType="submit">添加</Button>
                         </Space>
@@ -328,12 +329,12 @@ export const CharacterCareerCard: React.FC<Props> = ({
                 {selectedCareer && (
                     <Form form={progressForm} layout="vertical" onFinish={handleUpdateProgress}>
                         <Text>职业：{selectedCareer.career_name}</Text>
-                        <Divider style={{ margin: '12px 0' }} />
+                        <Divider className="u-1xk5sjz" />
                         <Form.Item label="当前阶段" name="current_stage" rules={[{ required: true }]}>
-                            <InputNumber min={1} max={selectedCareer.max_stage} style={{ width: '100%' }} />
+                            <InputNumber min={1} max={selectedCareer.max_stage} className="u-1f3r3s" />
                         </Form.Item>
                         <Form.Item label="阶段进度（0-100）" name="stage_progress" rules={[{ required: true }]}>
-                            <InputNumber min={0} max={100} style={{ width: '100%' }} />
+                            <InputNumber min={0} max={100} className="u-1f3r3s" />
                         </Form.Item>
                         <Form.Item label="到达时间" name="reached_current_stage_at">
                             <Input placeholder="如：修仙历3001年" />
@@ -342,7 +343,7 @@ export const CharacterCareerCard: React.FC<Props> = ({
                             <TextArea rows={2} placeholder="如：突破至金丹期" />
                         </Form.Item>
                         <Form.Item>
-                            <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+                            <Space className="u-1qyyh4r">
                                 <Button onClick={() => setIsProgressModalOpen(false)}>取消</Button>
                                 <Button type="primary" htmlType="submit">更新</Button>
                             </Space>

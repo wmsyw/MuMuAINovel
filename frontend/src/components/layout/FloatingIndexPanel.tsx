@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { Drawer, Input, List, Typography, Empty, Tag, theme } from 'antd';
 import { SearchOutlined } from '@ant-design/icons';
 import type { Chapter } from '../../types';
+import { sx } from '../../styles/sx';
 
 const { Link } = Typography;
 
@@ -57,7 +58,7 @@ export default function FloatingIndexPanel({
         body: { padding: 0 },
       }}
     >
-      <div style={{ padding: '16px', borderBottom: `1px solid ${token.colorBorderSecondary}` }}>
+      <div className={sx({ padding: '16px', borderBottom: `1px solid ${token.colorBorderSecondary}` })}>
         <Input
           placeholder="搜索章节标题"
           prefix={<SearchOutlined />}
@@ -71,8 +72,8 @@ export default function FloatingIndexPanel({
         <List
           dataSource={filteredGroups}
           renderItem={group => (
-            <List.Item style={{ padding: '0 16px', flexDirection: 'column', alignItems: 'flex-start' }}>
-              <div style={{ padding: '12px 0', fontWeight: 'bold' }}>
+            <List.Item className="u-16uug4z">
+              <div className="u-1yggm7h">
                 <Tag color={group.outlineId ? 'blue' : 'default'}>
                   {group.outlineTitle}
                 </Tag>
@@ -81,7 +82,7 @@ export default function FloatingIndexPanel({
                 size="small"
                 dataSource={group.chapters}
                 renderItem={chapter => (
-                  <List.Item style={{ paddingLeft: 16, borderBlockStart: 'none' }}>
+                  <List.Item className="u-92vjxl">
                     <Link onClick={() => handleChapterClick(chapter.id)}>
                       {`第${chapter.chapter_number}章: ${chapter.title}`}
                     </Link>
@@ -91,10 +92,10 @@ export default function FloatingIndexPanel({
               />
             </List.Item>
           )}
-          style={{ height: 'calc(100vh - 120px)', overflowY: 'auto' }}
+          className="u-1uvallh"
         />
       ) : (
-        <Empty description="没有找到匹配的章节" style={{ marginTop: 48 }} />
+        <Empty description="没有找到匹配的章节" className="u-1oa24s4" />
       )}
     </Drawer>
   );

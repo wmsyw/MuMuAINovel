@@ -1,12 +1,14 @@
 """灵感模式API - 通过对话引导创建项目"""
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
+from pydantic_core import PydanticCustomError
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, Any, Literal, TypeVar, Optional, List
 import json
 from uuid import uuid4
 
 from app.database import get_db
+from app.constants.inspiration_prompts import PLATFORM_LABELS, get_platform_style_prompt
 from app.services.ai_service import AIService
 from app.services.json_helper import clean_json_response, loads_json
 from app.api.settings import get_user_ai_service
@@ -31,6 +33,8 @@ InspirationStep = Literal[
     "golden_finger",
     "auto",
 ]
+
+InspirationPlatform = Literal["qidian", "jjwxc", "ao3", "wattpad"]
 
 QualityDimension = Literal[
     "novelty",
@@ -154,6 +158,7 @@ def _sanitize_guidance_text(value: str | None, max_length: int) -> str | None:
 
 
 class InspirationGuidance(BaseModel):
+    platform: InspirationPlatform | None = None
     channel: Optional[str] = None
     genre: Optional[str] = None
     themes: Optional[List[str]] = None
@@ -193,6 +198,7 @@ class InspirationGuidance(BaseModel):
     def has_content(self) -> bool:
         return any(
             (
+                self.platform,
                 self.channel,
                 self.genre,
                 self.themes,
@@ -255,6 +261,9 @@ def build_inspiration_guidance_prompt(guidance: InspirationGuidance | None) -> s
         return ""
 
     lines: list[str] = []
+    if guidance.platform:
+        platform_label = PLATFORM_LABELS.get(guidance.platform, guidance.platform)
+        lines.append(f"目标平台：{platform_label}（{guidance.platform}）")
     if guidance.channel:
         lines.append(f"题材频道：{guidance.channel}")
     if guidance.genre:
@@ -288,6 +297,67 @@ class InspirationGenerateCardsResponse(BaseModel):
     cards: list[InspirationDirectionCard] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     error: str | None = None
+
+class InspirationBatchRequest(BaseModel):
+    """多维筛选的批量灵感生成请求。"""
+
+    base_idea: str = Field(..., min_length=1, max_length=2000)
+    platform: InspirationPlatform | None = None
+    channel: str | None = Field(default=None, max_length=GUIDANCE_TAG_MAX_LENGTH)
+    genre_tags: list[str] = Field(default_factory=list, max_length=GUIDANCE_TAG_LIMIT)
+    plot_keywords: list[str] = Field(default_factory=list, max_length=GUIDANCE_TAG_LIMIT)
+    character_traits: list[str] = Field(default_factory=list, max_length=GUIDANCE_TAG_LIMIT)
+    count: int = Field(default=3, ge=3, le=5)
+    extra_requirement: str | None = Field(default=None, max_length=GUIDANCE_PLOT_BRIEF_MAX_LENGTH)
+    previous_cards: list[InspirationDirectionCard] = Field(default_factory=list, max_length=GUIDANCE_TAG_LIMIT)
+
+    @field_validator("base_idea", mode="before")
+    @classmethod
+    def _normalize_base_idea(cls, value: str) -> str:
+        if not isinstance(value, str):
+            raise PydanticCustomError("batch_base_idea_type", "base_idea必须是字符串")
+        normalized = value.strip()
+        if not normalized:
+            raise PydanticCustomError("batch_base_idea_blank", "base_idea不能为空")
+        return normalized
+
+    @field_validator("channel", "extra_requirement", mode="before")
+    @classmethod
+    def _normalize_optional_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise PydanticCustomError("batch_filter_text_type", "筛选文本必须是字符串")
+        normalized = value.strip()
+        return normalized or None
+
+    @field_validator("genre_tags", "plot_keywords", "character_traits")
+    @classmethod
+    def _normalize_batch_tags(cls, values: list[str]) -> list[str]:
+        normalized: list[str] = []
+        for value in values:
+            if not isinstance(value, str):
+                raise PydanticCustomError("batch_filter_item_type", "筛选项必须是字符串")
+            text = value.strip()
+            if not text:
+                raise PydanticCustomError("batch_filter_item_blank", "筛选项不能为空")
+            if len(text) > GUIDANCE_TAG_MAX_LENGTH:
+                raise PydanticCustomError(
+                    "batch_filter_item_length",
+                    "筛选项不能超过{max_length}个字符",
+                    {"max_length": GUIDANCE_TAG_MAX_LENGTH},
+                )
+            if text not in normalized:
+                normalized.append(text)
+        return normalized
+
+
+class InspirationBatchResponse(BaseModel):
+    """批量灵感方向与生成元数据。"""
+
+    ideas: list[InspirationDirectionCard]
+    generation_meta: Dict[str, Any]
+
 
 
 class InspirationMergeCardsRequest(BaseModel):
@@ -1272,6 +1342,68 @@ async def generate_cards(
         logger.warning("方向卡片结构化输出无效: %s", exc.message)
         raise _structured_output_http_error(exc) from exc
 
+
+@router.post(
+    "/batch-generate",
+    response_model=InspirationBatchResponse,
+)
+async def batch_generate_inspirations(
+    data: InspirationBatchRequest,
+    http_request: Request,
+    db: AsyncSession = Depends(get_db),
+    ai_service: AIService = Depends(get_user_ai_service),
+) -> InspirationBatchResponse:
+    """按平台、题材、情节和人物维度生成三到五个方向方案。"""
+    guidance = InspirationGuidance(
+        platform=data.platform,
+        channel=data.channel,
+        themes=data.genre_tags or None,
+        plots=data.plot_keywords or None,
+        characters=data.character_traits or None,
+        plot_brief=get_platform_style_prompt(data.platform) or None,
+    )
+    context: dict[str, Any] = {
+        "target_platform": data.platform,
+        "channel": data.channel,
+        "genre_tags": data.genre_tags,
+        "plot_keywords": data.plot_keywords,
+        "character_traits": data.character_traits,
+    }
+    if data.extra_requirement:
+        context["extra_requirement"] = data.extra_requirement
+    if data.previous_cards:
+        context["previous_cards"] = [card.model_dump(mode="json") for card in data.previous_cards]
+
+    card_response = await generate_cards(
+        InspirationGenerateCardsRequest(
+            idea=data.base_idea,
+            context=context,
+            card_count=data.count,
+            guidance=guidance,
+        ),
+        http_request,
+        db,
+        ai_service,
+    )
+    generation_meta: dict[str, Any] = {
+        "count": len(card_response.cards),
+        "requested_count": data.count,
+        "platform": data.platform,
+        "filters": {
+            "genre_tags": data.genre_tags,
+            "plot_keywords": data.plot_keywords,
+            "character_traits": data.character_traits,
+        },
+        "warnings": card_response.warnings,
+    }
+    if data.channel is not None:
+        generation_meta["channel"] = data.channel
+    if data.extra_requirement is not None:
+        generation_meta["extra_requirement"] = data.extra_requirement
+    return InspirationBatchResponse(
+        ideas=card_response.cards,
+        generation_meta=generation_meta,
+    )
 
 @router.post(
     "/merge-cards",

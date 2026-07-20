@@ -31,6 +31,7 @@ import { authApi } from '../services/api';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import AnnouncementModal from '../components/modal/AnnouncementModal';
 import ThemeSwitch from '../components/common/ThemeSwitch';
+import { sx } from '../styles/sx';
 
 const { Title, Paragraph, Text } = Typography;
 
@@ -361,7 +362,7 @@ export default function Login() {
         layout="vertical"
         onFinish={handleLocalLogin}
         size="large"
-        style={{ marginTop: 16 }}
+        className="u-1ir3dsh"
       >
         <Form.Item
           name="username"
@@ -369,10 +370,10 @@ export default function Login() {
           rules={[{ required: true, message: '请输入管理账号/邮箱' }]}
         >
           <Input
-            prefix={<UserOutlined style={{ color: token.colorTextTertiary }} />}
+            prefix={<UserOutlined className={sx({ color: token.colorTextTertiary })} />}
             placeholder="请输入管理账号/邮箱"
             autoComplete="username"
-            style={{ height: 46, borderRadius: 12 }}
+            className="u-1xo9d8x"
           />
         </Form.Item>
         <Form.Item
@@ -381,19 +382,19 @@ export default function Login() {
           rules={[{ required: true, message: '请输入访问密钥' }]}
         >
           <Input.Password
-            prefix={<LockOutlined style={{ color: token.colorTextTertiary }} />}
+            prefix={<LockOutlined className={sx({ color: token.colorTextTertiary })} />}
             placeholder="请输入访问密钥"
             autoComplete="current-password"
-            style={{ height: 46, borderRadius: 12 }}
+            className="u-1xo9d8x"
           />
         </Form.Item>
-        <Form.Item style={{ marginBottom: 0, marginTop: 8 }}>
+        <Form.Item className="u-nq9ky0">
           <Button
             type="primary"
             htmlType="submit"
             loading={loading}
             block
-            style={{
+            className={sx({
               height: 46,
               fontSize: 16,
               fontWeight: 600,
@@ -401,7 +402,7 @@ export default function Login() {
               border: 'none',
               borderRadius: '12px',
               boxShadow: primaryButtonShadow,
-            }}
+            })}
           >
             登录系统
           </Button>
@@ -410,7 +411,7 @@ export default function Login() {
 
       {linuxdoEnabled ? (
         <>
-          <Divider style={{ margin: '18px 0 16px' }}>第三方登录</Divider>
+          <Divider className="u-1io0ppg">第三方登录</Divider>
           {renderLinuxDOLogin()}
         </>
       ) : null}
@@ -420,16 +421,16 @@ export default function Login() {
   const renderEmailLogin = () => {
     if (showResetPassword) {
       return (
-        <div style={{ marginTop: 16 }}>
-          <Space direction="vertical" size={12} style={{ width: '100%' }}>
-            <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-              <Title level={5} style={{ margin: 0 }}>忘记密码 / 重置密码</Title>
-              <Button type="link" style={{ paddingInline: 0 }} onClick={() => setShowResetPassword(false)}>
+        <div className="u-1ir3dsh">
+          <Space direction="vertical" size={12} className="u-1f3r3s">
+            <Space className="u-1qos3j5">
+              <Title level={5} className="u-avalr8">忘记密码 / 重置密码</Title>
+              <Button type="link" className="u-1kt81a5" onClick={() => setShowResetPassword(false)}>
                 返回验证码登录
               </Button>
             </Space>
 
-            <Card size="small" bordered={false} style={{ borderRadius: 12, background: token.colorFillAlter }}>
+            <Card size="small" bordered={false} className={sx({ borderRadius: 12, background: token.colorFillAlter })}>
               <Form
                 form={resetPasswordForm}
                 layout="vertical"
@@ -446,8 +447,8 @@ export default function Login() {
                 >
                   <Input prefix={<MailOutlined />} placeholder="请输入注册邮箱" />
                 </Form.Item>
-                <Form.Item label="重置验证码" required style={{ marginBottom: 12 }}>
-                  <Space.Compact style={{ width: '100%' }}>
+                <Form.Item label="重置验证码" required className="u-1qz2mrl">
+                  <Space.Compact className="u-1f3r3s">
                     <Form.Item
                       name="code"
                       noStyle
@@ -511,7 +512,7 @@ export default function Login() {
         layout="vertical"
         onFinish={handleEmailLogin}
         size="large"
-        style={{ marginTop: 16 }}
+        className="u-1ir3dsh"
       >
         <Form.Item
           name="email"
@@ -522,15 +523,15 @@ export default function Login() {
           ]}
         >
           <Input
-            prefix={<MailOutlined style={{ color: token.colorTextTertiary }} />}
+            prefix={<MailOutlined className={sx({ color: token.colorTextTertiary })} />}
             placeholder="请输入已注册邮箱"
             autoComplete="email"
-            style={{ height: 46, borderRadius: 12 }}
+            className="u-1xo9d8x"
           />
         </Form.Item>
 
-        <Form.Item label="登录验证码" required style={{ marginBottom: 24 }}>
-          <Space.Compact style={{ width: '100%' }}>
+        <Form.Item label="登录验证码" required className="u-19d88e2">
+          <Space.Compact className="u-1f3r3s">
             <Form.Item
               name="code"
               noStyle
@@ -540,14 +541,14 @@ export default function Login() {
               ]}
             >
               <Input
-                prefix={<SafetyCertificateOutlined style={{ color: token.colorTextTertiary }} />}
+                prefix={<SafetyCertificateOutlined className={sx({ color: token.colorTextTertiary })} />}
                 placeholder="请输入 6 位登录验证码"
                 maxLength={6}
-                style={{ height: 46, borderRadius: '12px 0 0 12px' }}
+                className="u-1gtlon8"
               />
             </Form.Item>
             <Button
-              style={{ height: 46 }}
+              className="u-wz6xsh"
               onClick={sendLoginCode}
               loading={loginCodeSending}
               disabled={loginCountdown > 0}
@@ -557,13 +558,13 @@ export default function Login() {
           </Space.Compact>
         </Form.Item>
 
-        <Form.Item style={{ marginBottom: 0, marginTop: 8 }}>
+        <Form.Item className="u-nq9ky0">
           <Button
             type="primary"
             htmlType="submit"
             loading={loading}
             block
-            style={{
+            className={sx({
               height: 46,
               fontSize: 16,
               fontWeight: 600,
@@ -571,14 +572,14 @@ export default function Login() {
               border: 'none',
               borderRadius: '12px',
               boxShadow: primaryButtonShadow,
-            }}
+            })}
           >
             验证码登录
           </Button>
         </Form.Item>
 
-        <div style={{ marginTop: 12, textAlign: 'right' }}>
-          <Button type="link" style={{ paddingInline: 0 }} onClick={() => setShowResetPassword(true)}>
+        <div className="u-1386e4">
+          <Button type="link" className="u-1kt81a5" onClick={() => setShowResetPassword(true)}>
             忘记密码？点击重置
           </Button>
         </div>
@@ -592,7 +593,7 @@ export default function Login() {
       layout="vertical"
       onFinish={handleEmailRegister}
       size="large"
-      style={{ marginTop: 16 }}
+      className="u-1ir3dsh"
     >
       <Form.Item
         name="email"
@@ -603,15 +604,15 @@ export default function Login() {
         ]}
       >
         <Input
-          prefix={<MailOutlined style={{ color: token.colorTextTertiary }} />}
+          prefix={<MailOutlined className={sx({ color: token.colorTextTertiary })} />}
           placeholder="请输入注册邮箱"
           autoComplete="email"
-          style={{ height: 46, borderRadius: 12 }}
+          className="u-1xo9d8x"
         />
       </Form.Item>
 
-      <Form.Item label="邮箱验证码" required style={{ marginBottom: 12 }}>
-        <Space.Compact style={{ width: '100%' }}>
+      <Form.Item label="邮箱验证码" required className="u-1qz2mrl">
+        <Space.Compact className="u-1f3r3s">
           <Form.Item
             name="code"
             noStyle
@@ -621,14 +622,14 @@ export default function Login() {
             ]}
           >
             <Input
-              prefix={<SafetyCertificateOutlined style={{ color: token.colorTextTertiary }} />}
+              prefix={<SafetyCertificateOutlined className={sx({ color: token.colorTextTertiary })} />}
               placeholder="请输入 6 位验证码"
               maxLength={6}
-              style={{ height: 46, borderRadius: '12px 0 0 12px' }}
+              className="u-1gtlon8"
             />
           </Form.Item>
           <Button
-            style={{ height: 46 }}
+            className="u-wz6xsh"
             onClick={sendRegisterCode}
             loading={registerCodeSending}
             disabled={registerCountdown > 0}
@@ -644,10 +645,10 @@ export default function Login() {
         rules={[{ max: 50, message: '昵称长度不能超过 50 个字符' }]}
       >
         <Input
-          prefix={<UserOutlined style={{ color: token.colorTextTertiary }} />}
+          prefix={<UserOutlined className={sx({ color: token.colorTextTertiary })} />}
           placeholder="选填，默认使用邮箱前缀"
           autoComplete="nickname"
-          style={{ height: 46, borderRadius: 12 }}
+          className="u-1xo9d8x"
         />
       </Form.Item>
 
@@ -660,10 +661,10 @@ export default function Login() {
         ]}
       >
         <Input.Password
-          prefix={<LockOutlined style={{ color: token.colorTextTertiary }} />}
+          prefix={<LockOutlined className={sx({ color: token.colorTextTertiary })} />}
           placeholder="请输入登录密码"
           autoComplete="new-password"
-          style={{ height: 46, borderRadius: 12 }}
+          className="u-1xo9d8x"
         />
       </Form.Item>
 
@@ -684,20 +685,20 @@ export default function Login() {
         ]}
       >
         <Input.Password
-          prefix={<LockOutlined style={{ color: token.colorTextTertiary }} />}
+          prefix={<LockOutlined className={sx({ color: token.colorTextTertiary })} />}
           placeholder="请再次输入登录密码"
           autoComplete="new-password"
-          style={{ height: 46, borderRadius: 12 }}
+          className="u-1xo9d8x"
         />
       </Form.Item>
 
-      <Form.Item style={{ marginBottom: 0, marginTop: 8 }}>
+      <Form.Item className="u-nq9ky0">
         <Button
           type="primary"
           htmlType="submit"
           loading={loading}
           block
-          style={{
+          className={sx({
             height: 46,
             fontSize: 16,
             fontWeight: 600,
@@ -705,13 +706,13 @@ export default function Login() {
             border: 'none',
             borderRadius: '12px',
             boxShadow: primaryButtonShadow,
-          }}
+          })}
         >
           注册并登录
         </Button>
       </Form.Item>
 
-      <Text type="secondary" style={{ marginTop: 12, display: 'block' }}>
+      <Text type="secondary" className="u-lzddg6">
         验证码将发送到你填写的邮箱，若未收到请检查垃圾箱或稍后重试。注册后可通过邮箱验证码登录，也支持邮箱重置密码。
       </Text>
     </Form>
@@ -726,18 +727,13 @@ export default function Login() {
           <img
             src="/favicon.ico"
             alt="LinuxDO"
-            style={{
-              width: 20,
-              height: 20,
-              marginRight: 8,
-              verticalAlign: 'middle',
-            }}
+            className="u-1ijczq1"
           />
         )}
         loading={loading}
         onClick={handleLinuxDOLogin}
         block
-        style={{
+        className={sx('login-oauth-button', {
           height: 46,
           fontSize: 16,
           fontWeight: 600,
@@ -746,15 +742,8 @@ export default function Login() {
           borderRadius: '12px',
           boxShadow: primaryButtonShadow,
           transition: 'all 0.3s ease',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.transform = 'translateY(-2px)';
-          e.currentTarget.style.boxShadow = hoverButtonShadow;
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.transform = 'translateY(0)';
-          e.currentTarget.style.boxShadow = primaryButtonShadow;
-        }}
+          '--login-hover-shadow': hoverButtonShadow,
+        })}
       >
         使用 LinuxDO OAuth 登录
       </Button>
@@ -794,15 +783,15 @@ export default function Login() {
   if (checking) {
     return (
       <div
-        style={{
+        className={sx({
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
           minHeight: '100vh',
           background: token.colorBgLayout,
-        }}
+        })}
       >
-        <Spin size="large" style={{ color: token.colorPrimary }} />
+        <Spin size="large" className={sx({ color: token.colorPrimary })} />
       </div>
     );
   }
@@ -815,9 +804,9 @@ export default function Login() {
         onDoNotShowToday={handleDoNotShowToday}
         onNeverShow={handleNeverShow}
       />
-      <Layout style={{ minHeight: '100vh', background: token.colorBgLayout }}>
+      <Layout className={sx({ minHeight: '100vh', background: token.colorBgLayout })}>
         <div
-          style={{
+          className={sx({
             position: 'fixed',
             top: 20,
             right: 20,
@@ -827,14 +816,14 @@ export default function Login() {
             background: alphaColor(token.colorBgContainer, 0.9),
             border: `1px solid ${token.colorBorderSecondary}`,
             backdropFilter: 'blur(6px)',
-          }}
+          })}
         >
           <ThemeSwitch size="small" />
         </div>
-        <Row style={{ minHeight: '100vh' }}>
+        <Row className="u-1u8nmfx">
           <Col xs={0} lg={11}>
             <section
-              style={{
+              className={sx({
                 height: '100%',
                 padding: '44px 64px 88px',
                 display: 'flex',
@@ -845,31 +834,23 @@ export default function Login() {
                 backgroundColor: alphaColor(token.colorBgContainer, 0.78),
                 backgroundImage: `linear-gradient(${alphaColor(token.colorTextSecondary, 0.06)} 1px, transparent 1px), linear-gradient(90deg, ${alphaColor(token.colorTextSecondary, 0.06)} 1px, transparent 1px)`,
                 backgroundSize: '68px 68px',
-              }}
+              })}
             >
               <div
-                style={{
+                className={sx({
                   position: 'absolute',
                   inset: 0,
                   background: `radial-gradient(circle at 25% 20%, ${alphaColor(token.colorPrimary, 0.12)} 0%, transparent 50%)`,
                   pointerEvents: 'none',
-                }}
+                })}
               />
 
               <div
-                style={{
-                  position: 'relative',
-                  zIndex: 1,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  gap: 34,
-                  width: '100%',
-                }}
+                className="u-epu4id"
               >
                 <Space align="center" size={14}>
                   <div
-                    style={{
+                    className={sx({
                       width: 46,
                       height: 46,
                       borderRadius: 14,
@@ -878,78 +859,78 @@ export default function Login() {
                       alignItems: 'center',
                       justifyContent: 'center',
                       boxShadow: primaryButtonShadow,
-                    }}
+                    })}
                   >
                     <img
                       src="/logo.svg"
-                      alt="MuMuAINovel"
-                      style={{ width: 26, height: 26, filter: 'brightness(0) invert(1)' }}
+                      alt="AI Novel Studio"
+                      className="u-1gkk5k9"
                     />
                   </div>
-                  <Title level={3} style={{ margin: 0, color: token.colorText }}>
-                    MuMuAINovel
+                  <Title level={3} className={sx({ margin: 0, color: token.colorText })}>
+                    AI Novel Studio
                   </Title>
                 </Space>
 
-                <Space direction="vertical" size={32} style={{ width: '100%' }}>
-                  <div style={{ maxWidth: 'min(860px, 100%)' }}>
+                <Space direction="vertical" size={32} className="u-1f3r3s">
+                  <div className="u-dlycg4">
                     <Title
                       level={1}
-                      style={{
+                      className={sx({
                         marginBottom: 22,
                         color: token.colorText,
                         lineHeight: 1.12,
                         fontWeight: 800,
                         fontSize: 'clamp(52px, 3vw, 78px)',
-                      }}
+                      })}
                     >
                       基于 AI 的
                       <br />
                       <span
-                        style={{
+                        className={sx({
                           backgroundImage: `linear-gradient(90deg, ${token.colorPrimary} 0%, #d946ef 100%)`,
                           WebkitBackgroundClip: 'text',
                           backgroundClip: 'text',
                           WebkitTextFillColor: 'transparent',
                           color: token.colorPrimary,
-                        }}
+                        })}
                       >
                         智能小说创作助手
                       </span>
                     </Title>
                     <Paragraph
-                      style={{
+                      className={sx({
                         fontSize: 'clamp(18px, 1vw, 22px)',
                         lineHeight: 1.85,
                         color: token.colorTextSecondary,
                         marginBottom: 0,
                         maxWidth: 800,
-                      }}
+                      })}
                     >
                       从灵感到成稿，围绕「多模型协同、创作流程自动化、角色关系管理、章节精修」构建一体化创作工作台。
                     </Paragraph>
                   </div>
 
-                  <Row gutter={[20, 20]} style={{ width: '100%', maxWidth: 'min(920px, 100%)' }}>
+                  <Row gutter={[20, 20]} className="u-1qsbsi7">
                     {featureItems.map((item) => (
                       <Col span={12} key={item.title}>
                         <Card
                           size="small"
                           bordered={false}
-                          style={{
+                          className={sx({
                             height: '100%',
                             minHeight: 120,
                             borderRadius: 16,
                             background: alphaColor(token.colorBgContainer, 0.9),
-                          }}
+                          })}
                           bodyStyle={{ padding: 16 }}
                         >
                           <Space direction="vertical" size={8}>
-                            <Space size={10} style={{ color: token.colorPrimary, fontWeight: 700, fontSize: 15 }}>
+                            <Space size={10} className={sx({ color: token.colorPrimary, fontWeight: 700, fontSize: 15 })}>
                               {item.icon}
                               <span>{item.title}</span>
                             </Space>
-                            <Paragraph style={{ marginBottom: 0, color: token.colorTextSecondary, fontSize: 14, lineHeight: 1.65 }}>
+                            <Paragraph className={sx({ marginBottom: 0, color: token.colorTextSecondary, fontSize: 14, lineHeight: 1.65 })}>
                               {item.description}
                             </Paragraph>
                           </Space>
@@ -959,7 +940,7 @@ export default function Login() {
                   </Row>
                 </Space>
 
-                <Space size={[10, 14]} wrap style={{ maxWidth: 'min(860px, 100%)' }}>
+                <Space size={[10, 14]} wrap className="u-dlycg4">
                   <Tag color="blue">OpenAI</Tag>
                   <Tag color="geekblue">Gemini</Tag>
                   <Tag color="purple">Claude</Tag>
@@ -970,42 +951,42 @@ export default function Login() {
               </div>
 
               <Paragraph
-                style={{
+                className={sx({
                   marginBottom: 0,
                   fontSize: 12,
                   color: token.colorTextTertiary,
                   position: 'relative',
                   zIndex: 1,
                   letterSpacing: 0.4,
-                }}
+                })}
               >
-                © 2026 MuMuAINovel · GPLv3 License
+                © 2026 AI Novel Studio · GPLv3 License
               </Paragraph>
             </section>
           </Col>
 
           <Col xs={24} lg={13}>
             <section
-              style={{
+              className={sx({
                 minHeight: '100vh',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 padding: '48px min(7vw, 72px)',
                 background: token.colorBgLayout,
-              }}
+              })}
             >
-              <div style={{ width: '100%', maxWidth: 520 }}>
+              <div className="u-h90s1e">
                 <Space direction="vertical" size={4}>
-                  <Title level={2} style={{ marginBottom: 0, fontWeight: 700, color: token.colorText }}>
+                  <Title level={2} className={sx({ marginBottom: 0, fontWeight: 700, color: token.colorText })}>
                     欢迎回来
                   </Title>
-                  <Paragraph style={{ marginBottom: 0, color: token.colorTextSecondary }}>
-                    登录 MuMuAINovel，继续你的小说创作项目。
+                  <Paragraph className={sx({ marginBottom: 0, color: token.colorTextSecondary })}>
+                    登录 AI Novel Studio，继续你的小说创作项目。
                   </Paragraph>
                 </Space>
 
-                <div style={{ marginTop: 22 }}>
+                <div className="u-1si7ivs">
                   {authTabs.length > 0 ? (
                     <Tabs defaultActiveKey={authTabs[0].key} items={authTabs} />
                   ) : null}
@@ -1023,23 +1004,23 @@ export default function Login() {
                     <Alert
                       type="info"
                       showIcon
-                      style={{ marginTop: 12, borderRadius: 12 }}
+                      className="u-1huwgz9"
                       message="邮箱注册暂未开放"
                       description="当前仅开放邮箱验证码登录与找回密码，如需注册请联系管理员。"
                     />
                   ) : null}
 
-                  <Divider style={{ margin: '20px 0 14px' }} />
+                  <Divider className="u-152vf29" />
                   <Alert
                     type="info"
                     showIcon
                     icon={<SafetyCertificateOutlined />}
-                    style={{ background: alphaColor(token.colorPrimary, 0.06), borderRadius: 12 }}
+                    className={sx({ background: alphaColor(token.colorPrimary, 0.06), borderRadius: 12 })}
                     message="登录说明"
                     description={(
-                      <ul style={{ margin: 0, paddingLeft: 18 }}>
+                      <ul className="u-tjojz2">
                         {loginTips.map((tip) => (
-                          <li key={tip} style={{ marginBottom: 4 }}>
+                          <li key={tip} className="u-ohn8hu">
                             {tip}
                           </li>
                         ))}

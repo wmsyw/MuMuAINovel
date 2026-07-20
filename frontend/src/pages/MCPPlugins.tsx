@@ -33,12 +33,14 @@ import {
 } from '@ant-design/icons';
 import { mcpPluginApi, settingsApi } from '../services/api';
 import type { MCPPlugin, MCPTool } from '../types';
+import { useIsMobile } from '../hooks/useMediaQuery';
+import { sx } from '../styles/sx';
 
 const { Paragraph, Text, Title } = Typography;
 const { TextArea } = Input;
 
 export default function MCPPluginsPage() {
-  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const isMobile = useIsMobile();
   const [form] = Form.useForm();
   const { token } = theme.useToken();
   const alphaColor = (color: string, alpha: number) => `color-mix(in srgb, ${color} ${(alpha * 100).toFixed(0)}%, transparent)`;
@@ -66,14 +68,6 @@ export default function MCPPluginsPage() {
     },
   };
 
-  // 响应式监听窗口大小变化
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth <= 768);
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
   const [modal, contextHolder] = Modal.useModal();
   const [loading, setLoading] = useState(false);
   const [plugins, setPlugins] = useState<MCPPlugin[]>([]);
@@ -286,45 +280,45 @@ export default function MCPPluginsPage() {
           centered: true,
           width: isMobile ? '95%' : 700,
           content: (
-            <div style={{ padding: '8px 0' }}>
-              <div style={{ marginBottom: 16, padding: 12, background: statusStyles.success.bg, border: `1px solid ${statusStyles.success.border}`, borderRadius: 8 }}>
-                <Typography.Text strong style={{ color: statusStyles.success.text, fontSize: 14 }}>
+            <div className="u-15tlmef">
+              <div className={sx({ marginBottom: 16, padding: 12, background: statusStyles.success.bg, border: `1px solid ${statusStyles.success.border}`, borderRadius: 8 })}>
+                <Typography.Text strong className={sx({ color: statusStyles.success.text, fontSize: 14 })}>
                   ✓ {result.message}
                 </Typography.Text>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, marginBottom: 16 }}>
-                <div style={{ padding: 12, background: token.colorBgLayout, borderRadius: 8 }}>
-                  <Text type="secondary" style={{ fontSize: 12 }}>可用工具数</Text>
-                  <div><Text strong style={{ fontSize: 20 }}>{result.tools_count || 0}</Text></div>
+              <div className={sx({ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, marginBottom: 16 })}>
+                <div className={sx({ padding: 12, background: token.colorBgLayout, borderRadius: 8 })}>
+                  <Text type="secondary" className="u-1pw6xki">可用工具数</Text>
+                  <div><Text strong className="u-1m6b3wp">{result.tools_count || 0}</Text></div>
                 </div>
-                <div style={{ padding: 12, background: token.colorBgLayout, borderRadius: 8 }}>
-                  <Text type="secondary" style={{ fontSize: 12 }}>总响应时间</Text>
-                  <div><Text strong style={{ fontSize: 20 }}>{result.response_time_ms?.toFixed(0) || 0}ms</Text></div>
+                <div className={sx({ padding: 12, background: token.colorBgLayout, borderRadius: 8 })}>
+                  <Text type="secondary" className="u-1pw6xki">总响应时间</Text>
+                  <div><Text strong className="u-1m6b3wp">{result.response_time_ms?.toFixed(0) || 0}ms</Text></div>
                 </div>
               </div>
 
               {aiChoice && (
-                <div style={{ marginBottom: 12, padding: 12, background: statusStyles.info.bg, borderRadius: 8, border: `1px solid ${statusStyles.info.border}` }}>
-                  <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>🤖 AI选择的工具</Text>
+                <div className={sx({ marginBottom: 12, padding: 12, background: statusStyles.info.bg, borderRadius: 8, border: `1px solid ${statusStyles.info.border}` })}>
+                  <Text type="secondary" className="u-crgtov">🤖 AI选择的工具</Text>
                   <Text code strong>{aiChoice}</Text>
-                  {callTime && <Tag color="blue" style={{ marginLeft: 8 }}>{callTime}</Tag>}
+                  {callTime && <Tag color="blue" className="u-12ggiv4">{callTime}</Tag>}
                 </div>
               )}
 
               {paramsStr && (
-                <div style={{ marginBottom: 12 }}>
-                  <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>📝 调用参数</Text>
-                  <pre style={{ margin: 0, padding: 8, background: token.colorBgLayout, borderRadius: 4, fontSize: 12, overflow: 'auto', maxHeight: 100 }}>
+                <div className="u-1qz2mrl">
+                  <Text type="secondary" className="u-crgtov">📝 调用参数</Text>
+                  <pre className={sx({ margin: 0, padding: 8, background: token.colorBgLayout, borderRadius: 4, fontSize: 12, overflow: 'auto', maxHeight: 100 })}>
                     {(() => { try { return JSON.stringify(JSON.parse(paramsStr), null, 2); } catch { return paramsStr; } })()}
                   </pre>
                 </div>
               )}
 
               {resultStr && (
-                <div style={{ marginBottom: 12 }}>
-                  <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>📊 返回结果预览</Text>
-                  <pre style={{ margin: 0, padding: 8, background: token.colorBgLayout, borderRadius: 4, fontSize: 11, overflow: 'auto', maxHeight: 150, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                <div className="u-1qz2mrl">
+                  <Text type="secondary" className="u-crgtov">📊 返回结果预览</Text>
+                  <pre className={sx({ margin: 0, padding: 8, background: token.colorBgLayout, borderRadius: 4, fontSize: 11, overflow: 'auto', maxHeight: 150, whiteSpace: 'pre-wrap', wordBreak: 'break-word' })}>
                     {resultStr}
                   </pre>
                 </div>
@@ -340,8 +334,8 @@ export default function MCPPluginsPage() {
           centered: true,
           width: isMobile ? '90%' : 600,
           content: (
-            <div style={{ padding: '8px 0' }}>
-              <div style={{ marginBottom: 16 }}>
+            <div className="u-15tlmef">
+              <div className="u-6srbul">
                 <Alert
                   message={result.message || 'MCP插件测试失败'}
                   type="error"
@@ -350,32 +344,32 @@ export default function MCPPluginsPage() {
               </div>
 
               {result.error && (
-                <div style={{
+                <div className={sx({
                   padding: 16,
                   background: statusStyles.error.bg,
                   border: `1px solid ${statusStyles.error.border}`,
                   borderRadius: 8,
                   marginBottom: 16
-                }}>
-                  <Text strong style={{ fontSize: 14, display: 'block', marginBottom: 8 }}>错误信息:</Text>
-                  <Text style={{ fontSize: 13, color: statusStyles.error.text, fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                })}>
+                  <Text strong className="u-5d0dy1">错误信息:</Text>
+                  <Text className={sx({ fontSize: 13, color: statusStyles.error.text, fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word' })}>
                     {result.error}
                   </Text>
                 </div>
               )}
 
               {result.suggestions && result.suggestions.length > 0 && (
-                <div style={{
+                <div className={sx({
                   padding: 16,
                   background: statusStyles.warning.bg,
                   border: `1px solid ${statusStyles.warning.border}`,
                   borderRadius: 8,
                   marginBottom: 16
-                }}>
-                  <Text strong style={{ fontSize: 14, display: 'block', marginBottom: 8 }}>💡 建议:</Text>
-                  <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13 }}>
+                })}>
+                  <Text strong className="u-5d0dy1">💡 建议:</Text>
+                  <ul className="u-1ltb8xg">
                     {result.suggestions.map((s: string, i: number) => (
-                      <li key={i} style={{ marginBottom: 4 }}>{s}</li>
+                      <li key={i} className="u-ohn8hu">{s}</li>
                     ))}
                   </ul>
                 </div>
@@ -443,36 +437,36 @@ export default function MCPPluginsPage() {
           centered: true,
           width: isMobile ? '95%' : 700,
           content: (
-            <div style={{ padding: '8px 0' }}>
-              <div style={{ marginBottom: 16, padding: 12, background: statusStyles.success.bg, border: `1px solid ${statusStyles.success.border}`, borderRadius: 8 }}>
-                <Typography.Text strong style={{ color: statusStyles.success.text, fontSize: 14 }}>
+            <div className="u-15tlmef">
+              <div className={sx({ marginBottom: 16, padding: 12, background: statusStyles.success.bg, border: `1px solid ${statusStyles.success.border}`, borderRadius: 8 })}>
+                <Typography.Text strong className={sx({ color: statusStyles.success.text, fontSize: 14 })}>
                   ✓ {result.message}
                 </Typography.Text>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, marginBottom: 16 }}>
-                <div style={{ padding: 12, background: token.colorBgLayout, borderRadius: 8 }}>
-                  <Text type="secondary" style={{ fontSize: 12 }}>API 提供商</Text>
-                  <div><Text strong style={{ fontSize: 16 }}>{result.provider}</Text></div>
+              <div className={sx({ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, marginBottom: 16 })}>
+                <div className={sx({ padding: 12, background: token.colorBgLayout, borderRadius: 8 })}>
+                  <Text type="secondary" className="u-1pw6xki">API 提供商</Text>
+                  <div><Text strong className="u-tw6n7q">{result.provider}</Text></div>
                 </div>
-                <div style={{ padding: 12, background: token.colorBgLayout, borderRadius: 8 }}>
-                  <Text type="secondary" style={{ fontSize: 12 }}>响应时间</Text>
-                  <div><Text strong style={{ fontSize: 16 }}>{result.response_time_ms?.toFixed(0) || 0}ms</Text></div>
+                <div className={sx({ padding: 12, background: token.colorBgLayout, borderRadius: 8 })}>
+                  <Text type="secondary" className="u-1pw6xki">响应时间</Text>
+                  <div><Text strong className="u-tw6n7q">{result.response_time_ms?.toFixed(0) || 0}ms</Text></div>
                 </div>
               </div>
 
-              <div style={{ marginBottom: 12, padding: 12, background: statusStyles.info.bg, borderRadius: 8, border: `1px solid ${statusStyles.info.border}` }}>
-                <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>🔧 模型信息</Text>
+              <div className={sx({ marginBottom: 12, padding: 12, background: statusStyles.info.bg, borderRadius: 8, border: `1px solid ${statusStyles.info.border}` })}>
+                <Text type="secondary" className="u-crgtov">🔧 模型信息</Text>
                 <Text code strong>{result.model}</Text>
                 {result.details?.finish_reason && (
-                  <Tag color="green" style={{ marginLeft: 8 }}>finish_reason: {result.details.finish_reason}</Tag>
+                  <Tag color="green" className="u-12ggiv4">finish_reason: {result.details.finish_reason}</Tag>
                 )}
               </div>
 
               {result.details && (
-                <div style={{ marginBottom: 12 }}>
-                  <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>📊 检测详情</Text>
-                  <div style={{ padding: 8, background: token.colorBgLayout, borderRadius: 4, fontSize: 12 }}>
+                <div className="u-1qz2mrl">
+                  <Text type="secondary" className="u-crgtov">📊 检测详情</Text>
+                  <div className={sx({ padding: 8, background: token.colorBgLayout, borderRadius: 4, fontSize: 12 })}>
                     <div>✓ 工具调用数量: {result.details.tool_call_count || 0}</div>
                     <div>✓ 测试工具: {result.details.test_tool || 'N/A'}</div>
                     <div>✓ 响应类型: {result.details.response_type || 'N/A'}</div>
@@ -481,20 +475,20 @@ export default function MCPPluginsPage() {
               )}
 
               {result.tool_calls && result.tool_calls.length > 0 && (
-                <div style={{ marginBottom: 12 }}>
-                  <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>🔨 工具调用示例</Text>
-                  <pre style={{ margin: 0, padding: 8, background: token.colorBgLayout, borderRadius: 4, fontSize: 11, overflow: 'auto', maxHeight: 150 }}>
+                <div className="u-1qz2mrl">
+                  <Text type="secondary" className="u-crgtov">🔨 工具调用示例</Text>
+                  <pre className={sx({ margin: 0, padding: 8, background: token.colorBgLayout, borderRadius: 4, fontSize: 11, overflow: 'auto', maxHeight: 150 })}>
                     {JSON.stringify(result.tool_calls[0], null, 2)}
                   </pre>
                 </div>
               )}
 
               {result.suggestions && result.suggestions.length > 0 && (
-                <div style={{ padding: 12, background: statusStyles.success.bg, border: `1px solid ${statusStyles.success.border}`, borderRadius: 8 }}>
-                  <Text strong style={{ fontSize: 13, display: 'block', marginBottom: 8 }}>💡 建议</Text>
-                  <ul style={{ margin: 0, paddingLeft: 20, fontSize: 12 }}>
+                <div className={sx({ padding: 12, background: statusStyles.success.bg, border: `1px solid ${statusStyles.success.border}`, borderRadius: 8 })}>
+                  <Text strong className="u-iqolwm">💡 建议</Text>
+                  <ul className="u-16bum4x">
                     {result.suggestions.map((s: string, i: number) => (
-                      <li key={i} style={{ marginBottom: 4 }}>{s}</li>
+                      <li key={i} className="u-ohn8hu">{s}</li>
                     ))}
                   </ul>
                 </div>
@@ -509,8 +503,8 @@ export default function MCPPluginsPage() {
           centered: true,
           width: isMobile ? '95%' : 700,
           content: (
-            <div style={{ padding: '8px 0' }}>
-              <div style={{ marginBottom: 16 }}>
+            <div className="u-15tlmef">
+              <div className="u-6srbul">
                 <Alert
                   message={result.message || '模型不支持 Function Calling'}
                   type="warning"
@@ -519,40 +513,40 @@ export default function MCPPluginsPage() {
               </div>
 
               {result.error && (
-                <div style={{
+                <div className={sx({
                   padding: 16,
                   background: statusStyles.warning.bg,
                   border: `1px solid ${statusStyles.warning.border}`,
                   borderRadius: 8,
                   marginBottom: 16
-                }}>
-                  <Text strong style={{ fontSize: 14, display: 'block', marginBottom: 8 }}>错误信息:</Text>
-                  <Text style={{ fontSize: 13, fontFamily: 'monospace' }}>
+                })}>
+                  <Text strong className="u-5d0dy1">错误信息:</Text>
+                  <Text className="u-zgzraw">
                     {result.error}
                   </Text>
                 </div>
               )}
 
               {result.response_preview && (
-                <div style={{ marginBottom: 12 }}>
-                  <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>📝 模型返回内容（前200字符）</Text>
-                  <pre style={{ margin: 0, padding: 8, background: token.colorBgLayout, borderRadius: 4, fontSize: 11, overflow: 'auto', maxHeight: 100, whiteSpace: 'pre-wrap' }}>
+                <div className="u-1qz2mrl">
+                  <Text type="secondary" className="u-crgtov">📝 模型返回内容（前200字符）</Text>
+                  <pre className={sx({ margin: 0, padding: 8, background: token.colorBgLayout, borderRadius: 4, fontSize: 11, overflow: 'auto', maxHeight: 100, whiteSpace: 'pre-wrap' })}>
                     {result.response_preview}
                   </pre>
                 </div>
               )}
 
               {result.suggestions && result.suggestions.length > 0 && (
-                <div style={{
+                <div className={sx({
                   padding: 16,
                   background: statusStyles.info.bg,
                   border: `1px solid ${statusStyles.info.border}`,
                   borderRadius: 8
-                }}>
-                  <Text strong style={{ fontSize: 14, display: 'block', marginBottom: 8 }}>💡 建议:</Text>
-                  <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13 }}>
+                })}>
+                  <Text strong className="u-5d0dy1">💡 建议:</Text>
+                  <ul className="u-1ltb8xg">
                     {result.suggestions.map((s: string, i: number) => (
-                      <li key={i} style={{ marginBottom: 4 }}>{s}</li>
+                      <li key={i} className="u-ohn8hu">{s}</li>
                     ))}
                   </ul>
                 </div>
@@ -623,25 +617,18 @@ export default function MCPPluginsPage() {
   return (
     <>
       {contextHolder}
-      <div style={{
+      <div className={sx({
         minHeight: '90vh',
         background: `linear-gradient(180deg, ${token.colorBgLayout} 0%, ${alphaColor(token.colorPrimary, 0.08)} 100%)`,
         padding: isMobile ? '20px 16px 70px' : '24px 24px 70px',
         display: 'flex',
         flexDirection: 'column',
-      }}>
-        <div style={{
-          maxWidth: 1400,
-          margin: '0 auto',
-          width: '100%',
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-        }}>
+      })}>
+        <div className="u-6fn1p3">
           {/* 顶部导航卡片 */}
           <Card
             variant="borderless"
-            style={{
+            className={sx({
               background: `linear-gradient(135deg, ${token.colorPrimary} 0%, ${alphaColor(token.colorPrimary, 0.8)} 50%, ${token.colorPrimaryHover} 100%)`,
               borderRadius: isMobile ? 16 : 24,
               boxShadow: `0 12px 40px ${alphaColor(token.colorPrimary, 0.25)}, 0 4px 12px ${alphaColor(token.colorText, 0.08)}`,
@@ -649,41 +636,41 @@ export default function MCPPluginsPage() {
               border: 'none',
               position: 'relative',
               overflow: 'hidden'
-            }}
+            })}
           >
             {/* 装饰性背景元素 */}
-            <div style={{ position: 'absolute', top: -60, right: -60, width: 200, height: 200, borderRadius: '50%', background: alphaColor(token.colorWhite, 0.08), pointerEvents: 'none' }} />
-            <div style={{ position: 'absolute', bottom: -40, left: '30%', width: 120, height: 120, borderRadius: '50%', background: alphaColor(token.colorWhite, 0.05), pointerEvents: 'none' }} />
-            <div style={{ position: 'absolute', top: '50%', right: '15%', width: 80, height: 80, borderRadius: '50%', background: alphaColor(token.colorWhite, 0.06), pointerEvents: 'none' }} />
+            <div className={sx({ position: 'absolute', top: -60, right: -60, width: 200, height: 200, borderRadius: '50%', background: alphaColor(token.colorWhite, 0.08), pointerEvents: 'none' })} />
+            <div className={sx({ position: 'absolute', bottom: -40, left: '30%', width: 120, height: 120, borderRadius: '50%', background: alphaColor(token.colorWhite, 0.05), pointerEvents: 'none' })} />
+            <div className={sx({ position: 'absolute', top: '50%', right: '15%', width: 80, height: 80, borderRadius: '50%', background: alphaColor(token.colorWhite, 0.06), pointerEvents: 'none' })} />
 
-            <Row align="middle" justify="space-between" gutter={[16, 16]} style={{ position: 'relative', zIndex: 1 }}>
+            <Row align="middle" justify="space-between" gutter={[16, 16]} className="u-5dyu45">
               <Col xs={24} sm={12}>
                 <Space direction="vertical" size={4}>
                   <Space align="center">
-                    <Title level={isMobile ? 3 : 2} style={{ margin: 0, color: token.colorWhite, textShadow: `0 2px 4px ${alphaColor(token.colorText, 0.2)}` }}>
-                      <ToolOutlined style={{ color: alphaColor(token.colorWhite, 0.9), marginRight: 8 }} />
+                    <Title level={isMobile ? 3 : 2} className={sx({ margin: 0, color: token.colorWhite, textShadow: `0 2px 4px ${alphaColor(token.colorText, 0.2)}` })}>
+                      <ToolOutlined className={sx({ color: alphaColor(token.colorWhite, 0.9), marginRight: 8 })} />
                       MCP插件管理
                     </Title>
                   </Space>
-                  <Text style={{ fontSize: isMobile ? 12 : 14, color: alphaColor(token.colorWhite, 0.85), marginLeft: isMobile ? 40 : 48 }}>
+                  <Text className={sx({ fontSize: isMobile ? 12 : 14, color: alphaColor(token.colorWhite, 0.85), marginLeft: isMobile ? 40 : 48 })}>
                     扩展AI能力，连接外部工具与服务
                   </Text>
                 </Space>
               </Col>
               <Col xs={24} sm={12}>
-                <Space size={12} style={{ display: 'flex', justifyContent: isMobile ? 'flex-start' : 'flex-end', width: '100%' }}>
+                <Space size={12} className={sx({ display: 'flex', justifyContent: isMobile ? 'flex-start' : 'flex-end', width: '100%' })}>
                   <Button
                     type="primary"
                     icon={<PlusOutlined />}
                     onClick={handleCreate}
-                    style={{
+                    className={sx({
                       borderRadius: 12,
                       background: alphaColor(token.colorWarning, 0.95),
                       border: `1px solid ${alphaColor(token.colorWhite, 0.3)}`,
                       boxShadow: `0 4px 16px ${alphaColor(token.colorWarning, 0.4)}`,
                       color: token.colorWhite,
                       fontWeight: 600
-                    }}
+                    })}
                   >
                     添加插件
                   </Button>
@@ -691,28 +678,28 @@ export default function MCPPluginsPage() {
               </Col>
             </Row>
 
-            <div style={{ marginTop: isMobile ? 16 : 24, display: 'flex', gap: isMobile ? 12 : 16, flexDirection: isMobile ? 'column' : 'row' }}>
+            <div className={sx({ marginTop: isMobile ? 16 : 24, display: 'flex', gap: isMobile ? 12 : 16, flexDirection: isMobile ? 'column' : 'row' })}>
               <Card
                 variant="borderless"
-                style={{
+                className={sx({
                   flex: 1,
                   borderRadius: 12,
                   background: alphaColor(token.colorBgContainer, 0.9),
                   border: `1px solid ${alphaColor(token.colorBorder, 0.6)}`,
                   backdropFilter: 'blur(10px)',
                   boxShadow: `0 4px 12px ${alphaColor(token.colorText, 0.06)}`
-                }}
+                })}
                 styles={{ body: { padding: isMobile ? 14 : 20 } }}
               >
-                <div style={{
+                <div className={sx({
                   display: 'flex',
                   flexDirection: isMobile ? 'column' : 'row',
                   justifyContent: 'space-between',
                   alignItems: isMobile ? 'stretch' : 'center',
                   gap: isMobile ? 12 : 0
-                }}>
-                  <Space align="start" style={{ flex: 1 }}>
-                    <div style={{
+                })}>
+                  <Space align="start" className="u-e4rq7y">
+                    <div className={sx({
                       width: isMobile ? 36 : 40,
                       height: isMobile ? 36 : 40,
                       borderRadius: '50%',
@@ -720,18 +707,18 @@ export default function MCPPluginsPage() {
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       border: `1px solid ${modelSupportStatus === 'supported' ? statusStyles.success.border : modelSupportStatus === 'unsupported' ? statusStyles.error.border : statusStyles.info.border}`,
                       flexShrink: 0
-                    }}>
+                    })}>
                       {modelSupportStatus === 'supported' ? (
-                        <CheckCircleOutlined style={{ fontSize: isMobile ? 18 : 20, color: statusStyles.success.text }} />
+                        <CheckCircleOutlined className={sx({ fontSize: isMobile ? 18 : 20, color: statusStyles.success.text })} />
                       ) : modelSupportStatus === 'unsupported' ? (
-                        <CloseCircleOutlined style={{ fontSize: isMobile ? 18 : 20, color: statusStyles.error.text }} />
+                        <CloseCircleOutlined className={sx({ fontSize: isMobile ? 18 : 20, color: statusStyles.error.text })} />
                       ) : (
-                        <QuestionCircleOutlined style={{ fontSize: isMobile ? 18 : 20, color: statusStyles.info.text }} />
+                        <QuestionCircleOutlined className={sx({ fontSize: isMobile ? 18 : 20, color: statusStyles.info.text })} />
                       )}
                     </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <Text strong style={{ fontSize: isMobile ? 14 : 16, display: 'block', color: token.colorText }}>模型能力检查</Text>
-                      <Text type="secondary" style={{ fontSize: isMobile ? 12 : 13, display: 'block', lineHeight: 1.5 }}>
+                    <div className="u-niv4z9">
+                      <Text strong className={sx({ fontSize: isMobile ? 14 : 16, display: 'block', color: token.colorText })}>模型能力检查</Text>
+                      <Text type="secondary" className={sx({ fontSize: isMobile ? 12 : 13, display: 'block', lineHeight: 1.5 })}>
                         {modelSupportStatus === 'supported'
                           ? '当前模型支持 Function Calling，可正常使用 MCP 插件'
                           : modelSupportStatus === 'unsupported'
@@ -745,7 +732,7 @@ export default function MCPPluginsPage() {
                     icon={<ApiOutlined />}
                     onClick={handleCheckFunctionCalling}
                     loading={checkingFunctionCalling}
-                    style={{ borderRadius: 8, width: isMobile ? '100%' : 'auto' }}
+                    className={sx({ borderRadius: 8, width: isMobile ? '100%' : 'auto' })}
                     size={isMobile ? 'middle' : 'middle'}
                   >
                     {modelSupportStatus === 'unknown' ? '开始检测' : '重新检测'}
@@ -755,21 +742,21 @@ export default function MCPPluginsPage() {
 
               <Card
                 variant="borderless"
-                style={{
+                className={sx({
                   flex: 1,
                   borderRadius: 12,
                   background: alphaColor(token.colorInfoBg, 0.7),
                   border: `1px solid ${alphaColor(token.colorInfoBorder, 0.8)}`,
                   backdropFilter: 'blur(10px)',
                   boxShadow: `0 4px 12px ${alphaColor(token.colorText, 0.06)}`
-                }}
+                })}
                 styles={{ body: { padding: isMobile ? 14 : 20 } }}
               >
                 <Space align="start">
-                  <InfoCircleOutlined style={{ fontSize: isMobile ? 18 : 20, color: token.colorPrimary, marginTop: 2, flexShrink: 0 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <Text strong style={{ fontSize: isMobile ? 14 : 16, display: 'block', color: token.colorText, marginBottom: 4 }}>什么是 MCP 插件？</Text>
-                    <Text style={{ fontSize: isMobile ? 12 : 13, display: 'block', color: token.colorTextSecondary, lineHeight: 1.6 }}>
+                  <InfoCircleOutlined className={sx({ fontSize: isMobile ? 18 : 20, color: token.colorPrimary, marginTop: 2, flexShrink: 0 })} />
+                  <div className="u-niv4z9">
+                    <Text strong className={sx({ fontSize: isMobile ? 14 : 16, display: 'block', color: token.colorText, marginBottom: 4 })}>什么是 MCP 插件？</Text>
+                    <Text className={sx({ fontSize: isMobile ? 12 : 13, display: 'block', color: token.colorTextSecondary, lineHeight: 1.6 })}>
                       MCP (Model Context Protocol) 协议允许 AI 调用外部工具获取数据。通过添加插件，AI 可以访问搜索引擎、数据库、API 等服务，大幅增强创作能力。
                     </Text>
                   </div>
@@ -779,7 +766,7 @@ export default function MCPPluginsPage() {
           </Card>
 
           {/* 主内容区 */}
-          <div style={{ flex: 1 }}>
+          <div className="u-e4rq7y">
             {/* 模型能力未验证时的警告提示 */}
             {modelSupportStatus !== 'supported' && plugins.length > 0 && (
               <Alert
@@ -791,7 +778,7 @@ export default function MCPPluginsPage() {
                 type={modelSupportStatus === 'unsupported' ? 'error' : 'warning'}
                 showIcon
                 icon={modelSupportStatus === 'unsupported' ? <CloseCircleOutlined /> : <WarningOutlined />}
-                style={{ marginBottom: 16, borderRadius: 8 }}
+                className="u-36x8oa"
                 action={
                   <Button size="small" type="primary" onClick={handleCheckFunctionCalling} loading={checkingFunctionCalling}>
                     {modelSupportStatus === 'unknown' ? '开始检测' : '重新检测'}
@@ -806,44 +793,38 @@ export default function MCPPluginsPage() {
                 <Empty
                   description="还没有添加任何插件"
                   image={Empty.PRESENTED_IMAGE_SIMPLE}
-                  style={{ padding: isMobile ? '40px 0' : '60px 0' }}
+                  className={sx({ padding: isMobile ? '40px 0' : '60px 0' })}
                 >
                   <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
                     添加第一个插件
                   </Button>
                 </Empty>
               ) : (
-                <Space direction="vertical" size={isMobile ? 'small' : 'middle'} style={{ width: '100%' }}>
+                <Space direction="vertical" size={isMobile ? 'small' : 'middle'} className="u-1f3r3s">
                   {plugins.map((plugin) => (
                     <Card
                       key={plugin.id}
                       size="small"
-                      style={{
+                      className={sx({
                         borderRadius: 8,
                         border: `1px solid ${token.colorBorderSecondary}`,
-                      }}
+                      })}
                       styles={{ body: { padding: isMobile ? 12 : 16 } }}
                     >
                       <div
-                        style={{
+                        className={sx({
                           display: 'flex',
                           flexDirection: 'column',
                           gap: isMobile ? 12 : 16,
-                        }}
+                        })}
                       >
                         {/* 插件信息区域 */}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                        <div className="u-niv4z9">
+                          <Space direction="vertical" size="small" className="u-1f3r3s">
                             {/* 标题和状态标签 */}
-                            <div style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '6px',
-                              flexWrap: 'wrap',
-                              justifyContent: 'space-between'
-                            }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', flex: 1 }}>
-                                <Text strong style={{ fontSize: isMobile ? '14px' : '16px' }}>
+                            <div className="u-gbq63z">
+                              <div className="u-se1ni0">
+                                <Text strong className={sx({ fontSize: isMobile ? '14px' : '16px' })}>
                                   {plugin.display_name || plugin.plugin_name}
                                 </Text>
                                 {getStatusTag(plugin)}
@@ -858,33 +839,28 @@ export default function MCPPluginsPage() {
                                   size="small"
                                   checkedChildren="开"
                                   unCheckedChildren="关"
-                                  style={{
-                                    flexShrink: 0,
-                                    height: 16,
-                                    minHeight: 16,
-                                    lineHeight: '16px'
-                                  }}
+                                  className="u-xo57dn"
                                 />
                               )}
                             </div>
                             
                             {/* 类型和分类标签 */}
-                            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                              <Tag color={plugin.plugin_type === 'http' || plugin.plugin_type === 'streamable_http' || plugin.plugin_type === 'sse' ? 'blue' : 'cyan'} style={{ fontSize: isMobile ? 11 : 12 }}>
+                            <div className="u-1e4phyv">
+                              <Tag color={plugin.plugin_type === 'http' || plugin.plugin_type === 'streamable_http' || plugin.plugin_type === 'sse' ? 'blue' : 'cyan'} className={sx({ fontSize: isMobile ? 11 : 12 })}>
                                 {plugin.plugin_type?.toUpperCase() || 'UNKNOWN'}
                               </Tag>
                               {plugin.category && plugin.category !== 'general' && (
-                                <Tag color="purple" style={{ fontSize: isMobile ? 11 : 12 }}>{plugin.category}</Tag>
+                                <Tag color="purple" className={sx({ fontSize: isMobile ? 11 : 12 })}>{plugin.category}</Tag>
                               )}
                             </div>
                             
                             {plugin.description && (
                               <Paragraph
                                 type="secondary"
-                                style={{
+                                className={sx({
                                   margin: 0,
                                   fontSize: isMobile ? '12px' : '13px',
-                                }}
+                                })}
                                 ellipsis={{ rows: 2 }}
                               >
                                 {plugin.description}
@@ -893,13 +869,13 @@ export default function MCPPluginsPage() {
 
                             {/* 只显示有值的URL或命令，脱敏处理敏感信息 */}
                             {(plugin.plugin_type === 'http' || plugin.plugin_type === 'streamable_http' || plugin.plugin_type === 'sse') && plugin.server_url && (
-                              <div style={{
+                              <div className={sx({
                                 fontSize: isMobile ? '11px' : '12px',
                                 overflow: 'hidden',
                                 textOverflow: 'ellipsis',
                                 whiteSpace: 'nowrap'
-                              }}>
-                                <Text type="secondary" code style={{ fontSize: 'inherit' }}>
+                              })}>
+                                <Text type="secondary" code className="u-1r4ryei">
                                   {(() => {
                                     // 脱敏处理：隐藏URL中的API Key
                                     const url = plugin.server_url;
@@ -930,13 +906,13 @@ export default function MCPPluginsPage() {
                             )}
 
                             {plugin.plugin_type === 'stdio' && plugin.command && (
-                              <div style={{
+                              <div className={sx({
                                 fontSize: isMobile ? '11px' : '12px',
                                 overflow: 'hidden',
                                 textOverflow: 'ellipsis',
                                 whiteSpace: 'nowrap'
-                              }}>
-                                <Text type="secondary" code style={{ fontSize: 'inherit' }}>
+                              })}>
+                                <Text type="secondary" code className="u-1r4ryei">
                                   {plugin.command} {plugin.args?.join(' ')}
                                 </Text>
                               </div>
@@ -944,7 +920,7 @@ export default function MCPPluginsPage() {
 
                             {/* 显示最后错误信息 */}
                             {plugin.last_error && (
-                              <Text type="danger" style={{ fontSize: isMobile ? '11px' : '12px' }}>
+                              <Text type="danger" className={sx({ fontSize: isMobile ? '11px' : '12px' })}>
                                 错误: {plugin.last_error}
                               </Text>
                             )}
@@ -952,7 +928,7 @@ export default function MCPPluginsPage() {
                         </div>
 
                         {/* 操作按钮区域 */}
-                        <div style={{
+                        <div className={sx({
                           display: 'flex',
                           justifyContent: isMobile ? 'flex-end' : 'flex-start',
                           alignItems: 'center',
@@ -960,7 +936,7 @@ export default function MCPPluginsPage() {
                           flexWrap: 'wrap',
                           borderTop: isMobile ? `1px solid ${token.colorBorderSecondary}` : 'none',
                           paddingTop: isMobile ? 12 : 0
-                        }}>
+                        })}>
                           {/* 桌面端显示开关 */}
                           {!isMobile && (
                             <Switch
@@ -1054,7 +1030,7 @@ export default function MCPPluginsPage() {
     }
   }
 }`}
-                style={{ fontFamily: 'monospace', fontSize: '13px' }}
+                className="u-1vsi3qm"
               />
             </Form.Item>
 
@@ -1081,7 +1057,7 @@ export default function MCPPluginsPage() {
         <Modal
           title={
             <Space>
-              <ToolOutlined style={{ color: token.colorPrimary }} />
+              <ToolOutlined className={sx({ color: token.colorPrimary })} />
               <span>可用工具列表</span>
               {viewingTools && viewingTools.tools.length > 0 && (
                 <Tag color="blue">{viewingTools.tools.length} 个工具</Tag>
@@ -1106,49 +1082,49 @@ export default function MCPPluginsPage() {
           }}
         >
           {viewingTools && (
-            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+            <Space direction="vertical" size="middle" className="u-1f3r3s">
               {viewingTools.tools.length === 0 ? (
                 <Empty
                   description="该插件没有提供任何工具"
                   image={Empty.PRESENTED_IMAGE_SIMPLE}
-                  style={{ padding: '40px 0' }}
+                  className="u-1f5twmr"
                 />
               ) : (
                 viewingTools.tools.map((tool, index) => (
                   <Card
                     key={index}
                     size="small"
-                    style={{
+                    className={sx({
                       borderRadius: 8,
                       border: `1px solid ${token.colorBorderSecondary}`,
                       boxShadow: `0 2px 4px ${alphaColor(token.colorText, 0.08)}`
-                    }}
+                    })}
                     title={
                       <Space>
-                        <Text code strong style={{ fontSize: isMobile ? '13px' : '14px', color: token.colorPrimary }}>
+                        <Text code strong className={sx({ fontSize: isMobile ? '13px' : '14px', color: token.colorPrimary })}>
                           {tool.name}
                         </Text>
-                        <Tag color="processing" style={{ fontSize: '11px' }}>
+                        <Tag color="processing" className="u-ts7gql">
                           #{index + 1}
                         </Tag>
                       </Space>
                     }
                   >
-                    <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                    <Space direction="vertical" size="small" className="u-1f3r3s">
                       {tool.description && (
                         <div>
-                          <Text type="secondary" style={{ fontSize: isMobile ? '12px' : '13px', display: 'block', marginBottom: 4 }}>
+                          <Text type="secondary" className={sx({ fontSize: isMobile ? '12px' : '13px', display: 'block', marginBottom: 4 })}>
                             描述：
                           </Text>
                           <Paragraph
-                            style={{
+                            className={sx({
                               margin: 0,
                               fontSize: isMobile ? '12px' : '13px',
                               padding: '8px 12px',
                               background: token.colorBgLayout,
                               borderRadius: 4,
                               borderLeft: `3px solid ${token.colorInfo}`
-                            }}
+                            })}
                           >
                             {tool.description}
                           </Paragraph>
@@ -1156,11 +1132,11 @@ export default function MCPPluginsPage() {
                       )}
                       {tool.inputSchema && (
                         <div>
-                          <Text type="secondary" style={{ fontSize: isMobile ? '12px' : '13px', display: 'block', marginBottom: 4 }}>
+                          <Text type="secondary" className={sx({ fontSize: isMobile ? '12px' : '13px', display: 'block', marginBottom: 4 })}>
                             输入参数：
                           </Text>
                           <pre
-                            style={{
+                            className={sx({
                               margin: 0,
                               padding: isMobile ? '8px' : '12px',
                               background: token.colorBgLayout,
@@ -1170,7 +1146,7 @@ export default function MCPPluginsPage() {
                               maxHeight: '200px',
                               border: `1px solid ${token.colorBorderSecondary}`,
                               lineHeight: 1.6
-                            }}
+                            })}
                           >
                             {JSON.stringify(tool.inputSchema, null, 2)}
                           </pre>

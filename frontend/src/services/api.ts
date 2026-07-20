@@ -84,6 +84,7 @@ import type {
   BatchAnalyzeUnanalyzedRequest,
   BatchAnalyzeUnanalyzedResponse,
   CandidateAcceptRequest,
+  CandidateBatchReviewResponse,
   CandidateMergeRequest,
   CandidateRejectRequest,
   CandidateReviewResponse,
@@ -139,6 +140,8 @@ import type {
   GoldfingerListResponse,
   GoldfingerUpdate,
   InspirationEvaluateRequest,
+  InspirationBatchRequest,
+  InspirationBatchResponse,
   InspirationGenerationContext,
   InspirationGenerateCardsRequest,
   InspirationGenerateCardsResponse,
@@ -161,12 +164,16 @@ import type {
   SyncRun,
   SyncRunListResponse,
   WorldBuildingDraftResponse,
+  WorldSettingApplyTemplateRequest,
+  WorldSettingApplyTemplateResponse,
   WorldSettingRejectRequest,
   WorldSettingResult,
   WorldSettingResultListResponse,
   WorldSettingResultOperationResponse,
   WorldSettingResultStatus,
   WorldSettingRollbackRequest,
+  WorldSettingTemplate,
+  WorldSettingTemplateListResponse,
 } from '../types';
 
 interface MCPPluginSimpleCreate {
@@ -860,6 +867,36 @@ export const bookImportApi = {
     api.delete<unknown, { success: boolean; message: string }>(`/book-import/tasks/${taskId}`),
 };
 
+const EXTRACTION_BATCH_CHUNK_SIZE = 200;
+
+function chunkCandidateIds(candidateIds: string[]): string[][] {
+  const chunks: string[][] = [];
+  for (let index = 0; index < candidateIds.length; index += EXTRACTION_BATCH_CHUNK_SIZE) {
+    chunks.push(candidateIds.slice(index, index + EXTRACTION_BATCH_CHUNK_SIZE));
+  }
+  return chunks;
+}
+
+async function runCandidateBatchReview(
+  candidateIds: string[],
+  postChunk: (chunk: string[]) => Promise<CandidateBatchReviewResponse>,
+): Promise<CandidateBatchReviewResponse> {
+  const combined: CandidateBatchReviewResponse = {
+    changed: 0,
+    failures: [],
+    candidates: [],
+  };
+
+  for (const chunk of chunkCandidateIds(candidateIds)) {
+    const response = await postChunk(chunk);
+    combined.changed += response.changed;
+    combined.failures.push(...response.failures);
+    combined.candidates.push(...response.candidates);
+  }
+
+  return combined;
+}
+
 export const extractionApi = {
   listRuns: (params?: {
     project_id?: string;
@@ -888,6 +925,16 @@ export const extractionApi = {
 
   rollbackCandidate: (candidateId: string, data: CandidateRollbackRequest = {}) =>
     api.post<unknown, CandidateReviewResponse>(`/extraction/candidates/${candidateId}/rollback`, data),
+
+  batchAcceptCandidates: (candidateIds: string[]) =>
+    runCandidateBatchReview(candidateIds, chunk =>
+      api.post<unknown, CandidateBatchReviewResponse>('/extraction/candidates/batch-accept', { candidate_ids: chunk }),
+    ),
+
+  batchRejectCandidates: (candidateIds: string[], reason?: string) =>
+    runCandidateBatchReview(candidateIds, chunk =>
+      api.post<unknown, CandidateBatchReviewResponse>('/extraction/candidates/batch-reject', { candidate_ids: chunk, reason }),
+    ),
 
   reextractProject: (projectId: string) =>
     api.post<unknown, ManualReextractResponse>('/extraction/reextract/project', { project_id: projectId }),
@@ -931,6 +978,17 @@ export const worldSettingResultApi = {
 
   rollbackResult: (resultId: string, data: WorldSettingRollbackRequest = {}) =>
     api.post<unknown, WorldSettingResultOperationResponse>(`/world-setting-results/${resultId}/rollback`, data),
+};
+
+export const worldSettingTemplateApi = {
+  listTemplates: () =>
+    api.get<unknown, WorldSettingTemplateListResponse>('/world-setting/templates'),
+
+  getTemplate: (templateId: string) =>
+    api.get<unknown, WorldSettingTemplate>(`/world-setting/templates/${templateId}`),
+
+  applyTemplate: (data: WorldSettingApplyTemplateRequest) =>
+    api.post<unknown, WorldSettingApplyTemplateResponse>('/world-setting/apply-template', data),
 };
 
 export const organizationApi = {
@@ -1528,6 +1586,9 @@ export const inspirationApi = {
       guidance === undefined ? payload : { ...payload, guidance },
     );
   },
+
+  batchGenerate: (data: InspirationBatchRequest) =>
+    api.post<unknown, InspirationBatchResponse>('/inspiration/batch-generate', data),
 
   // 合并两个故事方向卡片
   mergeCards: (data: InspirationMergeCardsRequest) =>

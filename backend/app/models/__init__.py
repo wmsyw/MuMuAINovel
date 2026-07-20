@@ -32,6 +32,8 @@ from app.models.regeneration_task import RegenerationTask
 from app.models.career import Career, CharacterCareer
 from app.models.goldfinger import Goldfinger, GoldfingerHistoryEvent
 from app.models.prompt_template import PromptTemplate
+from app.models.inspiration_template import InspirationTemplate
+from app.models.world_setting_template import WorldSettingTemplate
 from app.models.foreshadow import Foreshadow
 from app.models.prompt_workshop import PromptWorkshopItem, PromptSubmission, PromptWorkshopLike
 from app.models.background_task import BackgroundTask
@@ -78,6 +80,8 @@ __all__ = [
     "Goldfinger",
     "GoldfingerHistoryEvent",
     "PromptTemplate",
+    "InspirationTemplate",
+    "WorldSettingTemplate",
     "Foreshadow",
     "PromptWorkshopItem",
     "PromptSubmission",

@@ -28,7 +28,7 @@ from app.models import (
     RelationshipTimelineEvent, WorldSettingResult,
     StoryMemory, PlotAnalysis, AnalysisTask, BatchGenerationTask,
     RegenerationTask, Career, CharacterCareer, User, MCPPlugin, PromptTemplate,
-    BackgroundTask
+    InspirationTemplate, BackgroundTask
 )
 
 # Alembic Config 对象

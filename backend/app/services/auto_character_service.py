@@ -16,6 +16,7 @@ from app.services.entity_generation_policy_service import entity_generation_poli
 from app.services.prompt_service import PromptService
 from app.services.relationship_merge_service import RelationshipMergeService
 from app.logger import get_logger
+from app.services.world_setting_data_service import dynamic_world_setting_context
 
 logger = get_logger(__name__)
 
@@ -112,6 +113,9 @@ class AutoCharacterService:
             character_specification=json.dumps(spec, ensure_ascii=False, indent=2),
             mcp_references=""  # MCP工具通过AI服务自动加载
         )
+        dynamic_context = dynamic_world_setting_context(project)
+        if dynamic_context:
+            prompt = f"{prompt}\n\n【动态世界设定】\n{dynamic_context}"
         
         logger.info(f"🔧 角色详情生成: enable_mcp={enable_mcp}")
         

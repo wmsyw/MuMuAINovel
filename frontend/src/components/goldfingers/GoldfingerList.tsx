@@ -3,6 +3,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { DeleteOutlined, EditOutlined, HistoryOutlined, ThunderboltOutlined, EyeOutlined } from '@ant-design/icons';
 import type { Goldfinger } from '../../types';
 import { formatConfidence, getGoldfingerStatusMeta } from './constants';
+import { sx } from '../../styles/sx';
 
 const { Paragraph, Text } = Typography;
 
@@ -45,11 +46,11 @@ export default function GoldfingerList({
         return (
           <Space direction="vertical" size={2}>
             <Space wrap size={6}>
-              <ThunderboltOutlined style={{ color: token.colorWarning }} />
+              <ThunderboltOutlined className={sx({ color: token.colorWarning })} />
               <Text strong>{record.name}</Text>
               <Tag color={status.color}>{status.label}</Tag>
             </Space>
-            <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+            <Text type="secondary" className={sx({ fontSize: token.fontSizeSM })}>
               {record.normalized_name || '未记录规范名'}
             </Text>
           </Space>
@@ -71,7 +72,7 @@ export default function GoldfingerList({
       title: '概要',
       dataIndex: 'summary',
       render: (summary?: string | null) => (
-        <Paragraph style={{ marginBottom: 0 }} ellipsis={{ rows: 2, tooltip: summary || undefined }}>
+        <Paragraph className="u-1sezbee" ellipsis={{ rows: 2, tooltip: summary || undefined }}>
           {summary || '暂无概要'}
         </Paragraph>
       ),

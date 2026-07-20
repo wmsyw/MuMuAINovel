@@ -67,7 +67,7 @@ async def _fetch_models_dev_catalog() -> dict[str, object] | None:
         async with httpx.AsyncClient(timeout=MODELS_DEV_FETCH_TIMEOUT_SECONDS) as client:
             response = await client.get(
                 MODELS_DEV_API_URL,
-                headers={"User-Agent": "MuMuAINovel/1.0 (+https://models.dev)"},
+                headers={"User-Agent": "AI-Novel-Studio/1.0 (+https://models.dev)"},
             )
             response.raise_for_status()
             data = response.json()

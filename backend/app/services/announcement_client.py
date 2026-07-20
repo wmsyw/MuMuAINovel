@@ -16,7 +16,7 @@ class AnnouncementClient:
     """云端公告 API 客户端"""
 
     def __init__(self):
-        self.base_url = settings.WORKSHOP_CLOUD_URL
+        self.base_url = settings.WORKSHOP_CLOUD_URL.rstrip("/") if settings.WORKSHOP_CLOUD_URL else None
         self.timeout = settings.WORKSHOP_API_TIMEOUT
 
     async def _request(
@@ -27,6 +27,8 @@ class AnnouncementClient:
         json: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """发送请求到云端公告服务"""
+        if not self.base_url:
+            raise AnnouncementClientError("未配置远程工坊地址，请设置 WORKSHOP_CLOUD_URL")
         headers = {
             "X-Instance-ID": INSTANCE_ID,
             "Content-Type": "application/json",

@@ -8,6 +8,7 @@ import httpx
 from datetime import datetime, timedelta
 from pydantic import BaseModel
 import logging
+from app.config import settings as config_settings
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +22,8 @@ def require_login(request: Request):
 
 # GitHub API配置
 GITHUB_API_BASE = "https://api.github.com"
-REPO_OWNER = "xiamuceer-j"
-REPO_NAME = "MuMuAINovel"
+REPO_OWNER = config_settings.repository_owner
+REPO_NAME = config_settings.repository_name
 
 # 缓存配置
 _cache = {
@@ -79,6 +80,8 @@ def is_cache_valid() -> bool:
 
 async def fetch_github_commits(page: int = 1, per_page: int = 30) -> List[dict]:
     """从GitHub API获取提交历史"""
+    if not REPO_OWNER or not REPO_NAME:
+        raise HTTPException(status_code=503, detail="未配置代码仓库，更新日志不可用")
     url = f"{GITHUB_API_BASE}/repos/{REPO_OWNER}/{REPO_NAME}/commits"
     params = {
         "author": REPO_OWNER,
@@ -88,7 +91,7 @@ async def fetch_github_commits(page: int = 1, per_page: int = 30) -> List[dict]:
     
     headers = {
         "Accept": "application/vnd.github.v3+json",
-        "User-Agent": "MuMuAINovel-App"
+        "User-Agent": "AI-Novel-Studio-App"
     }
     
     try:

@@ -5,20 +5,12 @@ const bookshelfBaseShadow = `
   inset 0 1px 0 color-mix(in srgb, var(--ant-color-bg-container) 82%, transparent)
 `;
 
-const bookshelfHoverShadow = `
-  0 16px 30px -12px color-mix(in srgb, var(--ant-color-text) 34%, transparent),
-  inset 0 1px 0 color-mix(in srgb, var(--ant-color-bg-container) 88%, transparent)
-`;
 
 const bookshelfNewBaseShadow = `
   0 10px 24px -14px color-mix(in srgb, var(--ant-color-text) 30%, transparent),
   inset 0 1px 0 color-mix(in srgb, var(--ant-color-bg-container) 84%, transparent)
 `;
 
-const bookshelfNewHoverShadow = `
-  0 16px 30px -12px color-mix(in srgb, var(--ant-color-text) 36%, transparent),
-  inset 0 1px 0 color-mix(in srgb, var(--ant-color-bg-container) 90%, transparent)
-`;
 
 const promptTemplateBaseShadow = `
   0 6px 16px color-mix(in srgb, var(--ant-color-text) 11%, transparent),
@@ -66,42 +58,7 @@ export const bookshelfCardStyles = {
   } as CSSProperties,
 };
 
-export const bookshelfCardHoverHandlers = {
-  onMouseEnter: (e: React.MouseEvent<HTMLDivElement>) => {
-    const target = e.currentTarget;
-    if (target.dataset.cardStyle !== 'bookshelf-book') {
-      return;
-    }
-
-    if (target.dataset.bookKind === 'new') {
-      target.style.transform = 'translateY(-6px)';
-      target.style.boxShadow = bookshelfNewHoverShadow;
-      target.style.borderColor = 'color-mix(in srgb, var(--ant-color-warning) 48%, var(--ant-color-border) 52%)';
-      target.style.background = 'linear-gradient(180deg, color-mix(in srgb, var(--ant-color-bg-container) 92%, var(--ant-color-warning) 8%) 0%, color-mix(in srgb, var(--ant-color-bg-container) 82%, var(--ant-color-warning) 18%) 100%)';
-      return;
-    }
-
-    target.style.transform = 'translateY(-8px) rotateX(2deg)';
-    target.style.boxShadow = bookshelfHoverShadow;
-    target.style.borderColor = 'color-mix(in srgb, var(--ant-color-primary) 28%, var(--ant-color-border) 72%)';
-  },
-  onMouseLeave: (e: React.MouseEvent<HTMLDivElement>) => {
-    const target = e.currentTarget;
-    if (target.dataset.cardStyle !== 'bookshelf-book') {
-      return;
-    }
-
-    const isNewBook = target.dataset.bookKind === 'new';
-    target.style.transform = 'translateY(0) rotateX(0)';
-    target.style.boxShadow = isNewBook ? bookshelfNewBaseShadow : bookshelfBaseShadow;
-    target.style.borderColor = isNewBook
-      ? 'color-mix(in srgb, var(--ant-color-warning) 40%, var(--ant-color-border) 60%)'
-      : 'color-mix(in srgb, var(--ant-color-text) 18%, transparent)';
-    if (isNewBook) {
-      target.style.background = 'linear-gradient(180deg, color-mix(in srgb, var(--ant-color-bg-container) 94%, var(--ant-color-warning) 6%) 0%, color-mix(in srgb, var(--ant-color-bg-container) 86%, var(--ant-color-warning) 14%) 100%)';
-    }
-  },
-};
+export const bookshelfCardClassName = 'bookshelf-card';
 
 // PromptTemplates 页面卡片样式
 export const promptTemplateCardStyles = {
@@ -116,23 +73,7 @@ export const promptTemplateCardStyles = {
   } as CSSProperties,
 };
 
-export const promptTemplateCardHoverHandlers = {
-  onMouseEnter: (e: React.MouseEvent<HTMLDivElement>) => {
-    const target = e.currentTarget;
-    target.style.transform = 'translateY(-6px)';
-    target.style.boxShadow = `
-      0 14px 24px color-mix(in srgb, var(--ant-color-text) 16%, transparent),
-      0 1px 0 color-mix(in srgb, var(--ant-color-white) 48%, transparent) inset
-    `;
-    target.style.borderColor = 'color-mix(in srgb, var(--ant-color-primary) 24%, transparent)';
-  },
-  onMouseLeave: (e: React.MouseEvent<HTMLDivElement>) => {
-    const target = e.currentTarget;
-    target.style.transform = 'translateY(0)';
-    target.style.boxShadow = promptTemplateBaseShadow;
-    target.style.borderColor = 'color-mix(in srgb, var(--ant-color-text) 8%, transparent)';
-  },
-};
+export const promptTemplateCardClassName = 'prompt-template-card';
 
 export const promptTemplateGridConfig = {
   xs: 24,

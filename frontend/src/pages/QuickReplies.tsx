@@ -29,6 +29,7 @@ import {
 } from '@ant-design/icons';
 import { quickReplyApi } from '../services/api';
 import type { QuickReply, QuickReplyCreate } from '../types';
+import { sx } from '../styles/sx';
 
 const { Paragraph, Text, Title } = Typography;
 const { TextArea } = Input;
@@ -169,7 +170,7 @@ export default function QuickReplies() {
       title: '片段内容',
       dataIndex: 'snippet',
       render: (snippet: string) => (
-        <Paragraph ellipsis={{ rows: 2, expandable: true, symbol: '展开' }} style={{ marginBottom: 0, whiteSpace: 'pre-wrap' }}>
+        <Paragraph ellipsis={{ rows: 2, expandable: true, symbol: '展开' }} className="u-19o9sm6">
           {snippet}
         </Paragraph>
       ),
@@ -198,15 +199,15 @@ export default function QuickReplies() {
   ];
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: token.paddingMD }}>
+    <div className={sx({ height: '100%', display: 'flex', flexDirection: 'column', gap: token.paddingMD })}>
       <Card>
-        <Space align="start" style={{ width: '100%', justifyContent: 'space-between' }} wrap>
+        <Space align="start" className="u-1qos3j5" wrap>
           <Space direction="vertical" size={4}>
             <Space>
-              <SnippetsOutlined style={{ color: token.colorPrimary, fontSize: 24 }} />
-              <Title level={3} style={{ margin: 0 }}>快捷片段</Title>
+              <SnippetsOutlined className={sx({ color: token.colorPrimary, fontSize: 24 })} />
+              <Title level={3} className="u-avalr8">快捷片段</Title>
             </Space>
-            <Paragraph type="secondary" style={{ marginBottom: 0 }}>
+            <Paragraph type="secondary" className="u-1sezbee">
               项目内快捷回复只保存静态安全片段。应用时会显式写入创作会话记录，并附带 trace 标签；不会执行脚本、命令、网络请求，也不会暗改提示词。
             </Paragraph>
           </Space>
@@ -220,7 +221,7 @@ export default function QuickReplies() {
 
       {error && <Alert type="warning" showIcon message={error} />}
 
-      <Card style={{ flex: 1, minHeight: 0, overflow: 'hidden' }} bodyStyle={{ height: '100%', overflow: 'auto' }}>
+      <Card className="u-1tqrzca" bodyStyle={{ height: '100%', overflow: 'auto' }}>
         <Table<QuickReply>
           rowKey="id"
           columns={columns}
@@ -244,7 +245,7 @@ export default function QuickReplies() {
         <Alert
           type="info"
           showIcon
-          style={{ marginBottom: token.marginMD }}
+          className={sx({ marginBottom: token.marginMD })}
           message="安全边界"
           description="只允许普通文本片段。包含 STscript/Slash 命令、脚本、Shell/网络命令或模板宏的内容会被后端拒绝。"
         />
@@ -258,7 +259,7 @@ export default function QuickReplies() {
             <Input maxLength={100} placeholder="例如：雨夜氛围" />
           </Form.Item>
           <Form.Item name="sort_order" label="显示顺序">
-            <InputNumber style={{ width: '100%' }} min={0} precision={0} />
+            <InputNumber className="u-1f3r3s" min={0} precision={0} />
           </Form.Item>
           <Form.Item name="enabled" label="启用状态" valuePropName="checked">
             <Switch checkedChildren="启用" unCheckedChildren="停用" />

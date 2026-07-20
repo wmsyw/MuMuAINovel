@@ -137,6 +137,12 @@ class CoverGenerationService:
         if not provider or not api_key or not model:
             raise HTTPException(status_code=400, detail="封面图片配置不完整，请填写 provider、api_key 和 model")
 
+        normalized_provider, _ = self._normalize_provider_values(
+            provider=provider,
+            api_base_url=api_base_url,
+            model=model,
+        )
+
         provider_instance = self._build_provider_from_values(
             provider=provider,
             api_key=api_key,
@@ -161,7 +167,7 @@ class CoverGenerationService:
         return CoverTestResult(
             success=True,
             message="封面图片接口测试成功",
-            provider=provider,
+            provider=normalized_provider,
             model=model,
         )
 
@@ -219,6 +225,44 @@ class CoverGenerationService:
             model=settings.cover_image_model or "",
         )
 
+    @staticmethod
+    def _normalize_provider_values(
+        *,
+        provider: str,
+        api_base_url: Optional[str],
+        model: str,
+    ) -> tuple[str, str]:
+        """Normalize persisted provider values before selecting an implementation.
+
+        Older settings used a single provider value for several OpenAI-compatible
+        image gateways.  Keep those values runnable when their URL/model gives us
+        an unambiguous route, but never recreate the old branded fallback URL.
+        """
+        provider_value = (provider or "").lower().strip()
+        normalized_base_url = (api_base_url or "").rstrip("/")
+
+        if provider_value == "mumu":
+            model_value = (model or "").lower().strip()
+            base_url_value = normalized_base_url.lower()
+            if base_url_value.endswith("/v1beta"):
+                provider_value = "gemini"
+            elif model_value.startswith("gpt-image-"):
+                provider_value = "openai"
+            elif model_value.startswith("grok-") or "api.x.ai" in base_url_value:
+                provider_value = "grok"
+            elif normalized_base_url:
+                # Preserve arbitrary OpenAI-compatible gateways and their model.
+                provider_value = "openai"
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail="封面图片 Provider 配置已过期，请在设置页重新选择 OpenAI、Gemini 或 Grok",
+                )
+        elif provider_value in {"custom", "openai-compatible", "openai_compatible"}:
+            provider_value = "openai"
+
+        return provider_value, normalized_base_url
+
     def _build_provider_from_values(
         self,
         *,
@@ -227,24 +271,18 @@ class CoverGenerationService:
         api_base_url: Optional[str],
         model: str,
     ) -> BaseCoverProvider:
-        provider_value = (provider or "").lower().strip()
-        normalized_base_url = (api_base_url or "").rstrip("/")
+        provider_value, normalized_base_url = self._normalize_provider_values(
+            provider=provider,
+            api_base_url=api_base_url,
+            model=model,
+        )
         if provider_value == "gemini":
             return GeminiCoverProvider(api_key=api_key, base_url=normalized_base_url)
         if provider_value == "grok":
             return GrokCoverProvider(api_key=api_key, base_url=normalized_base_url)
         if provider_value == "openai":
             return OpenAIImageCoverProvider(api_key=api_key, base_url=normalized_base_url)
-        if provider_value == "mumu":
-            if normalized_base_url.endswith("/v1beta"):
-                return GeminiCoverProvider(api_key=api_key, base_url=normalized_base_url)
-            if (model or "").lower().strip().startswith("gpt-image-"):
-                return OpenAIImageCoverProvider(
-                    api_key=api_key,
-                    base_url=normalized_base_url or "https://api.mumuverse.space/v1",
-                )
-            return GrokCoverProvider(api_key=api_key, base_url=normalized_base_url or "https://api.mumuverse.space/v1")
-        raise HTTPException(status_code=400, detail="当前版本仅支持 OpenAI、Gemini、Grok 或 MuMuのAPI 作为封面图片 Provider")
+        raise HTTPException(status_code=400, detail="当前版本仅支持 OpenAI、Gemini 或 Grok 封面图片 Provider")
 
     def _save_cover_file(
         self,

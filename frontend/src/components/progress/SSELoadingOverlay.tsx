@@ -1,6 +1,7 @@
 import React from 'react';
 import { Spin, theme } from 'antd';
 import { LoadingOutlined } from '@ant-design/icons';
+import { sx } from '../../styles/sx';
 
 interface SSELoadingOverlayProps {
   loading: boolean;
@@ -18,7 +19,7 @@ export const SSELoadingOverlay: React.FC<SSELoadingOverlayProps> = ({
   if (!loading) return null;
 
   return (
-    <div style={{
+    <div className={sx({
       position: 'fixed',
       top: 0,
       left: 0,
@@ -29,45 +30,40 @@ export const SSELoadingOverlay: React.FC<SSELoadingOverlayProps> = ({
       justifyContent: 'center',
       alignItems: 'center',
       zIndex: 9999
-    }}>
-      <div style={{
+    })}>
+      <div className={sx({
         background: token.colorBgElevated,
         borderRadius: 12,
         padding: '40px 60px',
         minWidth: 400,
         maxWidth: 600,
         boxShadow: token.boxShadowSecondary
-      }}>
+      })}>
         {/* 标题和图标 */}
-        <div style={{
-          textAlign: 'center',
-          marginBottom: 24
-        }}>
+        <div className="u-cjci96">
           <Spin
-            indicator={<LoadingOutlined style={{ fontSize: 48, color: token.colorPrimary }} spin />}
+            indicator={<LoadingOutlined className={sx({ fontSize: 48, color: token.colorPrimary })} spin />}
           />
-          <div style={{
+          <div className={sx({
             fontSize: 20,
             fontWeight: 'bold',
             marginTop: 16,
             color: token.colorTextHeading
-          }}>
+          })}>
             AI生成中...
           </div>
         </div>
 
         {/* 进度条 */}
-        <div style={{
-          marginBottom: 16
-        }}>
-          <div style={{
+        <div className="u-6srbul">
+          <div className={sx({
             height: 12,
             background: token.colorFillTertiary,
             borderRadius: 6,
             overflow: 'hidden',
             marginBottom: 12
-          }}>
-            <div style={{
+          })}>
+            <div className={sx({
               height: '100%',
               background: progress === 100
                 ? `linear-gradient(90deg, ${token.colorSuccess} 0%, ${token.colorSuccessActive} 100%)`
@@ -76,39 +72,39 @@ export const SSELoadingOverlay: React.FC<SSELoadingOverlayProps> = ({
               transition: 'all 0.3s ease',
               borderRadius: 6,
               boxShadow: progress > 0 ? token.boxShadow : 'none'
-            }} />
+            })} />
           </div>
 
           {/* 进度百分比 */}
-          <div style={{
+          <div className={sx({
             textAlign: 'center',
             fontSize: 32,
             fontWeight: 'bold',
             color: progress === 100 ? token.colorSuccess : token.colorPrimary,
             marginBottom: 8
-          }}>
+          })}>
             {progress}%
           </div>
         </div>
 
         {/* 状态消息 */}
-        <div style={{
+        <div className={sx({
           textAlign: 'center',
           fontSize: 16,
           color: token.colorText,
           minHeight: 24,
           padding: '0 20px'
-        }}>
+        })}>
           {message || '准备生成...'}
         </div>
 
         {/* 提示文字 */}
-        <div style={{
+        <div className={sx({
           textAlign: 'center',
           fontSize: 13,
           color: token.colorTextTertiary,
           marginTop: 16
-        }}>
+        })}>
           请勿关闭页面,生成过程需要一定时间
         </div>
       </div>

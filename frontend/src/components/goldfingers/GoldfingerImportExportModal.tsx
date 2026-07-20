@@ -4,6 +4,7 @@ import { DownloadOutlined, FileTextOutlined, ImportOutlined, UploadOutlined } fr
 import type { GoldfingerImportDryRunResult, GoldfingerImportPayload } from '../../types';
 import { goldfingerApi } from '../../services/api';
 import { GOLDFINGER_PAYLOAD_VERSION } from './constants';
+import { sx } from '../../styles/sx';
 
 const { Paragraph, Text } = Typography;
 
@@ -35,7 +36,7 @@ function ValidationList({ title, items, type }: { title: string; items: Array<{ 
           size="small"
           dataSource={items}
           renderItem={(item) => (
-            <List.Item style={{ padding: '2px 0' }}>
+            <List.Item className="u-1db1qcd">
               <Text>
                 {item.index !== null && item.index !== undefined ? `#${item.index + 1} ` : ''}
                 {item.name ? `「${item.name}」` : ''}{item.message}
@@ -44,7 +45,7 @@ function ValidationList({ title, items, type }: { title: string; items: Array<{ 
           )}
         />
       )}
-      style={{ marginBottom: 12 }}
+      className="u-1qz2mrl"
     />
   );
 }
@@ -154,7 +155,7 @@ export default function GoldfingerImportExportModal({
         </Space>
       )}
     >
-      <Space direction="vertical" style={{ width: '100%' }} size="middle">
+      <Space direction="vertical" className="u-1f3r3s" size="middle">
         <Alert
           type="info"
           showIcon
@@ -191,7 +192,7 @@ export default function GoldfingerImportExportModal({
               setParseError(null);
             }}
             placeholder={`{\n  "version": "${GOLDFINGER_PAYLOAD_VERSION}",\n  "export_type": "goldfingers",\n  "data": []\n}`}
-            style={{
+            className={sx({
               width: '100%',
               minHeight: 180,
               marginTop: 8,
@@ -201,19 +202,19 @@ export default function GoldfingerImportExportModal({
               background: token.colorBgContainer,
               color: token.colorText,
               fontFamily: 'monospace',
-            }}
+            })}
           />
         </div>
 
         {localVersionWarning && <Alert type="warning" showIcon message="版本不匹配" description={`${localVersionWarning}，请使用 ${GOLDFINGER_PAYLOAD_VERSION}。`} />}
         {parseError && <Alert type="error" showIcon message="解析失败" description={`${parseError}；期望版本 ${GOLDFINGER_PAYLOAD_VERSION}`} />}
 
-        <Divider style={{ margin: 0 }} />
+        <Divider className="u-avalr8" />
 
         {!dryRun ? (
           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="等待 dry-run 校验结果" />
         ) : (
-          <Space direction="vertical" style={{ width: '100%' }}>
+          <Space direction="vertical" className="u-1f3r3s">
             <Alert
               type={dryRun.valid ? 'success' : 'error'}
               showIcon
@@ -231,13 +232,13 @@ export default function GoldfingerImportExportModal({
                   <List
                     size="small"
                     dataSource={dryRun.conflicts}
-                    renderItem={item => <List.Item style={{ padding: '2px 0' }}>#{item.index + 1} 「{item.name || '未命名'}」：{item.reason}</List.Item>}
+                    renderItem={item => <List.Item className="u-1db1qcd">#{item.index + 1} 「{item.name || '未命名'}」：{item.reason}</List.Item>}
                   />
                 )}
               />
             )}
             {dryRun.would_create.length > 0 && (
-              <Paragraph style={{ marginBottom: 0 }}>将创建：{dryRun.would_create.map(item => String(item.name || item.normalized_name)).join('、')}</Paragraph>
+              <Paragraph className="u-1sezbee">将创建：{dryRun.would_create.map(item => String(item.name || item.normalized_name)).join('、')}</Paragraph>
             )}
           </Space>
         )}

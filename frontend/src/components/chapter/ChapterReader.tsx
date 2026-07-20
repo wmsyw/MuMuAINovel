@@ -14,6 +14,8 @@ import {
   ColumnHeightOutlined
 } from '@ant-design/icons';
 import type { Chapter } from '../../types';
+import { useIsMobile } from '../../hooks/useMediaQuery';
+import { sx } from '../../styles/sx';
 
 // 阅读器设置接口
 interface ReaderSettings {
@@ -93,17 +95,7 @@ export default function ChapterReader({
   // 设置面板显示状态
   const [showSettings, setShowSettings] = useState(false);
   
-  // 移动端检测
-  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
-
-  // 响应式检测
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth <= 768);
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  const isMobile = useIsMobile();
 
   // 获取章节导航信息
   useEffect(() => {
@@ -220,14 +212,7 @@ export default function ChapterReader({
       onCancel={onClose}
       footer={null}
       width="100%"
-      style={{
-        maxWidth: '100vw',
-        top: 0,
-        margin: 0,
-        padding: 0,
-        height: '100vh',
-        overflow: 'hidden'
-      }}
+      className="u-1okiznx"
       styles={{
         content: {
           height: '100vh',
@@ -253,7 +238,7 @@ export default function ChapterReader({
       maskClosable={false}
     >
       {/* 顶部工具栏 */}
-      <div style={{
+      <div className={sx({
         flex: 'none',
         display: 'flex',
         justifyContent: 'space-between',
@@ -262,19 +247,19 @@ export default function ChapterReader({
         borderBottom: `1px solid ${currentTheme.border}`,
         background: currentTheme.headerBg,
         zIndex: 10
-      }}>
+      })}>
         <Button 
           type="text" 
           icon={<CloseOutlined />} 
           onClick={onClose}
-          style={{ color: currentTheme.text }}
+          className={sx({ color: currentTheme.text })}
         >
           {!isMobile && '关闭'}
         </Button>
         
         <Typography.Title 
           level={5} 
-          style={{ 
+          className={sx({ 
             margin: 0, 
             color: currentTheme.text,
             maxWidth: isMobile ? '60%' : '70%',
@@ -282,7 +267,7 @@ export default function ChapterReader({
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
             fontSize: isMobile ? 14 : 16
-          }}
+          })}
         >
           第{chapter.chapter_number}章：{chapter.title}
         </Typography.Title>
@@ -291,27 +276,27 @@ export default function ChapterReader({
           type={showSettings ? 'primary' : 'text'}
           icon={<SettingOutlined />}
           onClick={() => setShowSettings(!showSettings)}
-          style={{ color: showSettings ? undefined : currentTheme.text }}
+          className={sx({ color: showSettings ? undefined : currentTheme.text })}
           title="阅读设置"
         />
       </div>
 
       {/* 设置面板 */}
       {showSettings && (
-        <div style={{
+        <div className={sx({
           padding: isMobile ? '12px 16px' : '16px 24px',
           borderBottom: `1px solid ${currentTheme.border}`,
           background: currentTheme.headerBg
-        }}>
+        })}>
           <Space 
             direction={isMobile ? 'vertical' : 'horizontal'} 
             size="large"
-            style={{ width: '100%' }}
+            className="u-1f3r3s"
             wrap
           >
             {/* 字体大小 */}
-            <div style={{ minWidth: isMobile ? '100%' : 200 }}>
-              <Space style={{ marginBottom: 8, color: currentTheme.text }}>
+            <div className={sx({ minWidth: isMobile ? '100%' : 200 })}>
+              <Space className={sx({ marginBottom: 8, color: currentTheme.text })}>
                 <FontSizeOutlined />
                 <span>字体大小: {settings.fontSize}px</span>
               </Space>
@@ -320,13 +305,13 @@ export default function ChapterReader({
                 max={28}
                 value={settings.fontSize}
                 onChange={v => updateSettings('fontSize', v)}
-                style={{ margin: '8px 0' }}
+                className="u-1tbffhw"
               />
             </div>
 
             {/* 行高 */}
-            <div style={{ minWidth: isMobile ? '100%' : 200 }}>
-              <Space style={{ marginBottom: 8, color: currentTheme.text }}>
+            <div className={sx({ minWidth: isMobile ? '100%' : 200 })}>
+              <Space className={sx({ marginBottom: 8, color: currentTheme.text })}>
                 <ColumnHeightOutlined />
                 <span>行高: {settings.lineHeight}</span>
               </Space>
@@ -336,13 +321,13 @@ export default function ChapterReader({
                 step={0.1}
                 value={settings.lineHeight}
                 onChange={v => updateSettings('lineHeight', v)}
-                style={{ margin: '8px 0' }}
+                className="u-1tbffhw"
               />
             </div>
 
             {/* 主题 */}
             <div>
-              <Space style={{ marginBottom: 8, color: currentTheme.text }}>
+              <Space className={sx({ marginBottom: 8, color: currentTheme.text })}>
                 <BgColorsOutlined />
                 <span>主题</span>
               </Space>
@@ -365,17 +350,12 @@ export default function ChapterReader({
 
       {/* 章节内容区域 */}
       <div
-        className="reader-scroll-container"
-        style={{
-          flex: 1,
-          overflowY: 'auto',
-          position: 'relative',
-          scrollBehavior: 'smooth'
-        }}
+        
+        className={sx("reader-scroll-container", 'u-i1regs')}
       >
         <Spin spinning={loading} tip="加载中...">
           <div
-            style={{
+            className={sx({
               maxWidth: 1000,
               margin: '0 auto',
               padding: isMobile ? '24px 16px 40px' : '40px 60px 40px',
@@ -387,7 +367,7 @@ export default function ChapterReader({
             textAlign: 'justify',
             wordBreak: 'break-word',
             overflowWrap: 'break-word'
-          }}
+          })}
         >
           {chapter.content ? (
             // 按段落渲染内容，优化阅读体验
@@ -395,11 +375,7 @@ export default function ChapterReader({
               paragraph.trim() ? (
                 <p
                   key={index}
-                  style={{
-                    textIndent: '2em',
-                    margin: 0,
-                    marginBottom: '0.8em'
-                  }}
+                  className="u-20n4rm"
                 >
                   {paragraph}
                 </p>
@@ -408,12 +384,12 @@ export default function ChapterReader({
               )
             ))
           ) : (
-            <div style={{ 
+            <div className={sx({ 
               textAlign: 'center', 
               padding: '60px 20px',
               color: currentTheme.text,
               opacity: 0.6
-            }}>
+            })}>
               暂无内容
             </div>
           )}
@@ -422,7 +398,7 @@ export default function ChapterReader({
       </div>
 
       {/* 底部导航栏 */}
-      <div style={{
+      <div className={sx({
         flex: 'none',
         display: 'flex',
         justifyContent: 'space-between',
@@ -431,7 +407,7 @@ export default function ChapterReader({
         borderTop: `1px solid ${currentTheme.border}`,
         background: currentTheme.headerBg,
         zIndex: 100
-      }}>
+      })}>
         <Button
           type="primary"
           icon={<LeftOutlined />}
@@ -442,14 +418,14 @@ export default function ChapterReader({
           {!isMobile && '上一章'}
         </Button>
         
-        <div style={{ 
+        <div className={sx({ 
           textAlign: 'center',
           color: currentTheme.text,
           fontSize: isMobile ? 12 : 14
-        }}>
+        })}>
           <div>{chapter.word_count || 0} 字</div>
           {navigation && (
-            <div style={{ fontSize: isMobile ? 10 : 12, opacity: 0.7 }}>
+            <div className={sx({ fontSize: isMobile ? 10 : 12, opacity: 0.7 })}>
               {navigation.previous ? `← ${navigation.previous.title}` : '已是第一章'}
               {' | '}
               {navigation.next ? `${navigation.next.title} →` : '已是最后一章'}

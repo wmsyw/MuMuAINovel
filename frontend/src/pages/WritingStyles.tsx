@@ -25,6 +25,8 @@ import {
 import { useStore } from '../store';
 import { writingStyleApi } from '../services/api';
 import type { WritingStyle, WritingStyleCreate, WritingStyleUpdate } from '../types';
+import { useIsMobile } from '../hooks/useMediaQuery';
+import { sx } from '../styles/sx';
 
 const { TextArea } = Input;
 const { Text, Paragraph } = Typography;
@@ -41,7 +43,7 @@ export default function WritingStyles() {
 
   const { token } = theme.useToken();
 
-  const isMobile = window.innerWidth <= 768;
+  const isMobile = useIsMobile();
   
   // 卡片网格配置
   const gridConfig = {
@@ -168,8 +170,8 @@ export default function WritingStyles() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{
+    <div className="u-14esoxf">
+      <div className={sx({
         position: 'sticky',
         top: 0,
         zIndex: 10,
@@ -180,9 +182,9 @@ export default function WritingStyles() {
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-      }}>
-        <h2 style={{ margin: 0, fontSize: isMobile ? 18 : 24 }}>
-          <EditOutlined style={{ marginRight: 8 }} />
+      })}>
+        <h2 className={sx({ margin: 0, fontSize: isMobile ? 18 : 24 })}>
+          <EditOutlined className="u-1vcwmpp" />
           写作风格管理
         </h2>
         <Button
@@ -194,13 +196,13 @@ export default function WritingStyles() {
         </Button>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div className="u-250t5n">
         {styles.length === 0 ? (
           <Empty description="暂无风格数据" />
         ) : (
           <Row
             gutter={[0, gridConfig.gutter]}
-            style={{ marginLeft: 0, marginRight: 0 }}
+            className="u-1996wtd"
           >
             {styles.map((style) => (
               <Col
@@ -210,21 +212,21 @@ export default function WritingStyles() {
                 lg={gridConfig.lg}
                 xl={gridConfig.xl}
                 key={style.id}
-                style={{
+                className={sx({
                   paddingLeft: 0,
                   paddingRight: gridConfig.gutter / 2,
                   marginBottom: gridConfig.gutter
-                }}
+                })}
               >
                 <Card
                   hoverable
-                  style={{
+                  className={sx({
                     height: '100%',
                     display: 'flex',
                     flexDirection: 'column',
                     borderRadius: 12,
                     border: style.is_default ? `2px solid ${token.colorPrimary}` : `1px solid ${token.colorBorderSecondary}`,
-                  }}
+                  })}
                   bodyStyle={{
                     flex: 1,
                     display: 'flex',
@@ -235,22 +237,22 @@ export default function WritingStyles() {
                     <span
                       key="default"
                       onClick={() => !style.is_default && handleSetDefault(style.id)}
-                      style={{ cursor: style.is_default ? 'default' : 'pointer' }}
+                      className={sx({ cursor: style.is_default ? 'default' : 'pointer' })}
                     >
                       {style.is_default ? (
-                        <StarFilled style={{ color: token.colorWarning, fontSize: 18 }} />
+                        <StarFilled className={sx({ color: token.colorWarning, fontSize: 18 })} />
                       ) : (
-                        <StarOutlined style={{ fontSize: 18 }} />
+                        <StarOutlined className="u-szokc8" />
                       )}
                     </span>,
                     <EditOutlined
                       key="edit"
                       onClick={() => style.user_id !== null && handleEdit(style)}
-                      style={{
+                      className={sx({
                         fontSize: 18,
                         cursor: style.user_id === null ? 'not-allowed' : 'pointer',
                         color: style.user_id === null ? token.colorTextQuaternary : undefined
-                      }}
+                      })}
                     />,
                     <Popconfirm
                       key="delete"
@@ -262,18 +264,18 @@ export default function WritingStyles() {
                       disabled={style.user_id === null}
                     >
                       <DeleteOutlined
-                        style={{
+                        className={sx({
                           fontSize: 18,
                           color: style.user_id === null ? token.colorTextQuaternary : undefined,
                           cursor: style.user_id === null ? 'not-allowed' : 'pointer'
-                        }}
+                        })}
                       />
                     </Popconfirm>,
                   ]}
                 >
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    <Space style={{ marginBottom: 12 }} wrap>
-                      <Text strong style={{ fontSize: 16 }}>{style.name}</Text>
+                  <div className="u-rcv7pg">
+                    <Space className="u-1qz2mrl" wrap>
+                      <Text strong className="u-tw6n7q">{style.name}</Text>
                       <Tag color={getStyleTypeColor(style.style_type)}>
                         {getStyleTypeLabel(style.style_type)}
                       </Tag>
@@ -283,7 +285,7 @@ export default function WritingStyles() {
                     {style.description && (
                       <Paragraph
                         type="secondary"
-                        style={{ fontSize: 13, marginBottom: 12 }}
+                        className="u-iqqdzi"
                         ellipsis={{ rows: 2, tooltip: style.description }}
                       >
                         {style.description}
@@ -292,7 +294,7 @@ export default function WritingStyles() {
                     
                     <Paragraph
                       type="secondary"
-                      style={{
+                      className={sx({
                         fontSize: 12,
                         marginBottom: 0,
                         backgroundColor: token.colorFillAlter,
@@ -300,7 +302,7 @@ export default function WritingStyles() {
                         borderRadius: 4,
                         flex: 1,
                         minHeight: 60,
-                      }}
+                      })}
                       ellipsis={{ rows: 3, tooltip: style.prompt_content }}
                     >
                       {style.prompt_content}
@@ -324,13 +326,13 @@ export default function WritingStyles() {
         footer={null}
         centered
         width={isMobile ? 'calc(100vw - 32px)' : 600}
-        style={isMobile ? { maxWidth: 'calc(100vw - 32px)', margin: '0 16px' } : undefined}
+        className={sx(isMobile ? { maxWidth: 'calc(100vw - 32px)', margin: '0 16px' } : undefined)}
       >
         <Form
           form={createForm}
           layout="vertical"
           onFinish={handleCreate}
-          style={{ marginTop: 16 }}
+          className="u-1ir3dsh"
         >
           <Form.Item
             label="风格名称"
@@ -356,7 +358,7 @@ export default function WritingStyles() {
           </Form.Item>
           
           <Form.Item>
-            <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+            <Space className="u-1qyyh4r">
               <Button onClick={() => {
                 setIsCreateModalOpen(false);
                 createForm.resetFields();
@@ -383,9 +385,9 @@ export default function WritingStyles() {
         footer={null}
         centered
         width={isMobile ? 'calc(100vw - 32px)' : 600}
-        style={isMobile ? { maxWidth: 'calc(100vw - 32px)', margin: '0 16px' } : undefined}
+        className={sx(isMobile ? { maxWidth: 'calc(100vw - 32px)', margin: '0 16px' } : undefined)}
       >
-        <Form form={editForm} layout="vertical" onFinish={handleUpdate} style={{ marginTop: 16 }}>
+        <Form form={editForm} layout="vertical" onFinish={handleUpdate} className="u-1ir3dsh">
           <Form.Item
             label="风格名称"
             name="name"
@@ -410,7 +412,7 @@ export default function WritingStyles() {
           </Form.Item>
           
           <Form.Item>
-            <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+            <Space className="u-1qyyh4r">
               <Button onClick={() => {
                 setIsEditModalOpen(false);
                 editForm.resetFields();

@@ -14,22 +14,25 @@ DATA_DIR.mkdir(exist_ok=True)
 # 配置模块使用标准logging（在logger.py初始化之前）
 config_logger = logging.getLogger(__name__)
 
-# 数据库配置：PostgreSQL
-# 从环境变量获取数据库URL
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://mumuai:password@localhost:5432/mumuai_novel")
+# Database URL configuration.
+# Keep the historical PostgreSQL fallback for existing deployments that do not
+# provide DATABASE_URL; local setup and every migration command should set the
+# URL explicitly (see README.md).
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://novel:password@localhost:5432/novel_studio")
 
-config_logger.debug(f"数据库类型: PostgreSQL")
 config_logger.debug(f"数据库URL: {DATABASE_URL}")
 
 class Settings(BaseSettings):
     """应用配置"""
 
     # 应用配置
-    app_name: str = "MuMuAINovel"
+    app_name: str = "AI Novel Studio"
     app_version: str = "1.0.0"
     app_host: str = "0.0.0.0"
     app_port: int = 8000
     debug: bool = False
+    repository_owner: Optional[str] = None
+    repository_name: Optional[str] = None
 
     # 日志配置
     log_level: str = "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
@@ -42,9 +45,8 @@ class Settings(BaseSettings):
     # CORS配置
     cors_origins: list[str] = ["http://localhost:8000", "http://127.0.0.1:8000"]
 
-    # 数据库配置 - PostgreSQL
+    # Database URL.  Select PostgreSQL or SQLite explicitly with DATABASE_URL.
     database_url: str = DATABASE_URL
-
     # PostgreSQL连接池配置（优化后支持150-200并发用户）
     database_pool_size: int = 50  # 核心连接池大小（优化：从30提升到50）
     database_max_overflow: int = 30  # 最大溢出连接数（优化：从20提升到30）
@@ -128,15 +130,15 @@ class Settings(BaseSettings):
     SMTP_USE_TLS: bool = False
     SMTP_USE_SSL: bool = True
     SMTP_FROM_EMAIL: Optional[str] = None
-    SMTP_FROM_NAME: str = "MuMuAINovel"
+    SMTP_FROM_NAME: str = "AI Novel Studio"
     EMAIL_AUTH_ENABLED: bool = True
     EMAIL_REGISTER_ENABLED: bool = True
     EMAIL_VERIFICATION_CODE_TTL_MINUTES: int = 10
     EMAIL_VERIFICATION_RESEND_INTERVAL_SECONDS: int = 60
 
-    # 提示词工坊配置
-    WORKSHOP_MODE: str = "client"  # client: 本地部署实例, server: 云端中央服务器
-    WORKSHOP_CLOUD_URL: str = "https://mumuverse.space:1566"  # 云端服务地址
+    # 提示词工坊配置。server 表示本地完整工坊；client 仅在显式提供云端 URL 时使用。
+    WORKSHOP_MODE: str = "server"
+    WORKSHOP_CLOUD_URL: Optional[str] = None
     WORKSHOP_API_TIMEOUT: int = 30  # 云端API请求超时时间（秒）
     WORKSHOP_PROXY_SECRET: Optional[str] = None
 

@@ -14,6 +14,9 @@ import { SSELoadingOverlay } from '../components/progress/SSELoadingOverlay';
 import ChapterReader from '../components/chapter/ChapterReader';
 import PartialRegenerateToolbar from '../components/modal/PartialRegenerateToolbar';
 import PartialRegenerateModal from '../components/modal/PartialRegenerateModal';
+import ChapterExtractionReviewPanel from '../components/chapter/ChapterExtractionReviewPanel';
+import { useIsMobile } from '../hooks/useMediaQuery';
+import { sx } from '../styles/sx';
 
 const { TextArea } = Input;
 
@@ -57,7 +60,7 @@ export default function Chapters() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form] = Form.useForm();
   const [editorForm] = Form.useForm();
-  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const isMobile = useIsMobile();
   const contentTextAreaRef = useRef<TextAreaRef>(null);
   const [writingStyles, setWritingStyles] = useState<WritingStyle[]>([]);
   const [selectedStyleId, setSelectedStyleId] = useState<number | undefined>();
@@ -118,14 +121,6 @@ export default function Chapters() {
   } | null>(null);
   const batchPollingIntervalRef = useRef<number | null>(null);
 
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth <= 768);
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   // 处理文本选中 - 检测选中文本并显示浮动工具栏
   const handleTextSelection = useCallback(() => {
@@ -906,7 +901,7 @@ export default function Chapters() {
       width: 700,
       centered: true,
       content: (
-        <div style={{ marginTop: 16 }}>
+        <div className="u-1ir3dsh">
           <p>AI将根据以下信息创作本章内容：</p>
           <ul>
             <li>章节大纲和要求</li>
@@ -920,30 +915,30 @@ export default function Chapters() {
           </ul>
 
           {previousChapters.length > 0 && (
-            <div style={{
+            <div className={sx({
               marginTop: 16,
               padding: 12,
               background: token.colorInfoBg,
               borderRadius: token.borderRadius,
               border: `1px solid ${token.colorInfoBorder}`
-            }}>
-              <div style={{ marginBottom: 8, fontWeight: 500, color: token.colorPrimary }}>
+            })}>
+              <div className={sx({ marginBottom: 8, fontWeight: 500, color: token.colorPrimary })}>
                 📚 将引用的前置章节（共{previousChapters.length}章）：
               </div>
-              <div style={{ maxHeight: 150, overflowY: 'auto' }}>
+              <div className="u-1w94dwv">
                 {previousChapters.map(ch => (
-                  <div key={ch.id} style={{ padding: '4px 0', fontSize: 13 }}>
+                  <div key={ch.id} className="u-83e0jw">
                     ✓ 第{ch.chapter_number}章：{ch.title} ({ch.word_count || 0}字)
                   </div>
                 ))}
               </div>
-              <div style={{ marginTop: 8, fontSize: 12, color: token.colorTextSecondary }}>
+              <div className={sx({ marginTop: 8, fontSize: 12, color: token.colorTextSecondary })}>
                 💡 AI会参考这些章节内容，确保情节连贯、角色状态一致
               </div>
             </div>
           )}
 
-          <p style={{ color: token.colorError, marginTop: 16, marginBottom: 0 }}>
+          <p className={sx({ color: token.colorError, marginTop: 16, marginBottom: 0 })}>
             ⚠️ 注意：此操作将覆盖当前章节内容
           </p>
         </div>
@@ -1395,7 +1390,7 @@ export default function Chapters() {
             chapter_number: nextChapterNumber,
             status: 'draft'
           }}
-          style={{ marginTop: 16 }}
+          className="u-1ir3dsh"
         >
           <Form.Item
             label="章节序号"
@@ -1403,7 +1398,7 @@ export default function Chapters() {
             rules={[{ required: true, message: '请输入章节序号' }]}
             tooltip="建议按顺序创建章节，确保内容连贯性"
           >
-            <InputNumber min={1} style={{ width: '100%' }} placeholder="自动计算的下一个序号" />
+            <InputNumber min={1} className="u-1f3r3s" placeholder="自动计算的下一个序号" />
           </Form.Item>
 
           <Form.Item
@@ -1470,21 +1465,21 @@ export default function Chapters() {
           // 显示冲突提示Modal
           modal.confirm({
             title: '章节序号冲突',
-            icon: <InfoCircleOutlined style={{ color: token.colorError }} />,
+            icon: <InfoCircleOutlined className={sx({ color: token.colorError })} />,
             width: 500,
             centered: true,
             content: (
               <div>
-                <p style={{ marginBottom: 12 }}>
+                <p className="u-1qz2mrl">
                   第 <strong>{values.chapter_number}</strong> 章已存在：
                 </p>
-                <div style={{
+                <div className={sx({
                   padding: 12,
                   background: token.colorWarningBg,
                   borderRadius: token.borderRadius,
                   border: `1px solid ${token.colorWarningBorder}`,
                   marginBottom: 12
-                }}>
+                })}>
                   <div><strong>标题：</strong>{conflictChapter.title}</div>
                   <div><strong>状态：</strong>{getStatusText(conflictChapter.status)}</div>
                   <div><strong>字数：</strong>{conflictChapter.word_count || 0}字</div>
@@ -1492,10 +1487,10 @@ export default function Chapters() {
                     <div><strong>所属大纲：</strong>{conflictChapter.outline_title}</div>
                   )}
                 </div>
-                <p style={{ color: token.colorError, marginBottom: 8 }}>
+                <p className={sx({ color: token.colorError, marginBottom: 8 })}>
                   ⚠️ 是否删除旧章节并创建新章节？
                 </p>
-                <p style={{ fontSize: 12, color: token.colorTextSecondary, marginBottom: 0 }}>
+                <p className={sx({ fontSize: 12, color: token.colorTextSecondary, marginBottom: 0 })}>
                   删除后将无法恢复，章节内容和分析结果都将被删除。
                 </p>
               </div>
@@ -1614,9 +1609,9 @@ export default function Chapters() {
 
       modal.info({
         title: (
-          <Space style={{ flexWrap: 'wrap' }}>
-            <InfoCircleOutlined style={{ color: token.colorPrimary }} />
-            <span style={{ wordBreak: 'break-word' }}>第{chapter.chapter_number}章展开规划</span>
+          <Space className="u-wk8z2o">
+            <InfoCircleOutlined className={sx({ color: token.colorPrimary })} />
+            <span className="u-cwti5c">第{chapter.chapter_number}章展开规划</span>
           </Space>
         ),
         width: isMobile ? 'calc(100vw - 32px)' : 800,
@@ -1633,7 +1628,7 @@ export default function Chapters() {
           }
         },
         content: (
-          <div style={{ marginTop: 16 }}>
+          <div className="u-1ir3dsh">
             <Descriptions
               column={1}
               size="small"
@@ -1650,24 +1645,14 @@ export default function Chapters() {
               }}
             >
               <Descriptions.Item label="章节标题">
-                <strong style={{
-                  wordBreak: 'break-word',
-                  whiteSpace: 'normal',
-                  overflowWrap: 'break-word'
-                }}>
+                <strong className="u-1noffu8">
                   {chapter.title}
                 </strong>
               </Descriptions.Item>
               <Descriptions.Item label="情感基调">
                 <Tag
                   color="blue"
-                  style={{
-                    whiteSpace: 'normal',
-                    wordBreak: 'break-word',
-                    height: 'auto',
-                    lineHeight: '1.5',
-                    padding: '4px 8px'
-                  }}
+                  className="u-1iquttw"
                 >
                   {planData.emotional_tone}
                 </Tag>
@@ -1675,13 +1660,7 @@ export default function Chapters() {
               <Descriptions.Item label="冲突类型">
                 <Tag
                   color="orange"
-                  style={{
-                    whiteSpace: 'normal',
-                    wordBreak: 'break-word',
-                    height: 'auto',
-                    lineHeight: '1.5',
-                    padding: '4px 8px'
-                  }}
+                  className="u-1iquttw"
                 >
                   {planData.conflict_type}
                 </Tag>
@@ -1690,32 +1669,19 @@ export default function Chapters() {
                 <Tag color="green">{planData.estimated_words}字</Tag>
               </Descriptions.Item>
               <Descriptions.Item label="叙事目标">
-                <span style={{
-                  wordBreak: 'break-word',
-                  whiteSpace: 'normal',
-                  overflowWrap: 'break-word'
-                }}>
+                <span className="u-1noffu8">
                   {planData.narrative_goal}
                 </span>
               </Descriptions.Item>
               <Descriptions.Item label="关键事件">
-                <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                <Space direction="vertical" size="small" className="u-1f3r3s">
                   {planData.key_events.map((event, idx) => (
                     <div
                       key={idx}
-                      style={{
-                        padding: '4px 0',
-                        wordBreak: 'break-word',
-                        whiteSpace: 'normal',
-                        overflowWrap: 'break-word'
-                      }}
+                      className="u-1cpc2o5"
                     >
-                      <Tag color="purple" style={{ flexShrink: 0 }}>{idx + 1}</Tag>{' '}
-                      <span style={{
-                        wordBreak: 'break-word',
-                        whiteSpace: 'normal',
-                        overflowWrap: 'break-word'
-                      }}>
+                      <Tag color="purple" className="u-xj35t1">{idx + 1}</Tag>{' '}
+                      <span className="u-1noffu8">
                         {event}
                       </span>
                     </div>
@@ -1723,17 +1689,12 @@ export default function Chapters() {
                 </Space>
               </Descriptions.Item>
               <Descriptions.Item label="涉及角色">
-                <Space wrap style={{ maxWidth: '100%' }}>
+                <Space wrap className="u-5iasub">
                   {planData.character_focus.map((char, idx) => (
                     <Tag
                       key={idx}
                       color="cyan"
-                      style={{
-                        whiteSpace: 'normal',
-                        wordBreak: 'break-word',
-                        height: 'auto',
-                        lineHeight: '1.5'
-                      }}
+                      className="u-mw95nt"
                     >
                       {char}
                     </Tag>
@@ -1742,68 +1703,47 @@ export default function Chapters() {
               </Descriptions.Item>
               {planData.scenes && planData.scenes.length > 0 && (
                 <Descriptions.Item label="场景规划">
-                  <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                  <Space direction="vertical" size="small" className="u-1f3r3s">
                     {planData.scenes.map((scene, idx) => (
                       <Card
                         key={idx}
                         size="small"
-                        style={{
+                        className={sx({
                           backgroundColor: token.colorFillQuaternary,
                           maxWidth: '100%',
                           overflow: 'hidden'
-                        }}
+                        })}
                       >
-                        <div style={{
-                          marginBottom: 4,
-                          wordBreak: 'break-word',
-                          whiteSpace: 'normal',
-                          overflowWrap: 'break-word'
-                        }}>
+                        <div className="u-1defxli">
                           <strong>📍 地点：</strong>
-                          <span style={{
-                            wordBreak: 'break-word',
-                            whiteSpace: 'normal',
-                            overflowWrap: 'break-word'
-                          }}>
+                          <span className="u-1noffu8">
                             {scene.location}
                           </span>
                         </div>
-                        <div style={{ marginBottom: 4 }}>
+                        <div className="u-ohn8hu">
                           <strong>👥 角色：</strong>
                           <Space
                             size="small"
                             wrap
-                            style={{
+                            className={sx({
                               marginLeft: isMobile ? 0 : 8,
                               marginTop: isMobile ? 4 : 0,
                               display: isMobile ? 'flex' : 'inline-flex'
-                            }}
+                            })}
                           >
                             {scene.characters.map((char, charIdx) => (
                               <Tag
                                 key={charIdx}
-                                style={{
-                                  whiteSpace: 'normal',
-                                  wordBreak: 'break-word',
-                                  height: 'auto'
-                                }}
+                                className="u-13ha8vn"
                               >
                                 {char}
                               </Tag>
                             ))}
                           </Space>
                         </div>
-                        <div style={{
-                          wordBreak: 'break-word',
-                          whiteSpace: 'normal',
-                          overflowWrap: 'break-word'
-                        }}>
+                        <div className="u-1noffu8">
                           <strong>🎯 目的：</strong>
-                          <span style={{
-                            wordBreak: 'break-word',
-                            whiteSpace: 'normal',
-                            overflowWrap: 'break-word'
-                          }}>
+                          <span className="u-1noffu8">
                             {scene.purpose}
                           </span>
                         </div>
@@ -1818,7 +1758,7 @@ export default function Chapters() {
               description="这些是AI在大纲展开时生成的规划信息，可以作为创作章节内容时的参考。"
               type="info"
               showIcon
-              style={{ marginTop: 16 }}
+              className="u-1ir3dsh"
             />
           </div>
         ),
@@ -1933,9 +1873,9 @@ export default function Chapters() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div className="u-14esoxf">
       {contextHolder}
-      <div style={{
+      <div className={sx({
         position: 'sticky',
         top: 0,
         zIndex: 10,
@@ -1948,28 +1888,38 @@ export default function Chapters() {
         gap: isMobile ? 12 : 0,
         justifyContent: 'space-between',
         alignItems: isMobile ? 'stretch' : 'center'
-      }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <h2 style={{ margin: 0, fontSize: isMobile ? 18 : 24 }}>
-            <BookOutlined style={{ marginRight: 8 }} />
+      })}>
+        <div className="u-1dshp92">
+          <h2 className={sx({ margin: 0, fontSize: isMobile ? 18 : 24 })}>
+            <BookOutlined className="u-1vcwmpp" />
             章节管理
           </h2>
           <Tag
             color={currentProject.outline_mode === 'one-to-one' ? 'blue' : 'green'}
-            style={{ width: 'fit-content' }}
+            className="u-1jqy0x5"
           >
             {currentProject.outline_mode === 'one-to-one'
               ? '传统模式：章节由大纲管理，请在大纲页面操作'
               : '细化模式：章节可在大纲页面展开'}
           </Tag>
         </div>
-        <Space direction={isMobile ? 'vertical' : 'horizontal'} style={{ width: isMobile ? '100%' : 'auto' }}>
+        <Space
+          direction={isMobile ? 'vertical' : 'horizontal'}
+          wrap
+          className={sx({
+            width: '100%',
+            maxWidth: '100%',
+            flexWrap: 'wrap',
+            justifyContent: isMobile ? 'flex-start' : 'flex-end',
+          })}
+        >
+          <ChapterExtractionReviewPanel projectId={currentProject.id} />
           <Input.Search
             allowClear
             placeholder="搜索章节（序号/标题/大纲）"
             value={chapterSearchKeyword}
             onChange={(e) => setChapterSearchKeyword(e.target.value)}
-            style={{ width: isMobile ? '100%' : 280 }}
+            className={sx({ width: isMobile ? '100%' : 280 })}
           />
           {currentProject.outline_mode === 'one-to-many' && (
             <Button
@@ -1989,7 +1939,7 @@ export default function Chapters() {
             disabled={chapters.length === 0 || batchAnalyzableChapterCount === 0}
             block={isMobile}
             size={isMobile ? 'middle' : 'middle'}
-            style={{ background: token.colorWarning, borderColor: token.colorWarning }}
+            className={sx({ background: token.colorWarning, borderColor: token.colorWarning })}
             title={batchAnalyzableChapterCount === 0 ? '暂无可一键分析章节' : `可一键分析 ${batchAnalyzableChapterCount} 章`}
           >
             一键分析{batchAnalyzableChapterCount > 0 ? ` (${batchAnalyzableChapterCount})` : ''}
@@ -2002,7 +1952,7 @@ export default function Chapters() {
             loading={batchGenerating}
             block={isMobile}
             size={isMobile ? 'middle' : 'middle'}
-            style={batchGenerating ? {} : { background: token.colorInfo, borderColor: token.colorInfo }}
+            className={sx(batchGenerating ? {} : { background: token.colorInfo, borderColor: token.colorInfo })}
           >
             {batchGenerating ? '生成中...' : '批量生成'}
           </Button>
@@ -2020,7 +1970,7 @@ export default function Chapters() {
       </div>
 
 
-      <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+      <div className="u-1y0vle1">
         {chapters.length === 0 ? (
           <Empty description="还没有章节，开始创作吧！" />
         ) : filteredSortedChapters.length === 0 ? (
@@ -2032,7 +1982,7 @@ export default function Chapters() {
             renderItem={(item) => (
               <List.Item
                 id={`chapter-item-${item.id}`}
-                style={{
+                className={sx({
                   padding: '16px',
                   marginBottom: 16,
                   background: token.colorBgContainer,
@@ -2040,7 +1990,7 @@ export default function Chapters() {
                   border: `1px solid ${token.colorBorderSecondary}`,
                   flexDirection: isMobile ? 'column' : 'row',
                   alignItems: isMobile ? 'flex-start' : 'center',
-                }}
+                })}
                 actions={isMobile ? undefined : [
                   <Button
                     type="text"
@@ -2089,23 +2039,23 @@ export default function Chapters() {
                   </Button>,
                 ]}
               >
-                <div style={{ width: '100%' }}>
+                <div className="u-1f3r3s">
                   <List.Item.Meta
-                    avatar={!isMobile && <FileTextOutlined style={{ fontSize: 32, color: token.colorPrimary }} />}
+                    avatar={!isMobile && <FileTextOutlined className={sx({ fontSize: 32, color: token.colorPrimary })} />}
                     title={
-                      <div style={{
+                      <div className={sx({
                         display: 'flex',
                         flexDirection: isMobile ? 'column' : 'row',
                         alignItems: isMobile ? 'flex-start' : 'center',
                         gap: isMobile ? 6 : 12,
                         width: '100%'
-                      }}>
-                        <span style={{ fontSize: isMobile ? 14 : 16, fontWeight: 500, flexShrink: 0 }}>
+                      })}>
+                        <span className={sx({ fontSize: isMobile ? 14 : 16, fontWeight: 500, flexShrink: 0 })}>
                           第{item.chapter_number}章：{item.title}
                         </span>
                         <Space wrap size={isMobile ? 4 : 8}>
                           <Tag color={getStatusColor(item.status)}>{getStatusText(item.status)}</Tag>
-                          <Badge count={`${item.word_count || 0}字`} style={{ backgroundColor: token.colorSuccess }} />
+                          <Badge count={`${item.word_count || 0}字`} className={sx({ backgroundColor: token.colorSuccess })} />
                           {renderAnalysisStatus(item.id)}
                           {!canGenerateChapter(item) && (
                             <Tag icon={<LockOutlined />} color="warning" title={getGenerateDisabledReason(item)}>
@@ -2117,18 +2067,18 @@ export default function Chapters() {
                     }
                     description={
                       item.content ? (
-                        <div style={{ marginTop: 8, color: token.colorTextSecondary, lineHeight: 1.6, fontSize: isMobile ? 12 : 14 }}>
+                        <div className={sx({ marginTop: 8, color: token.colorTextSecondary, lineHeight: 1.6, fontSize: isMobile ? 12 : 14 })}>
                           {item.content.substring(0, isMobile ? 80 : 150)}
                           {item.content.length > (isMobile ? 80 : 150) && '...'}
                         </div>
                       ) : (
-                        <span style={{ color: token.colorTextTertiary, fontSize: isMobile ? 12 : 14 }}>暂无内容</span>
+                        <span className={sx({ color: token.colorTextTertiary, fontSize: isMobile ? 12 : 14 })}>暂无内容</span>
                       )
                     }
                   />
 
                   {isMobile && (
-                    <Space style={{ marginTop: 12, width: '100%', justifyContent: 'flex-end' }} wrap>
+                    <Space className="u-1vmrswq" wrap>
                       <Button
                         type="text"
                         icon={<ReadOutlined />}
@@ -2185,48 +2135,48 @@ export default function Chapters() {
             defaultActiveKey={pagedGroupedChapters.length > 0 ? ['0'] : []}
             destroyInactivePanel
             expandIcon={({ isActive }) => <CaretRightOutlined rotate={isActive ? 90 : 0} />}
-            style={{ background: 'transparent' }}
+            className="u-wietak"
           >
             {pagedGroupedChapters.map((group, groupIndex) => (
               <Collapse.Panel
                 key={groupIndex.toString()}
                 header={
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <Tag color={group.outlineId ? 'blue' : 'default'} style={{ margin: 0 }}>
+                  <div className="u-8tbrif">
+                    <Tag color={group.outlineId ? 'blue' : 'default'} className="u-avalr8">
                       {group.outlineId ? `📖 大纲 ${group.outlineOrder}` : '📝 未分类'}
                     </Tag>
-                    <span style={{ fontWeight: 600, fontSize: 16 }}>
+                    <span className="u-rz87kg">
                       {group.outlineTitle}
                     </span>
                     <Badge
                       count={`${group.chapters.length} 章`}
-                      style={{ backgroundColor: token.colorSuccess }}
+                      className={sx({ backgroundColor: token.colorSuccess })}
                     />
                     <Badge
                       count={`${group.chapters.reduce((sum, ch) => sum + (ch.word_count || 0), 0)} 字`}
-                      style={{ backgroundColor: token.colorPrimary }}
+                      className={sx({ backgroundColor: token.colorPrimary })}
                     />
                   </div>
                 }
-                style={{
+                className={sx({
                   marginBottom: 16,
                   background: token.colorBgContainer,
                   borderRadius: token.borderRadius,
                   border: `1px solid ${token.colorBorderSecondary}`,
-                }}
+                })}
               >
                 <List
                   dataSource={group.chapters}
                   renderItem={(item) => (
                     <List.Item
                       id={`chapter-item-${item.id}`}
-                      style={{
+                      className={sx({
                         padding: '16px 0',
                         borderRadius: 8,
                         transition: 'background 0.3s ease',
                         flexDirection: isMobile ? 'column' : 'row',
                         alignItems: isMobile ? 'flex-start' : 'center',
-                      }}
+                      })}
                       actions={isMobile ? undefined : [
                         <Button
                           type="text"
@@ -2294,23 +2244,23 @@ export default function Chapters() {
                         ] : []),
                       ]}
                     >
-                      <div style={{ width: '100%' }}>
+                      <div className="u-1f3r3s">
                         <List.Item.Meta
-                          avatar={!isMobile && <FileTextOutlined style={{ fontSize: 32, color: token.colorPrimary }} />}
+                          avatar={!isMobile && <FileTextOutlined className={sx({ fontSize: 32, color: token.colorPrimary })} />}
                           title={
-                            <div style={{
+                            <div className={sx({
                               display: 'flex',
                               flexDirection: isMobile ? 'column' : 'row',
                               alignItems: isMobile ? 'flex-start' : 'center',
                               gap: isMobile ? 6 : 12,
                               width: '100%'
-                            }}>
-                              <span style={{ fontSize: isMobile ? 14 : 16, fontWeight: 500, flexShrink: 0 }}>
+                            })}>
+                              <span className={sx({ fontSize: isMobile ? 14 : 16, fontWeight: 500, flexShrink: 0 })}>
                                 第{item.chapter_number}章：{item.title}
                               </span>
                               <Space wrap size={isMobile ? 4 : 8}>
                                 <Tag color={getStatusColor(item.status)}>{getStatusText(item.status)}</Tag>
-                                <Badge count={`${item.word_count || 0}字`} style={{ backgroundColor: token.colorSuccess }} />
+                                <Badge count={`${item.word_count || 0}字`} className={sx({ backgroundColor: token.colorSuccess })} />
                                 {renderAnalysisStatus(item.id)}
                                 {!canGenerateChapter(item) && (
                                   <Tag icon={<LockOutlined />} color="warning" title={getGenerateDisabledReason(item)}>
@@ -2321,7 +2271,7 @@ export default function Chapters() {
                                   {item.expansion_plan && (
                                     <InfoCircleOutlined
                                       title="查看展开详情"
-                                      style={{ color: token.colorPrimary, cursor: 'pointer', fontSize: 16 }}
+                                      className={sx({ color: token.colorPrimary, cursor: 'pointer', fontSize: 16 })}
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         showExpansionPlanModal(item);
@@ -2330,7 +2280,7 @@ export default function Chapters() {
                                   )}
                                   <FormOutlined
                                     title={item.expansion_plan ? "编辑规划信息" : "创建规划信息"}
-                                    style={{ color: token.colorSuccess, cursor: 'pointer', fontSize: 16 }}
+                                    className={sx({ color: token.colorSuccess, cursor: 'pointer', fontSize: 16 })}
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       handleOpenPlanEditor(item);
@@ -2342,18 +2292,18 @@ export default function Chapters() {
                           }
                           description={
                             item.content ? (
-                              <div style={{ marginTop: 8, color: token.colorTextSecondary, lineHeight: 1.6, fontSize: isMobile ? 12 : 14 }}>
+                              <div className={sx({ marginTop: 8, color: token.colorTextSecondary, lineHeight: 1.6, fontSize: isMobile ? 12 : 14 })}>
                                 {item.content.substring(0, isMobile ? 80 : 150)}
                                 {item.content.length > (isMobile ? 80 : 150) && '...'}
                               </div>
                             ) : (
-                              <span style={{ color: token.colorTextTertiary, fontSize: isMobile ? 12 : 14 }}>暂无内容</span>
+                              <span className={sx({ color: token.colorTextTertiary, fontSize: isMobile ? 12 : 14 })}>暂无内容</span>
                             )
                           }
                         />
 
                         {isMobile && (
-                          <Space style={{ marginTop: 12, width: '100%', justifyContent: 'flex-end' }} wrap>
+                          <Space className="u-1vmrswq" wrap>
                             <Button
                               type="text"
                               icon={<ReadOutlined />}
@@ -2429,7 +2379,7 @@ export default function Chapters() {
       </div>
 
       {filteredSortedChapters.length > 0 && (
-        <div style={{ paddingTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
+        <div className="u-jlvq6a">
           <Pagination
             current={chapterPage}
             pageSize={chapterPageSize}
@@ -2456,11 +2406,11 @@ export default function Chapters() {
         footer={null}
         centered
         width={isMobile ? 'calc(100vw - 32px)' : 520}
-        style={isMobile ? {
+        className={sx(isMobile ? {
           maxWidth: 'calc(100vw - 32px)',
           margin: '0 auto',
           padding: '0 16px'
-        } : undefined}
+        } : undefined)}
         styles={{
           body: {
             maxHeight: isMobile ? 'calc(100vh - 200px)' : 'calc(80vh - 110px)',
@@ -2507,7 +2457,7 @@ export default function Chapters() {
           </Form.Item>
 
           <Form.Item>
-            <Space style={{ float: 'right' }}>
+            <Space className="u-16wmsi0">
               <Button onClick={() => setIsModalOpen(false)}>取消</Button>
               <Button type="primary" htmlType="submit">
                 更新
@@ -2532,11 +2482,11 @@ export default function Chapters() {
         keyboard={!isGenerating}
         width={isMobile ? 'calc(100vw - 32px)' : '85%'}
         centered
-        style={isMobile ? {
+        className={sx(isMobile ? {
           maxWidth: 'calc(100vw - 32px)',
           margin: '0 auto',
           padding: '0 16px'
-        } : undefined}
+        } : undefined)}
         styles={{
           body: {
             maxHeight: isMobile ? 'calc(100vh - 200px)' : 'calc(100vh - 110px)',
@@ -2551,11 +2501,11 @@ export default function Chapters() {
           <Form.Item
             label="章节标题"
             tooltip="（1-1模式请在大纲修改，1-N模式请使用修改按钮编辑）"
-            style={{ marginBottom: isMobile ? 16 : 12 }}
+            className={sx({ marginBottom: isMobile ? 16 : 12 })}
           >
-            <Space.Compact style={{ width: '100%' }}>
+            <Space.Compact className="u-1f3r3s">
               <Form.Item name="title" noStyle>
-                <Input disabled style={{ flex: 1 }} />
+                <Input disabled className="u-e4rq7y" />
               </Form.Item>
               {editingId && (() => {
                 const currentChapter = chapters.find(c => c.id === editingId);
@@ -2571,7 +2521,7 @@ export default function Chapters() {
                     loading={isContinuing}
                     disabled={!canGenerate}
                     danger={!canGenerate}
-                    style={{ fontWeight: 'bold' }}
+                    className="u-th3jef"
                     title={!canGenerate ? disabledReason : '根据大纲和前置章节内容创作（流式）'}
                   >
                     {isMobile ? 'AI' : 'AI创作'}
@@ -2580,7 +2530,7 @@ export default function Chapters() {
                     icon={<RocketOutlined />}
                     onClick={handleBackgroundGenerate}
                     disabled={!canGenerate || isContinuing}
-                    style={{ fontWeight: 'bold' }}
+                    className="u-th3jef"
                     title={!canGenerate ? disabledReason : '后台生成：关闭浏览器也不影响，完成后自动保存'}
                   >
                     {isMobile ? '后台' : '后台生成'}
@@ -2593,16 +2543,16 @@ export default function Chapters() {
 
 
           {/* 第一行：写作风格 + 叙事角度 */}
-          <div style={{
+          <div className={sx({
             display: isMobile ? 'block' : 'flex',
             gap: isMobile ? 0 : 16,
             marginBottom: isMobile ? 0 : 12
-          }}>
+          })}>
             <Form.Item
               label="写作风格"
               tooltip="选择AI创作时使用的写作风格"
               required
-              style={{ flex: 1, marginBottom: isMobile ? 16 : 0 }}
+              className={sx({ flex: 1, marginBottom: isMobile ? 16 : 0 })}
             >
               <Select
                 placeholder="请选择写作风格"
@@ -2618,14 +2568,14 @@ export default function Chapters() {
                 ))}
               </Select>
               {!selectedStyleId && (
-                <div style={{ color: token.colorError, fontSize: 12, marginTop: 4 }}>请选择写作风格</div>
+                <div className={sx({ color: token.colorError, fontSize: 12, marginTop: 4 })}>请选择写作风格</div>
               )}
             </Form.Item>
 
             <Form.Item
               label="叙事角度"
               tooltip="第一人称(我)代入感强；第三人称(他/她)更客观；全知视角洞悉一切"
-              style={{ flex: 1, marginBottom: isMobile ? 16 : 0 }}
+              className={sx({ flex: 1, marginBottom: isMobile ? 16 : 0 })}
             >
               <Select
                 placeholder={`项目默认: ${getNarrativePerspectiveText(currentProject?.narrative_perspective)}`}
@@ -2639,7 +2589,7 @@ export default function Chapters() {
                 <Select.Option value="全知视角">全知视角</Select.Option>
               </Select>
               {temporaryNarrativePerspective && (
-                <div style={{ color: token.colorSuccess, fontSize: 12, marginTop: 4 }}>
+                <div className={sx({ color: token.colorSuccess, fontSize: 12, marginTop: 4 })}>
                   ✓ {getNarrativePerspectiveText(temporaryNarrativePerspective)}
                 </div>
               )}
@@ -2647,15 +2597,15 @@ export default function Chapters() {
           </div>
 
           {/* 第二行：目标字数 + AI模型 + Skill */}
-          <div style={{
+          <div className={sx({
             display: isMobile ? 'block' : 'flex',
             gap: isMobile ? 0 : 16,
             marginBottom: isMobile ? 16 : 12
-          }}>
+          })}>
             <Form.Item
               label="应用 Skill"
               tooltip="选择一个 Skill 工作流指导 AI 创作，不选则使用标准创作流程"
-              style={{ flex: 1, marginBottom: isMobile ? 16 : 0 }}
+              className={sx({ flex: 1, marginBottom: isMobile ? 16 : 0 })}
             >
               <Select
                 placeholder="不使用 Skill（标准创作）"
@@ -2668,9 +2618,9 @@ export default function Chapters() {
               >
                 {availableSkills.map(skill => (
                   <Select.Option key={skill.template_key} value={skill.template_key} label={skill.template_name}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div className="u-18xktuc">
                       <span>{skill.template_name}</span>
-                      <Tag style={{ fontSize: 11, lineHeight: '18px', padding: '0 4px' }}>{skill.category}</Tag>
+                      <Tag className="u-mzk6wx">{skill.category}</Tag>
                     </div>
                   </Select.Option>
                 ))}
@@ -2678,7 +2628,7 @@ export default function Chapters() {
               {selectedSkillKey && (() => {
                 const skill = availableSkills.find(s => s.template_key === selectedSkillKey);
                 return skill ? (
-                  <div style={{ color: token.colorSuccess, fontSize: 12, marginTop: 4 }}>
+                  <div className={sx({ color: token.colorSuccess, fontSize: 12, marginTop: 4 })}>
                     ✓ {skill.description}
                   </div>
                 ) : null;
@@ -2688,7 +2638,7 @@ export default function Chapters() {
             <Form.Item
               label="目标字数"
               tooltip="AI生成章节时的目标字数，实际可能略有偏差（修改后会自动记住）"
-              style={{ flex: 1, marginBottom: isMobile ? 16 : 0 }}
+              className={sx({ flex: 1, marginBottom: isMobile ? 16 : 0 })}
             >
               <InputNumber
                 min={500}
@@ -2701,7 +2651,7 @@ export default function Chapters() {
                   setCachedWordCount(newValue);
                 }}
                 disabled={isGenerating}
-                style={{ width: '100%' }}
+                className="u-1f3r3s"
                 formatter={(value) => `${value} 字`}
                 parser={(value) => parseInt(value?.replace(' 字', '') || '0', 10) as unknown as 500}
               />
@@ -2710,7 +2660,7 @@ export default function Chapters() {
             <Form.Item
               label="AI模型"
               tooltip="选择用于生成章节内容的AI模型，不选择则使用默认模型"
-              style={{ flex: 1, marginBottom: isMobile ? 16 : 0 }}
+              className={sx({ flex: 1, marginBottom: isMobile ? 16 : 0 })}
             >
               <Select
                 placeholder={selectedModel ? `默认: ${availableModels.find(m => m.value === selectedModel)?.label || selectedModel}` : "使用默认模型"}
@@ -2735,7 +2685,7 @@ export default function Chapters() {
               ref={contentTextAreaRef}
               rows={isMobile ? 12 : 20}
               placeholder="开始写作..."
-              style={{ fontFamily: 'monospace', fontSize: isMobile ? 12 : 14 }}
+              className={sx({ fontFamily: 'monospace', fontSize: isMobile ? 12 : 14 })}
               disabled={isGenerating}
             />
           </Form.Item>
@@ -2751,8 +2701,8 @@ export default function Chapters() {
           </div>
 
           <Form.Item>
-            <Space style={{ width: '100%', justifyContent: 'flex-end', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center' }}>
-              <Space style={{ width: isMobile ? '100%' : 'auto' }}>
+            <Space className={sx({ width: '100%', justifyContent: 'flex-end', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center' })}>
+              <Space className={sx({ width: isMobile ? '100%' : 'auto' })}>
                 <Button
                   onClick={() => {
                     if (isGenerating) {
@@ -2815,7 +2765,7 @@ export default function Chapters() {
       <Modal
         title={
           <Space>
-            <RocketOutlined style={{ color: token.colorInfo }} />
+            <RocketOutlined className={sx({ color: token.colorInfo })} />
             <span>批量生成章节内容</span>
           </Space>
         }
@@ -2838,7 +2788,7 @@ export default function Chapters() {
           }
         }}
         footer={!batchGenerating ? (
-          <Space style={{ width: '100%', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+          <Space className="u-1pvcp7b">
             <Button onClick={() => setBatchGenerateVisible(false)}>
               取消
             </Button>
@@ -2851,11 +2801,11 @@ export default function Chapters() {
         centered
         closable={!batchGenerating}
         maskClosable={!batchGenerating}
-        style={isMobile ? {
+        className={sx(isMobile ? {
           maxWidth: 'calc(100vw - 32px)',
           margin: '0 auto',
           padding: '0 16px'
-        } : undefined}
+        } : undefined)}
         styles={{
           body: {
             maxHeight: isMobile ? 'calc(100vh - 200px)' : 'calc(100vh - 260px)',
@@ -2882,16 +2832,16 @@ export default function Chapters() {
               message="批量生成说明：严格按序生成 | 统一风格字数 | 任一失败则终止"
               type="info"
               showIcon
-              style={{ marginBottom: 16 }}
+              className="u-6srbul"
             />
 
             {/* 第一行：起始章节 + 生成数量 */}
-            <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 0 : 16 }}>
+            <div className={sx({ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 0 : 16 })}>
               <Form.Item
                 label="起始章节"
                 name="startChapterNumber"
                 rules={[{ required: true, message: '请选择' }]}
-                style={{ flex: 1, marginBottom: 12 }}
+                className="u-1l34fmb"
               >
                 <Select placeholder="选择起始章节">
                   {sortedChapters
@@ -2909,7 +2859,7 @@ export default function Chapters() {
                 label="生成数量"
                 name="count"
                 rules={[{ required: true, message: '请选择' }]}
-                style={{ marginBottom: 12 }}
+                className="u-1qz2mrl"
               >
                 <Radio.Group buttonStyle="solid" size={isMobile ? 'small' : 'middle'}>
                   <Radio.Button value={5}>5章</Radio.Button>
@@ -2921,12 +2871,12 @@ export default function Chapters() {
             </div>
 
             {/* 第二行：写作风格 + 目标字数 */}
-            <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 0 : 16 }}>
+            <div className={sx({ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 0 : 16 })}>
               <Form.Item
                 label="写作风格"
                 name="styleId"
                 rules={[{ required: true, message: '请选择' }]}
-                style={{ flex: 1, marginBottom: 12 }}
+                className="u-1l34fmb"
               >
                 <Select placeholder="请选择写作风格" showSearch optionFilterProp="children">
                   {writingStyles.map(style => (
@@ -2942,13 +2892,13 @@ export default function Chapters() {
                 name="targetWordCount"
                 rules={[{ required: true, message: '请设置' }]}
                 tooltip="修改后自动记住"
-                style={{ flex: 1, marginBottom: 12 }}
+                className="u-1l34fmb"
               >
                 <InputNumber
                   min={500}
                   max={10000}
                   step={100}
-                  style={{ width: '100%' }}
+                  className="u-1f3r3s"
                   formatter={(value) => `${value} 字`}
                   parser={(value) => parseInt(value?.replace(' 字', '') || '0', 10) as unknown as 500}
                   onChange={(value) => {
@@ -2961,11 +2911,11 @@ export default function Chapters() {
             </div>
 
             {/* 第三行：AI模型 + Skill */}
-            <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 0 : 16 }}>
+            <div className={sx({ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 0 : 16 })}>
               <Form.Item
                 label="AI模型"
                 tooltip="不选则使用默认模型"
-                style={{ flex: 1, marginBottom: 12 }}
+                className="u-1l34fmb"
               >
                 <Select
                   placeholder={batchSelectedModel ? `默认: ${availableModels.find(m => m.value === batchSelectedModel)?.label || batchSelectedModel}` : "使用默认模型"}
@@ -2986,7 +2936,7 @@ export default function Chapters() {
               <Form.Item
                 label="应用 Skill"
                 tooltip="选择一个 Skill 工作流指导批量创作，不选则使用标准创作流程"
-                style={{ flex: 1, marginBottom: 12 }}
+                className="u-1l34fmb"
               >
                 <Select
                   placeholder="不使用 Skill（标准创作）"
@@ -2998,9 +2948,9 @@ export default function Chapters() {
                 >
                   {availableSkills.map(skill => (
                     <Select.Option key={skill.template_key} value={skill.template_key} label={skill.template_name}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div className="u-18xktuc">
                         <span>{skill.template_name}</span>
-                        <Tag style={{ fontSize: 11, lineHeight: '18px', padding: '0 4px' }}>{skill.category}</Tag>
+                        <Tag className="u-mzk6wx">{skill.category}</Tag>
                       </div>
                     </Select.Option>
                   ))}
@@ -3013,11 +2963,11 @@ export default function Chapters() {
               label="同步分析"
               name="enableAnalysis"
               tooltip="必须开启，确保剧情连贯"
-              style={{ marginBottom: 12 }}
+              className="u-1qz2mrl"
             >
               <Radio.Group disabled>
                 <Radio value={true}>
-                  <span style={{ fontSize: 12, color: token.colorSuccess }}>✓ 自动更新角色状态</span>
+                  <span className={sx({ fontSize: 12, color: token.colorSuccess })}>✓ 自动更新角色状态</span>
                 </Radio>
               </Radio.Group>
             </Form.Item>
@@ -3027,7 +2977,7 @@ export default function Chapters() {
             <Alert
               message="温馨提示"
               description={
-                <ul style={{ margin: '8px 0 0 0', paddingLeft: 20 }}>
+                <ul className="u-1jg1hmz">
                   <li>批量生成需要一定时间，可以切换到其他页面</li>
                   <li>关闭页面后重新打开，会自动恢复任务进度</li>
                   <li>可以随时点击"取消任务"按钮中止生成</li>
@@ -3038,10 +2988,10 @@ export default function Chapters() {
               }
               type="info"
               showIcon
-              style={{ marginBottom: 16 }}
+              className="u-6srbul"
             />
 
-            <div style={{ textAlign: 'center' }}>
+            <div className="u-1jt8mdo">
               <Button
                 danger
                 icon={<StopOutlined />}

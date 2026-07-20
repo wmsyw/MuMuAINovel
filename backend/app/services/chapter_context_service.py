@@ -16,6 +16,7 @@ from app.models.foreshadow import Foreshadow
 from app.models.goldfinger import Goldfinger, GoldfingerHistoryEvent
 from app.models.relationship import EntityRelationship, OrganizationEntity, OrganizationMember
 from app.logger import get_logger
+from app.services.world_setting_data_service import world_setting_context
 
 logger = get_logger(__name__)
 
@@ -210,7 +211,7 @@ class OneToManyContext:
     title: str = ""
     genre: str = ""
     theme: str = ""
-    
+    world_setting_context: str = ""
     # === P1-重要信息 ===
     chapter_characters: str = ""        # 完整版角色信息（含年龄、外貌、背景、关系、组织）
     chapter_careers: Optional[str] = None  # 独立的职业详情（含完整阶段体系）
@@ -227,10 +228,12 @@ class OneToManyContext:
     def get_total_context_length(self) -> int:
         """计算总上下文长度"""
         total = 0
-        for field_name in ['chapter_outline', 'recent_chapters_context', 'continuation_point',
-                          'chapter_characters', 'chapter_careers',
-                          'goldfinger_context', 'relevant_memories', 'foreshadow_reminders',
-                          'previous_chapter_summary']:
+        for field_name in [
+            'chapter_outline', 'recent_chapters_context', 'continuation_point',
+            'chapter_characters', 'chapter_careers', 'goldfinger_context',
+            'relevant_memories', 'foreshadow_reminders', 'world_setting_context',
+            'previous_chapter_summary',
+        ]:
             value = getattr(self, field_name, None)
             if value:
                 total += len(value)
@@ -263,6 +266,7 @@ class OneToOneContext:
     title: str = ""
     genre: str = ""
     theme: str = ""
+    world_setting_context: str = ""
     
     # === P1-重要信息 ===
     recent_chapters_context: Optional[str] = None  # 最近N章剧情摘要
@@ -284,7 +288,7 @@ class OneToOneContext:
         total = 0
         for field_name in ['chapter_outline', 'recent_chapters_context', 'continuation_point', 'previous_chapter_summary',
                           'chapter_characters', 'chapter_careers', 'goldfinger_context', 'foreshadow_reminders',
-                          'relevant_memories']:
+                          'relevant_memories', 'world_setting_context']:
             value = getattr(self, field_name, None)
             if value:
                 total += len(value)
@@ -370,6 +374,7 @@ class OneToManyContextBuilder:
             title=project.title or "",
             genre=project.genre or "",
             theme=project.theme or "",
+            world_setting_context=world_setting_context(project),
             target_word_count=target_word_count,
             min_word_count=max(500, target_word_count - 500),
             max_word_count=target_word_count + 1000,
@@ -1270,6 +1275,7 @@ class OneToOneContextBuilder:
             title=project.title or "",
             genre=project.genre or "",
             theme=project.theme or "",
+            world_setting_context=world_setting_context(project),
             target_word_count=target_word_count,
             min_word_count=max(500, target_word_count - 500),
             max_word_count=target_word_count + 1000,

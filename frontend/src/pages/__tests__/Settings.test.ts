@@ -8,9 +8,16 @@ interface SettingsTestUtils {
   getCoverProviderUpdateValues: (
     providerValue: string,
   ) => Partial<Pick<SettingsUpdate, 'cover_api_base_url' | 'cover_image_model' | 'cover_api_key'>> | undefined;
-  getMumuCoverBaseUrlUpdateValues: (
-    value: string,
-  ) => Pick<SettingsUpdate, 'cover_api_base_url' | 'cover_image_model'>;
+  normalizeCoverApiProvider: (provider?: string, apiBaseUrl?: string, model?: string) => string;
+  normalizeCoverSettingsFormValues: (settings?: Partial<SettingsUpdate>) => {
+    cover_enabled: boolean;
+    cover_api_provider: string;
+    cover_api_key: string;
+    cover_api_base_url: string;
+    cover_image_model: string;
+  };
+  normalizeProviderAlias: (provider?: string) => string;
+  normalizeSettingsProvider: (provider?: string) => string;
   findReasoningCapability: (
     provider: string | undefined,
     model: string | undefined,
@@ -43,7 +50,10 @@ const {
   ENTITY_GENERATION_WARNING_COPY,
   findReasoningCapability,
   getCoverProviderUpdateValues,
-  getMumuCoverBaseUrlUpdateValues,
+  normalizeCoverApiProvider,
+  normalizeCoverSettingsFormValues,
+  normalizeProviderAlias,
+  normalizeSettingsProvider,
   getApiErrorMessage,
   getSanitizedApiErrorLogContext,
   getReasoningIntensityOptions,
@@ -118,7 +128,7 @@ const registry: ReasoningCapabilitiesResponse = {
 
 describe('Settings reasoning capability helpers', () => {
   it('matches backend OpenAI/Claude/Gemini capability metadata', () => {
-    expect(normalizeReasoningProvider('mumu')).toBe('openai')
+    expect(normalizeReasoningProvider('openai')).toBe('openai')
     expect(findReasoningCapability('openai', 'gpt-4o-mini', registry.capabilities)?.provider_metadata.native_field)
       .toBe('responses.reasoning.effort')
     expect(findReasoningCapability('anthropic', 'claude-sonnet-4-20250514', registry.capabilities)?.provider_metadata.native_field)
@@ -178,18 +188,46 @@ describe('Settings cover provider defaults', () => {
       cover_image_model: 'gpt-image-2',
     })
   })
+  it('normalizes legacy providers without replacing OpenAI-compatible values', () => {
+    expect(normalizeProviderAlias(' MUMU ')).toBe('openai')
+    expect(normalizeReasoningProvider('mumu')).toBe('openai')
+    expect(normalizeCoverApiProvider('mumu')).toBe('openai')
 
-  it('clears MuMu cover keys and preserves MuMu /v1 model through base-url change production logic', () => {
-    expect(getCoverProviderUpdateValues('mumu')).toEqual({
-      cover_api_key: '',
-      cover_api_base_url: 'https://api.mumuverse.space/v1beta',
-      cover_image_model: 'gemini-3.1-flash-image-preview',
+    expect(normalizeCoverSettingsFormValues({
+      cover_api_provider: 'mumu',
+      cover_api_base_url: 'https://gateway.example/v1',
+      cover_image_model: 'image-model',
+    })).toMatchObject({
+      cover_api_provider: 'openai',
+      cover_api_base_url: 'https://gateway.example/v1',
+      cover_image_model: 'image-model',
     })
-    expect(getMumuCoverBaseUrlUpdateValues('https://api.mumuverse.space/v1')).toEqual({
-      cover_api_base_url: 'https://api.mumuverse.space/v1',
-      cover_image_model: 'gpt-image-1.5',
+
+    expect(normalizeCoverSettingsFormValues({
+      cover_api_provider: 'mumu',
+      cover_api_base_url: 'https://gateway.example/v1beta',
+      cover_image_model: 'gemini-2.5-flash-image-preview',
+    }).cover_api_provider).toBe('gemini')
+  })
+
+  it('falls back to a supported cover provider for unknown persisted values', () => {
+    expect(normalizeCoverApiProvider('unsupported')).toBe('openai')
+  })
+
+  it('falls back stale AI providers while preserving their endpoint fields', () => {
+    expect(normalizeSettingsProvider('custom')).toBe('openai')
+    expect(normalizeSettingsProvider('legacy-provider')).toBe('openai')
+    expect(normalizeSettingsFormDefaults({
+      api_provider: 'legacy-provider',
+      api_base_url: 'https://gateway.example/v1',
+      llm_model: 'image-model',
+    })).toMatchObject({
+      api_provider: 'openai',
+      api_base_url: 'https://gateway.example/v1',
+      llm_model: 'image-model',
     })
   })
+
 
   it('ignores unsupported cover providers through provider change production logic', () => {
     expect(getCoverProviderUpdateValues('unsupported')).toBeUndefined()

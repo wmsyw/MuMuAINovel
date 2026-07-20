@@ -11,40 +11,21 @@ from app.config import settings as app_settings
 from app.logger import get_logger
 from app.services.ai_config import AIClientConfig, default_config
 from app.services.ai_metrics import AICallMetrics, TokenUsage, ToolCallMetrics
-from app.services.ai_clients.openai_client import OpenAIClient
-from app.services.ai_clients.anthropic_client import AnthropicClient
-from app.services.ai_clients.gemini_client import GeminiClient
-from app.services.ai_clients.base_client import cleanup_all_clients
-from app.services.ai_clients.anthropic_client import cleanup_anthropic_clients
-from app.services.ai_clients.gemini_client import cleanup_gemini_clients
-from app.services.ai_providers.openai_provider import OpenAIProvider
-from app.services.ai_providers.anthropic_provider import AnthropicProvider
-from app.services.ai_providers.gemini_provider import GeminiProvider
-from app.services.ai_providers.base_provider import BaseAIProvider
+from app.services.ai_providers import BaseAIProvider, ProviderRegistry, cleanup_provider_clients
 from app.services.ai_capabilities import ReasoningConfig, build_reasoning_config
 from app.services.json_helper import clean_json_response, parse_json
 
 async def cleanup_http_clients():
-    await cleanup_all_clients()
-    await cleanup_anthropic_clients()
-    await cleanup_gemini_clients()
+    await cleanup_provider_clients()
 
 logger = get_logger(__name__)
 
 
 def normalize_provider(provider: Optional[str]) -> Optional[str]:
-    """标准化 provider 名称，兼容 OpenAI 格式渠道别名。
-
-    内置适配器（例如 Xiaomi MiMo）应在 API 层解析为底层兼容 provider，
-    AIService 只接收可直接初始化的 provider。
-    """
+    """Normalize public provider aliases to registry canonical names."""
     if provider is None:
         return None
-
-    normalized = provider.lower().strip()
-    if normalized == "mumu":
-        return "openai"
-    return normalized
+    return ProviderRegistry.resolve(provider)
 
 
 class AIService:
@@ -117,36 +98,34 @@ class AIService:
         self._enable_mcp = enable_mcp
         self._cached_tools: Optional[List[Dict[str, Any]]] = None
         self._tools_loaded = False
+        self._closed = False
         
-        self._openai_provider: Optional[OpenAIProvider] = None
-        self._anthropic_provider: Optional[AnthropicProvider] = None
-        self._gemini_provider: Optional[GeminiProvider] = None
-        
-        # 初始化 OpenAI 兼容接口
-        openai_key = None
-        openai_base_url = None
-        if self.api_provider == "openai":
-            openai_key = api_key or app_settings.openai_api_key
-            openai_base_url = api_base_url or app_settings.openai_base_url
-        else:
-            openai_key = app_settings.openai_api_key
-            openai_base_url = app_settings.openai_base_url
+        self._providers: Dict[str, BaseAIProvider] = {}
 
-        if openai_key:
-            client = OpenAIClient(openai_key, openai_base_url or "https://api.openai.com/v1", self.config)
-            self._openai_provider = OpenAIProvider(client)
-        
-        # 初始化 Anthropic
-        anthropic_key = api_key if self.api_provider == "anthropic" else app_settings.anthropic_api_key
-        if anthropic_key:
-            base_url = api_base_url if self.api_provider == "anthropic" else app_settings.anthropic_base_url
-            client = AnthropicClient(anthropic_key, base_url, self.config)
-            self._anthropic_provider = AnthropicProvider(client)
-        
-        # 初始化 Gemini
-        if self.api_provider == "gemini" and api_key:
-            client = GeminiClient(api_key, api_base_url, self.config)
-            self._gemini_provider = GeminiProvider(client)
+        provider_configs: Dict[str, tuple[Optional[str], Optional[str]]] = {
+            "openai": (app_settings.openai_api_key, app_settings.openai_base_url),
+            "anthropic": (app_settings.anthropic_api_key, app_settings.anthropic_base_url),
+            "gemini": (app_settings.gemini_api_key, app_settings.gemini_base_url),
+        }
+        self._builtin_provider_names = frozenset(provider_configs)
+        self._provider_configs = provider_configs
+        selected_provider = self.api_provider or "openai"
+        selected_key, selected_url = provider_configs.get(selected_provider, (None, None))
+        if api_key is not None:
+            selected_key = api_key
+        if api_base_url is not None:
+            selected_url = api_base_url
+        self._provider_configs[selected_provider] = (selected_key, selected_url)
+
+        # Built-in factories require credentials; custom factories receive the
+        # complete config even when keyless so local plugins can validate it.
+        if selected_provider not in self._builtin_provider_names or selected_key:
+            self._providers[selected_provider] = ProviderRegistry.get(
+                selected_provider,
+                api_key=selected_key,
+                base_url=selected_url,
+                config=self.config,
+            )
 
     @property
     def enable_mcp(self) -> bool:
@@ -179,15 +158,24 @@ class AIService:
         logger.debug(f"🔧 MCP工具状态已重置: enable_mcp={self._enable_mcp}, _tools_loaded=False")
     
     def _get_provider(self, provider: Optional[str] = None) -> BaseAIProvider:
-        """获取对应的 Provider"""
-        p = normalize_provider(provider or self.api_provider)
-        if p == "openai" and self._openai_provider:
-            return self._openai_provider
-        if p == "anthropic" and self._anthropic_provider:
-            return self._anthropic_provider
-        if p == "gemini" and self._gemini_provider:
-            return self._gemini_provider
-        raise ValueError(f"Provider {p} 未初始化")
+        """Return a provider, creating it only when this request selects it."""
+        requested = normalize_provider(provider or self.api_provider) or "openai"
+        canonical = ProviderRegistry.resolve(requested)
+        initialized = self._providers.get(canonical)
+        if initialized is not None:
+            return initialized
+
+        provider_key, provider_url = self._provider_configs.get(canonical, (None, None))
+        if canonical in self._builtin_provider_names and not provider_key:
+            raise ValueError(f"Provider {canonical} 未初始化")
+        initialized = ProviderRegistry.get(
+            canonical,
+            api_key=provider_key,
+            base_url=provider_url,
+            config=self.config,
+        )
+        self._providers[canonical] = initialized
+        return initialized
 
     def _build_call_metrics(
         self,
@@ -220,10 +208,20 @@ class AIService:
             logger.error(message)
 
     async def close(self) -> None:
-        if self._anthropic_provider:
-            await self._anthropic_provider.client.close()
-        if self._gemini_provider:
-            await self._gemini_provider.client.close()
+        """Close only providers instantiated and owned by this service."""
+        if self._closed:
+            return
+        self._closed = True
+        owned_providers = tuple({id(provider): provider for provider in self._providers.values()}.values())
+        self._providers.clear()
+        for provider in owned_providers:
+            await provider.close()
+
+    @staticmethod
+    def _normalize_response_content(response: Dict[str, Any]) -> Dict[str, Any]:
+        if response.get("content") is None:
+            response["content"] = ""
+        return response
 
     @staticmethod
     def _allowed_tool_names(tools: Optional[List[Dict[str, Any]]]) -> Optional[set[str]]:
@@ -354,6 +352,7 @@ class AIService:
             最终的AI响应
         """
         from app.mcp import mcp_client
+        response = self._normalize_response_content(response)
         
         tool_calls = response.get("tool_calls", [])
         if not tool_calls or not self.user_id:
@@ -423,6 +422,7 @@ class AIService:
                     tool_choice=tool_choice,
                     reasoning_config=kwargs.get("reasoning_config"),
                 )
+                next_response = self._normalize_response_content(next_response)
                 tool_metrics.usage.add(TokenUsage.from_response(next_response))
                 
                 tool_calls = next_response.get("tool_calls", [])
@@ -526,6 +526,7 @@ class AIService:
                 tool_choice=tool_choice,
                 reasoning_config=reasoning_config,
             )
+            response = self._normalize_response_content(response)
             usage = TokenUsage.from_response(response)
             
             # 处理工具调用

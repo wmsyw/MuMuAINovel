@@ -6,6 +6,8 @@ import { BellOutlined, CheckCircleOutlined, DeleteOutlined, EditOutlined, EyeInv
 import { announcementApi, authApi, settingsApi } from '../services/api';
 import type { Announcement, AnnouncementCreate, AnnouncementLevel, AnnouncementStatus, AnnouncementStatusResponse, AnnouncementUpdate, SystemSMTPSettings, SystemSMTPSettingsUpdate, User } from '../types';
 import MarkdownRenderer from '../components/MarkdownRenderer';
+import { sx } from '../styles/sx';
+import { normalizeSMTPSettings } from '../utils/smtpSettings';
 
 const { Title, Text, Paragraph } = Typography;
 const { Option } = Select;
@@ -18,6 +20,7 @@ const qqDefaults: Pick<SystemSMTPSettings, 'smtp_provider' | 'smtp_host' | 'smtp
   smtp_use_ssl: true,
   smtp_use_tls: false,
 };
+
 
 const announcementLevelText: Record<AnnouncementLevel, string> = {
   info: '通知',
@@ -155,7 +158,7 @@ export default function SystemSettingsPage() {
       ]);
       setCurrentUser(user);
       setAnnouncementStatus(status);
-      form.setFieldsValue(smtpSettings);
+      form.setFieldsValue(normalizeSMTPSettings(smtpSettings));
     } catch (error) {
       console.error('加载系统设置失败:', error);
       message.error('加载系统设置失败');
@@ -186,24 +189,25 @@ export default function SystemSettingsPage() {
   };
 
   const handleSave = async (values: SystemSMTPSettingsUpdate) => {
+    const normalizedValues = normalizeSMTPSettings(values);
     setSaving(true);
     try {
-      const payload = values.smtp_provider === 'qq'
+      const payload = normalizedValues.smtp_provider === 'qq'
         ? {
-            ...values,
+            ...normalizedValues,
             ...qqDefaults,
-            smtp_username: values.smtp_username,
-            smtp_password: values.smtp_password,
-            smtp_from_email: values.smtp_from_email,
-            smtp_from_name: values.smtp_from_name,
-            email_auth_enabled: values.email_auth_enabled,
-            email_register_enabled: values.email_register_enabled,
-            verification_code_ttl_minutes: values.verification_code_ttl_minutes,
-            verification_resend_interval_seconds: values.verification_resend_interval_seconds,
+            smtp_username: normalizedValues.smtp_username,
+            smtp_password: normalizedValues.smtp_password,
+            smtp_from_email: normalizedValues.smtp_from_email,
+            smtp_from_name: normalizedValues.smtp_from_name,
+            email_auth_enabled: normalizedValues.email_auth_enabled,
+            email_register_enabled: normalizedValues.email_register_enabled,
+            verification_code_ttl_minutes: normalizedValues.verification_code_ttl_minutes,
+            verification_resend_interval_seconds: normalizedValues.verification_resend_interval_seconds,
           }
-        : values;
+        : normalizedValues;
       const result = await settingsApi.updateSystemSMTPSettings(payload);
-      form.setFieldsValue(result);
+      form.setFieldsValue(normalizeSMTPSettings(result));
       message.success('系统 SMTP 设置已保存');
     } catch (error) {
       console.error('保存系统设置失败:', error);
@@ -399,7 +403,7 @@ export default function SystemSettingsPage() {
             <Text strong>{title}</Text>
             {record.pinned && <Tag color="gold">置顶</Tag>}
           </Space>
-          {record.summary && <Text type="secondary" style={{ fontSize: 12 }}>{record.summary}</Text>}
+          {record.summary && <Text type="secondary" className="u-1pw6xki">{record.summary}</Text>}
         </Space>
       ),
     },
@@ -483,7 +487,7 @@ export default function SystemSettingsPage() {
 
   if (initialLoading) {
     return (
-      <div style={{ minHeight: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: token.colorBgLayout }}>
+      <div className={sx({ minHeight: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: token.colorBgLayout })}>
         <Spin size="large" />
       </div>
     );
@@ -491,7 +495,7 @@ export default function SystemSettingsPage() {
 
   if (!currentUser?.is_admin) {
     return (
-      <div style={{ padding: 24 }}>
+      <div className="u-1lb6cvx">
         <Alert type="error" showIcon message="无权限访问" description="只有管理员可以访问系统设置。" />
       </div>
     );
@@ -499,32 +503,32 @@ export default function SystemSettingsPage() {
 
   return (
     <div
-      style={{
+      className={sx({
         minHeight: `calc(100vh - ${footerSafeOffset}px)`,
         boxSizing: 'border-box',
         background: pageBackground,
         padding: 24,
         paddingBottom: footerSafeOffset,
-      }}
+      })}
     >
-      <div style={{ maxWidth: 1400, margin: '0 auto', width: '100%' }}>
+      <div className="u-nsav5t">
       <Card
         bordered={false}
-        style={{
+        className={sx({
           marginBottom: 24,
           borderRadius: 20,
           overflow: 'hidden',
           boxShadow: `0 12px 32px ${token.colorFillSecondary}`,
-        }}
+        })}
         bodyStyle={{ padding: 0 }}
       >
-        <div style={{ background: headerBackground, padding: '28px 32px', color: '#fff' }}>
+        <div className={sx({ background: headerBackground, padding: '28px 32px', color: '#fff' })}>
           <Space direction="vertical" size={6}>
             <Space>
               <SettingOutlined />
-              <Title level={3} style={{ color: '#fff', margin: 0 }}>系统设置</Title>
+              <Title level={3} className="u-11yhtpy">系统设置</Title>
             </Space>
-            <Paragraph style={{ color: 'rgba(255,255,255,0.88)', margin: 0 }}>
+            <Paragraph className="u-ze916c">
               仅管理员可见，用于维护 SMTP 发信能力、邮箱注册参数与服务端公告发布。
             </Paragraph>
           </Space>
@@ -546,11 +550,11 @@ export default function SystemSettingsPage() {
               <Form form={form} layout="vertical" onFinish={handleSave}>
                 <Row gutter={24}>
                   <Col xs={24} xl={16}>
-                    <Card title="邮件服务配置" bordered={false} style={{ borderRadius: 16 }}>
+                    <Card title="邮件服务配置" bordered={false} className="u-rulbag">
                       <Alert
                         type="info"
                         showIcon
-                        style={{ marginBottom: 20 }}
+                        className="u-1ccse9a"
                         message="QQ 邮箱配置说明"
                         description="如果选择 QQ 邮箱，请使用完整 QQ 邮箱地址作为用户名，密码处填写 SMTP 授权码，而不是 QQ 登录密码。默认推荐 smtp.qq.com + SSL 465。"
                       />
@@ -571,7 +575,7 @@ export default function SystemSettingsPage() {
                         </Col>
                         <Col xs={24} md={12}>
                           <Form.Item name="smtp_port" label="SMTP 端口" rules={[{ required: true, message: '请输入 SMTP 端口' }]}>
-                            <InputNumber style={{ width: '100%' }} min={1} max={65535} />
+                            <InputNumber className="u-1f3r3s" min={1} max={65535} />
                           </Form.Item>
                         </Col>
                         <Col xs={24} md={12}>
@@ -591,7 +595,7 @@ export default function SystemSettingsPage() {
                         </Col>
                         <Col xs={24} md={12}>
                           <Form.Item name="smtp_from_name" label="发件人名称" rules={[{ required: true, message: '请输入发件人名称' }]}>
-                            <Input placeholder="MuMuAINovel" />
+                            <Input placeholder="AI Novel Studio" />
                           </Form.Item>
                         </Col>
                       </Row>
@@ -612,7 +616,7 @@ export default function SystemSettingsPage() {
                   </Col>
 
                   <Col xs={24} xl={8}>
-                    <Card title="注册与验证码策略" bordered={false} style={{ borderRadius: 16, marginBottom: 24 }}>
+                    <Card title="注册与验证码策略" bordered={false} className="u-1mnwdge">
                       <Form.Item name="email_auth_enabled" label="启用邮箱认证" valuePropName="checked">
                         <Switch />
                       </Form.Item>
@@ -620,15 +624,15 @@ export default function SystemSettingsPage() {
                         <Switch />
                       </Form.Item>
                       <Form.Item name="verification_code_ttl_minutes" label="验证码有效期（分钟）" rules={[{ required: true, message: '请输入验证码有效期' }]}>
-                        <InputNumber style={{ width: '100%' }} min={1} max={120} />
+                        <InputNumber className="u-1f3r3s" min={1} max={120} />
                       </Form.Item>
                       <Form.Item name="verification_resend_interval_seconds" label="验证码重发间隔（秒）" rules={[{ required: true, message: '请输入验证码重发间隔' }]}>
-                        <InputNumber style={{ width: '100%' }} min={10} max={3600} />
+                        <InputNumber className="u-1f3r3s" min={10} max={3600} />
                       </Form.Item>
                     </Card>
 
-                    <Card title="操作" bordered={false} style={{ borderRadius: 16 }}>
-                      <Space direction="vertical" style={{ width: '100%' }} size={12}>
+                    <Card title="操作" bordered={false} className="u-rulbag">
+                      <Space direction="vertical" className="u-1f3r3s" size={12}>
                         <Input
                           value={testTargetEmail}
                           onChange={(e) => setTestTargetEmail(e.target.value)}
@@ -666,8 +670,8 @@ export default function SystemSettingsPage() {
               </Space>
             ),
             children: (
-              <Card bordered={false} style={{ borderRadius: 16 }}>
-                <Space direction="vertical" size={16} style={{ width: '100%' }}>
+              <Card bordered={false} className="u-rulbag">
+                <Space direction="vertical" size={16} className="u-1f3r3s">
                   <Alert
                     type={announcementAdminAvailable ? 'info' : 'warning'}
                     showIcon
@@ -693,18 +697,18 @@ export default function SystemSettingsPage() {
                         )}
                       </Space>
                     </Col>
-                    <Col xs={24} lg={10} style={{ textAlign: 'right' }}>
+                    <Col xs={24} lg={10} className="u-6ye2y5">
                       <Space wrap>
                         <Search
                           allowClear
                           placeholder="搜索标题、摘要或正文"
-                          style={{ width: 220 }}
+                          className="u-1p29le0"
                           onSearch={handleAnnouncementSearch}
                           disabled={!announcementAdminAvailable}
                         />
                         <Text type="secondary">状态</Text>
                         <Select<AnnouncementStatusFilter>
-                          style={{ width: 120, textAlign: 'left' }}
+                          className="u-662hwp"
                           value={announcementStatusFilter}
                           disabled={!announcementAdminAvailable}
                           onChange={(value) => {
@@ -790,10 +794,10 @@ export default function SystemSettingsPage() {
           <Card
             size="small"
             title="公告正文（Markdown / 安全 HTML）"
-            style={{ marginBottom: 24, borderRadius: 12 }}
+            className="u-m9w2yq"
             extra={<Text type="secondary">支持 Markdown，以及居中图片、换行、强调等安全 HTML</Text>}
           >
-            <Space direction="vertical" size={12} style={{ width: '100%' }}>
+            <Space direction="vertical" size={12} className="u-1f3r3s">
               <Space wrap>
                 <Button size="small" onClick={() => appendMarkdownSnippet('## 小标题')}>标题</Button>
                 <Button size="small" onClick={() => appendMarkdownSnippet('**重点内容**')}>粗体</Button>
@@ -813,10 +817,10 @@ export default function SystemSettingsPage() {
                       { required: true, message: '请输入公告正文' },
                       { whitespace: true, message: '公告正文不能为空白字符' },
                     ]}
-                    style={{ marginBottom: 0 }}
+                    className="u-1sezbee"
                   >
                     <TextArea
-                      style={{ height: 420, resize: 'vertical' }}
+                      className="u-1nk1o1x"
                       placeholder={[
                         '请输入 Markdown 或安全 HTML 公告内容，例如：',
                         '## 更新说明',
@@ -837,7 +841,7 @@ export default function SystemSettingsPage() {
                 <Col xs={24} lg={12}>
                   <Text strong>预览</Text>
                   <div
-                    style={{
+                    className={sx({
                       marginTop: 8,
                       minHeight: 336,
                       maxHeight: 420,
@@ -846,7 +850,7 @@ export default function SystemSettingsPage() {
                       borderRadius: 10,
                       border: `1px solid ${token.colorBorderSecondary}`,
                       background: token.colorFillQuaternary,
-                    }}
+                    })}
                   >
                     <MarkdownRenderer content={announcementContent} />
                   </div>
@@ -867,7 +871,7 @@ export default function SystemSettingsPage() {
             </Col>
             <Col xs={24} md={8}>
               <Form.Item name="publish_at" label="发布时间">
-                <DatePicker style={{ width: '100%' }} showTime={{ format: 'HH:mm' }} format="YYYY-MM-DD HH:mm" allowClear />
+                <DatePicker className="u-1f3r3s" showTime={{ format: 'HH:mm' }} format="YYYY-MM-DD HH:mm" allowClear />
               </Form.Item>
             </Col>
             <Col xs={24} md={8}>
@@ -887,7 +891,7 @@ export default function SystemSettingsPage() {
                   }),
                 ]}
               >
-                <DatePicker style={{ width: '100%' }} showTime={{ format: 'HH:mm' }} format="YYYY-MM-DD HH:mm" allowClear />
+                <DatePicker className="u-1f3r3s" showTime={{ format: 'HH:mm' }} format="YYYY-MM-DD HH:mm" allowClear />
               </Form.Item>
             </Col>
           </Row>

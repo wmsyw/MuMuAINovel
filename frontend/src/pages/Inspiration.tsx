@@ -7,8 +7,12 @@ import { AIProjectGenerator } from '../components/generation/AIProjectGenerator'
 import type { GenerationConfig } from '../components/generation/types';
 import { CHANNELS, getGenresByChannel, THEME_TAGS, CHARACTER_TAGS, PLOT_TAGS, MAX_TAGS_PER_DIMENSION } from '../constants/novelTaxonomy';
 import { DIRECTION_CARD_LABELS } from '../types';
-import type { InspirationGuidance } from '../types';
+import type { InspirationGuidance, InspirationPlatform } from '../types';
 import type { InspirationDirectionCard, InspirationGenerationContext, InspirationOptionsContext, InspirationQualityReport, InspirationStoryBibleDraft, Project, ProjectCreate } from '../types';
+import { INSPIRATION_DRAFTS_KEY, saveInspirationDraftToStorage } from '../utils/inspirationDrafts';
+import type { InspirationDraftRecord } from '../utils/inspirationDrafts';
+import { useIsMobile } from '../hooks/useMediaQuery';
+import { sx } from '../styles/sx';
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
@@ -19,6 +23,12 @@ const entrySteps = new Set<Step>(['channel_select', 'genre_select', 'tag_select'
 const restorableSteps = new Set<Step>(['channel_select', 'genre_select', 'tag_select', 'plot_brief', 'idea', 'direction_cards', 'perspective', 'outline_mode', 'confirm']);
 const TAG_COLLAPSED_VISIBLE_COUNT = 24;
 const CUSTOM_TAG_MAX_LENGTH = 30;
+const PLATFORM_OPTIONS: Array<{ label: string; value: InspirationPlatform }> = [
+  { label: '起点中文网', value: 'qidian' },
+  { label: '晋江文学城', value: 'jjwxc' },
+  { label: 'AO3', value: 'ao3' },
+  { label: 'Wattpad', value: 'wattpad' },
+];
 
 type TaxonomyTagOption = (typeof THEME_TAGS)[number];
 type TagDimension = 'theme' | 'character' | 'plot';
@@ -27,6 +37,7 @@ type CustomTagInputs = Record<TagDimension, string>;
 interface DirectionCardRequestOptions {
   extraRequirement?: string;
   previousCards?: InspirationDirectionCard[];
+  platform?: InspirationPlatform;
 }
 
 const emptyCustomTagInputs: CustomTagInputs = {
@@ -57,23 +68,6 @@ interface WizardData {
 
 type InspirationDraftAction = 'save_inspiration' | 'create_project_draft';
 
-interface InspirationDraftRecord {
-  id: string;
-  title: string;
-  description: string;
-  theme: string;
-  genre: string[];
-  world_setting?: string;
-  core_conflict?: string;
-  protagonist?: string;
-  golden_finger?: string | null;
-  narrative_perspective: string;
-  outline_mode: 'one-to-one' | 'one-to-many';
-  initial_idea: string;
-  story_bible_draft?: InspirationStoryBibleDraft;
-  created_at: string;
-  status: 'draft';
-}
 
 interface InspirationDraftActionClients {
   saveInspiration: (draft: InspirationDraftRecord) => void;
@@ -86,6 +80,7 @@ interface CacheData {
   currentStep: Step;
   wizardData: Partial<WizardData>;
   initialIdea: string;
+  selectedPlatform?: InspirationPlatform;
   directionCards?: InspirationDirectionCard[];
   selectedDirectionCardIds?: string[];
   activeDirectionCard?: InspirationDirectionCard | null;
@@ -97,7 +92,6 @@ interface CacheData {
 
 // 缓存键
 const CACHE_KEY = 'inspiration_conversation_cache';
-const INSPIRATION_DRAFTS_KEY = 'inspiration_saved_drafts';
 // 缓存有效期：24小时
 const CACHE_EXPIRY = 24 * 60 * 60 * 1000;
 
@@ -148,7 +142,7 @@ function buildProjectDraftPayload(data: WizardData): ProjectCreate {
 }
 
 function buildProjectEntryPath(projectId: string): string {
-  return `/project/${projectId}/sponsor`;
+  return `/project/${projectId}/world-setting`;
 }
 
 type InspirationGenerationConfig = GenerationConfig & {
@@ -359,11 +353,6 @@ function buildOptionsContext(data: Partial<WizardData>, initialIdea: string): In
   };
 }
 
-function saveInspirationDraftToStorage(draft: InspirationDraftRecord, storage: Storage = localStorage): void {
-  const raw = storage.getItem(INSPIRATION_DRAFTS_KEY);
-  const existing = raw ? JSON.parse(raw) as InspirationDraftRecord[] : [];
-  storage.setItem(INSPIRATION_DRAFTS_KEY, JSON.stringify([draft, ...existing].slice(0, 20)));
-}
 
 async function runInspirationDraftAction(
   action: InspirationDraftAction,
@@ -397,16 +386,9 @@ type InspirationComponent = React.FC & {
 const InspirationImpl: React.FC = () => {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState<Step>('channel_select');
-  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const isMobile = useIsMobile();
   const { token } = theme.useToken();
 
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth <= 768);
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -432,6 +414,7 @@ const InspirationImpl: React.FC = () => {
   const [wizardData, setWizardData] = useState<Partial<WizardData>>({});
   // 保存用户的原始想法，用于保持上下文一致性
   const [initialIdea, setInitialIdea] = useState<string>('');
+  const [selectedPlatform, setSelectedPlatform] = useState<InspirationPlatform | undefined>();
   const [selectedChannel, setSelectedChannel] = useState('');
   const [selectedGenre, setSelectedGenre] = useState('');
   const [selectedThemes, setSelectedThemes] = useState<string[]>([]);
@@ -491,6 +474,7 @@ const InspirationImpl: React.FC = () => {
         currentStep,
         wizardData,
         initialIdea,
+        selectedPlatform,
         directionCards,
         selectedDirectionCardIds,
         activeDirectionCard,
@@ -504,7 +488,7 @@ const InspirationImpl: React.FC = () => {
     } catch (error) {
       console.error('保存缓存失败:', error);
     }
-  }, [currentStep, messages, wizardData, initialIdea, directionCards, selectedDirectionCardIds, activeDirectionCard, storyBibleDraft, storyBibleQualityReport, storyBibleQualityError, guidanceEntryActive]);
+  }, [currentStep, messages, wizardData, initialIdea, selectedPlatform, directionCards, selectedDirectionCardIds, activeDirectionCard, storyBibleDraft, storyBibleQualityReport, storyBibleQualityError, guidanceEntryActive]);
 
   // 从缓存恢复
   const restoreFromCache = useCallback((): boolean => {
@@ -538,6 +522,7 @@ const InspirationImpl: React.FC = () => {
       setCurrentStep(cacheData.currentStep);
       setWizardData(cacheData.wizardData);
       setInitialIdea(cacheData.initialIdea);
+      setSelectedPlatform(cacheData.selectedPlatform);
       setDirectionCards(cacheData.directionCards || []);
       setSelectedDirectionCardIds(cacheData.selectedDirectionCardIds || []);
       setActiveDirectionCard(cacheData.activeDirectionCard || null);
@@ -597,6 +582,7 @@ const InspirationImpl: React.FC = () => {
   const selectedGenreOptions = selectedChannel ? getGenresByChannel(selectedChannel) : [];
 
   const resetGuidanceSelections = () => {
+    setSelectedPlatform(undefined);
     setSelectedChannel('');
     setSelectedGenre('');
     setSelectedThemes([]);
@@ -790,26 +776,41 @@ const InspirationImpl: React.FC = () => {
     guidance?: InspirationGuidance,
     options: DirectionCardRequestOptions = {},
   ) => {
-    const response = await inspirationApi.generateCards({
-      idea,
-      guidance,
-      card_count: DIRECTION_CARD_COUNT,
-      context: {
-        initial_idea: idea,
-        description: idea,
-        ...(options.extraRequirement ? { extra_requirement: options.extraRequirement } : {}),
-        ...(options.previousCards?.length ? { previous_direction_cards: options.previousCards } : {}),
-      },
-    });
+    const response = options.platform
+      ? await inspirationApi.batchGenerate({
+          base_idea: idea,
+          platform: options.platform,
+          channel: guidance?.channel,
+          genre_tags: [guidance?.genre, ...(guidance?.themes || [])].filter((tag): tag is string => Boolean(tag)),
+          plot_keywords: guidance?.plots || [],
+          character_traits: guidance?.characters || [],
+          count: DIRECTION_CARD_COUNT,
+          ...(options.extraRequirement ? { extra_requirement: options.extraRequirement } : {}),
+          ...(options.previousCards?.length ? { previous_cards: options.previousCards } : {}),
+        })
+      : await inspirationApi.generateCards({
+          idea,
+          guidance,
+          card_count: DIRECTION_CARD_COUNT,
+          context: {
+            initial_idea: idea,
+            description: idea,
+            ...(options.extraRequirement ? { extra_requirement: options.extraRequirement } : {}),
+            ...(options.previousCards?.length ? { previous_direction_cards: options.previousCards } : {}),
+          },
+        });
+    const cards = 'ideas' in response ? response.ideas : response.cards;
+    const responseError = 'error' in response ? response.error : undefined;
+    const responsePrompt = 'prompt' in response ? response.prompt : undefined;
 
-      if (response.error || !response.cards || response.cards.length === 0) {
+      if (responseError || cards.length === 0) {
         setDirectionCards([]);
         setSelectedDirectionCardIds([]);
         setActiveDirectionCard(null);
       const errorMessage: Message = {
         type: 'ai',
-        content: response.error
-          ? `生成故事方向时出错：${response.error}\n\n请重新生成一批方向，或重新开始调整初始创意。`
+        content: responseError
+          ? `生成故事方向时出错：${responseError}\n\n请重新生成一批方向，或重新开始调整初始创意。`
           : '暂时没有生成可用的故事方向，请重新生成一批方向，或重新开始调整初始创意。',
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -817,12 +818,12 @@ const InspirationImpl: React.FC = () => {
       return;
     }
 
-    setDirectionCards(response.cards);
+    setDirectionCards(cards);
     setSelectedDirectionCardIds([]);
     setActiveDirectionCard(null);
     const aiMessage: Message = {
       type: 'ai',
-      content: response.prompt || '我先为你生成了三张故事方向卡。可以选择一个继续深化，也可以合并两个方向。',
+      content: responsePrompt || `我先为你生成了${cards.length}张故事方向卡。可以选择一个继续深化，也可以合并两个方向。`,
     };
     setMessages(prev => [...prev, aiMessage]);
     setCurrentStep('direction_cards');
@@ -856,7 +857,7 @@ const InspirationImpl: React.FC = () => {
     setLoading(true);
 
     try {
-      await requestDirectionCards(synthesizedIdea, guidance);
+      await requestDirectionCards(synthesizedIdea, guidance, { platform: selectedPlatform });
     } catch (error: unknown) {
       console.error('生成标签导向故事方向失败:', error);
       const errMsg = error instanceof Error ? error.message : '生成失败，请重试';
@@ -910,7 +911,7 @@ const InspirationImpl: React.FC = () => {
 
     setLoading(true);
     try {
-      await requestDirectionCards(initialIdea);
+      await requestDirectionCards(initialIdea, buildCurrentGuidance(), { platform: selectedPlatform });
       message.success('已重新生成一批方向');
     } catch (error: unknown) {
       console.error('重新生成方向卡失败:', error);
@@ -987,6 +988,7 @@ const InspirationImpl: React.FC = () => {
       }
 
       await requestDirectionCards(initialIdea, buildCurrentGuidance() || undefined, {
+        platform: selectedPlatform,
         extraRequirement: requirement,
         previousCards: directionCards,
       });
@@ -1262,7 +1264,7 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
       const aiMessage: Message = {
         type: 'ai',
         content: summary,
-        options: ['生成故事圣经草稿', '保存灵感草稿', '创建项目草稿', '开始完整项目生成', '重新开始']
+        options: ['生成故事圣经草稿', '进入项目创建向导', '保存灵感草稿', '创建项目草稿', '开始完整项目生成', '重新开始']
       };
       setMessages(prev => [...prev, aiMessage]);
       setCurrentStep('confirm');
@@ -1279,13 +1281,29 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
         await handleGenerateStoryBible();
         const aiMessage: Message = {
           type: 'ai',
-          content: '故事圣经草稿处理完成。你可以在上方继续编辑草稿，或选择保存灵感草稿、创建项目草稿、开始完整项目生成。',
-          options: ['保存灵感草稿', '创建项目草稿', '开始完整项目生成', '重新开始'],
+          content: '故事圣经草稿处理完成。你可以在上方继续编辑草稿，或选择带入项目创建向导、保存灵感草稿、创建项目草稿、开始完整项目生成。',
+          options: ['进入项目创建向导', '保存灵感草稿', '创建项目草稿', '开始完整项目生成', '重新开始'],
         };
         setMessages(prev => [...prev, aiMessage]);
         return;
       }
 
+      if (option === '进入项目创建向导') {
+        const data = wizardData as WizardData;
+        const draft = normalizeWizardData(data, initialIdea, storyBibleDraft);
+        try {
+          saveInspirationDraftToStorage(draft);
+        } catch (error) {
+          const handoffErrorMessage = '无法保存灵感草稿，未进入项目创建向导。请检查浏览器存储空间后重试。';
+          console.error('保存灵感草稿失败，无法进入项目创建向导:', error);
+          message.error(handoffErrorMessage);
+          setMessages(prev => [...prev, { type: 'ai', content: handoffErrorMessage }]);
+          return;
+        }
+        clearCache();
+        navigate(`/wizard?from_inspiration=${encodeURIComponent(draft.id)}`);
+        return;
+      }
       if (option === '保存灵感草稿') {
         const userMessage: Message = {
           type: 'user',
@@ -1302,8 +1320,8 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
           }, storyBibleDraft) as InspirationDraftRecord;
           const aiMessage: Message = {
             type: 'ai',
-            content: `已保存为灵感草稿「${draft.title}」。这不会创建角色、组织、职业或改写世界观；你仍可以选择创建项目草稿或进入完整生成流程。`,
-            options: ['创建项目草稿', '开始完整项目生成', '重新开始'],
+            content: `已保存为灵感草稿「${draft.title}」。这不会创建角色、组织、职业或改写世界观；你仍可以选择带入项目创建向导、创建项目草稿或进入完整生成流程。`,
+            options: ['进入项目创建向导', '创建项目草稿', '开始完整项目生成', '重新开始'],
           };
           setMessages(prev => [...prev, aiMessage]);
           message.success('灵感草稿已保存');
@@ -1488,6 +1506,7 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
 
   const renderGuidancePreview = () => {
     const previewItems = [
+      selectedPlatform ? { label: '目标平台', value: PLATFORM_OPTIONS.find(option => option.value === selectedPlatform)?.label || selectedPlatform } : null,
       selectedChannelLabel ? { label: '频道', value: selectedChannelLabel } : null,
       selectedGenre ? { label: '题材', value: selectedGenre } : null,
       selectedThemes.length ? { label: '主题', value: selectedThemes.join('、') } : null,
@@ -1535,8 +1554,8 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
 
     return (
       <Card size="small" styles={{ body: { padding: 14 } }}>
-        <Space direction="vertical" size="small" style={{ width: '100%' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+        <Space direction="vertical" size="small" className="u-1f3r3s">
+          <div className="u-1t9cdok">
             <Text strong>{title}</Text>
             <Tag color={reachedLimit ? 'warning' : 'default'}>
               已选 {selectedValues.length}/{MAX_TAGS_PER_DIMENSION}
@@ -1551,7 +1570,7 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
                   color="processing"
                   closable={!loading}
                   onClose={() => toggleTagSelection(dimension, value, false)}
-                  style={{ marginInlineEnd: 0 }}
+                  className="u-abukd8"
                 >
                   {value}
                 </Tag>
@@ -1581,11 +1600,11 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
                     }
                     toggleTagSelection(dimension, option.label, nextChecked);
                   }}
-                  style={{
+                  className={sx({
                     marginInlineEnd: 0,
                     opacity: selectionBlocked ? 0.45 : 1,
                     cursor: selectionBlocked ? 'not-allowed' : 'pointer',
-                  }}
+                  })}
                   aria-disabled={selectionBlocked}
                 >
                   {option.label}
@@ -1595,7 +1614,7 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
           </Space>
 
           {hasOverflow && (
-            <Button type="link" size="small" onClick={() => setExpanded(!expanded)} style={{ alignSelf: 'flex-start', padding: 0 }}>
+            <Button type="link" size="small" onClick={() => setExpanded(!expanded)} className="u-fpg66f">
               {expanded ? '收起 ▲' : `展开 ▼（共 ${options.length} 个）`}
             </Button>
           )}
@@ -1636,23 +1655,33 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
 
     return (
       <Card
-        style={{
+        className={sx({
           marginBottom: 16,
           borderColor: token.colorPrimaryBorder,
           boxShadow: `0 8px 24px color-mix(in srgb, ${token.colorTextBase} 16%, transparent)`,
-        }}
+        })}
       >
-        <Space direction="vertical" size="large" style={{ width: '100%' }}>
-          <Space direction="vertical" size={4} style={{ width: '100%' }}>
+        <Space direction="vertical" size="large" className="u-1f3r3s">
+          <Space direction="vertical" size={4} className="u-1f3r3s">
             <Text type="secondary">标签导向入口 · 第 {stepIndexMap[currentStep]}/4 步</Text>
-            <Title level={4} style={{ margin: 0 }}>先用频道、题材和标签收束灵感</Title>
+            <Title level={4} className="u-avalr8">先用频道、题材和标签收束灵感</Title>
             <Text type="secondary">也可以跳过这些步骤，直接回到原来的自由输入模式。</Text>
           </Space>
 
           {currentStep !== 'channel_select' && renderGuidancePreview()}
 
           {currentStep === 'channel_select' && (
-            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+            <Space direction="vertical" size="middle" className="u-1f3r3s">
+              <Text strong>目标平台（可选）</Text>
+              <Select
+                size="large"
+                allowClear
+                placeholder="选择起点、晋江、AO3 或 Wattpad"
+                value={selectedPlatform}
+                options={PLATFORM_OPTIONS}
+                onChange={setSelectedPlatform}
+                className="u-1f3r3s"
+              />
               <Text strong>选择一个创作频道</Text>
               <Radio.Group
                 optionType="button"
@@ -1672,7 +1701,7 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
           )}
 
           {currentStep === 'genre_select' && (
-            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+            <Space direction="vertical" size="middle" className="u-1f3r3s">
               <Text strong>选择一个题材</Text>
               <Select
                 size="large"
@@ -1680,7 +1709,7 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
                 value={selectedGenre || undefined}
                 options={selectedGenreOptions.map(genre => ({ label: genre.label, value: genre.label }))}
                 onChange={handleGenreChange}
-                style={{ width: '100%' }}
+                className="u-1f3r3s"
               />
               <Space wrap>
                 <Button onClick={() => setCurrentStep('channel_select')}>上一步</Button>
@@ -1693,7 +1722,7 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
           )}
 
           {currentStep === 'tag_select' && (
-            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+            <Space direction="vertical" size="middle" className="u-1f3r3s">
               {renderTagPool('主题标签', THEME_TAGS, selectedThemes, themeTagsExpanded, setThemeTagsExpanded, 'theme')}
               {renderTagPool('角色标签', CHARACTER_TAGS, selectedCharacters, characterTagsExpanded, setCharacterTagsExpanded, 'character')}
               {renderTagPool('情节标签', PLOT_TAGS, selectedPlots, plotTagsExpanded, setPlotTagsExpanded, 'plot')}
@@ -1708,8 +1737,8 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
           )}
 
           {currentStep === 'plot_brief' && (
-            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-              <Space direction="vertical" size={4} style={{ width: '100%' }}>
+            <Space direction="vertical" size="middle" className="u-1f3r3s">
+              <Space direction="vertical" size={4} className="u-1f3r3s">
                 <Text strong>补充剧情简述（可选）</Text>
                 <Text type="secondary">留空时会根据已选频道、题材和标签自动合成一句创意。</Text>
               </Space>
@@ -1741,20 +1770,20 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
 
     return (
       <Card
-        style={{
+        className={sx({
           marginBottom: 16,
           borderColor: token.colorPrimaryBorder,
           boxShadow: `0 6px 18px color-mix(in srgb, ${token.colorTextBase} 12%, transparent)`,
-        }}
+        })}
       >
-        <Space direction="vertical" style={{ width: '100%' }} size="middle">
-          <Space direction="vertical" size={4} style={{ width: '100%' }}>
-            <Title level={4} style={{ margin: 0 }}>故事方向</Title>
+        <Space direction="vertical" className="u-1f3r3s" size="middle">
+          <Space direction="vertical" size={4} className="u-1f3r3s">
+            <Title level={4} className="u-avalr8">故事方向</Title>
             <Text type="secondary">默认先比较三张方向卡；在下方输入追加要求时，不选卡会重新生成，选中一张会修改该方向，选中两个仍用于合并。</Text>
           </Space>
 
           {directionCards.length > 0 ? (
-            <Space direction="vertical" style={{ width: '100%' }} size="middle">
+            <Space direction="vertical" className="u-1f3r3s" size="middle">
               {directionCards.map((card) => {
                 const selected = selectedDirectionCardIds.includes(card.id);
 
@@ -1763,17 +1792,17 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
                     key={card.id}
                     hoverable={!loading}
                     onClick={() => !loading && handleToggleDirectionCard(card.id)}
-                    style={{
+                    className={sx({
                       cursor: loading ? 'not-allowed' : 'pointer',
                       border: selected ? `2px solid ${token.colorPrimary}` : `1px solid ${token.colorBorder}`,
                       background: selected ? token.colorPrimaryBg : token.colorBgContainer,
                       opacity: loading ? 0.7 : 1,
                       transition: 'all 0.3s ease',
-                    }}
+                    })}
                     styles={{ body: { padding: 16 } }}
                   >
-                    <Space direction="vertical" style={{ width: '100%' }} size="small">
-                      <Space style={{ width: '100%', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <Space direction="vertical" className="u-1f3r3s" size="small">
+                      <Space className="u-7k2yn5">
                         <Space align="start">
                           <Checkbox
                             checked={selected}
@@ -1791,15 +1820,15 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
                         )}
                       </Space>
 
-                      <Space direction="vertical" size={6} style={{ width: '100%' }}>
+                      <Space direction="vertical" size={6} className="u-1f3r3s">
                         {directionCardFieldOrder.map(field => {
                           if (field === 'title' || field === 'hook') {
                             return null;
                           }
 
                           return (
-                            <div key={field} style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
-                              <Text strong style={{ minWidth: 108, color: token.colorTextSecondary }}>
+                            <div key={field} className="u-1xa248k">
+                              <Text strong className={sx({ minWidth: 108, color: token.colorTextSecondary })}>
                                 {DIRECTION_CARD_LABELS[field]}
                               </Text>
                               <Text>{formatDirectionCardValue(card[field])}</Text>
@@ -1851,11 +1880,11 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
     return (
       <Card
         title="故事圣经草稿"
-        style={{
+        className={sx({
           marginBottom: token.marginMD,
           borderColor: storyBibleDraft ? token.colorPrimaryBorder : token.colorBorder,
           boxShadow: panelShadow,
-        }}
+        })}
         extra={(
           <Button
             type={storyBibleDraft ? 'default' : 'primary'}
@@ -1867,7 +1896,7 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
           </Button>
         )}
       >
-        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+        <Space direction="vertical" size="middle" className="u-1f3r3s">
           <Text type="secondary">
             草稿只保存在本地灵感草稿中；创建项目草稿仍只写入基础安全字段，不会自动创建角色、世界观或伏笔记录。
           </Text>
@@ -1880,24 +1909,24 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
               description="需要时点击“生成故事圣经草稿”整理核心设定，并自动获取质量评估。"
             />
           ) : (
-            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+            <Space direction="vertical" size="middle" className="u-1f3r3s">
               <div
-                style={{
+                className={sx({
                   display: 'grid',
                   gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(0, 1fr))',
                   gap: token.marginMD,
-                }}
+                })}
               >
                 {storyBibleFieldOrder.map(field => (
                   <div
                     key={field}
-                    style={{
+                    className={sx({
                       gridColumn: storyBibleListFields.has(field) || field === 'core_idea' || field === 'story_promise'
                         ? '1 / -1'
                         : undefined,
-                    }}
+                    })}
                   >
-                    <Space direction="vertical" size={token.marginXXS} style={{ width: '100%' }}>
+                    <Space direction="vertical" size={token.marginXXS} className="u-1f3r3s">
                       <Text strong>{storyBibleFieldLabels[field]}</Text>
                       <TextArea
                         aria-label={storyBibleFieldLabels[field]}
@@ -1938,9 +1967,9 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
                       一键修复
                     </Button>
                   )}
-                  style={{ background: token.colorBgLayout }}
+                  className={sx({ background: token.colorBgLayout })}
                 >
-                  <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                  <Space direction="vertical" size="small" className="u-1f3r3s">
                     <Space wrap>
                       {Object.entries(storyBibleQualityReport.dimensions).map(([dimension, score]) => (
                         <Tag key={dimension} color="processing">
@@ -1950,7 +1979,7 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
                     </Space>
 
                     {storyBibleQualityReport.issues.length > 0 && (
-                      <Space direction="vertical" size={token.marginXXS} style={{ width: '100%' }}>
+                      <Space direction="vertical" size={token.marginXXS} className="u-1f3r3s">
                         <Text strong>问题与建议</Text>
                         {storyBibleQualityReport.issues.map(issue => (
                           <Alert
@@ -2001,28 +2030,28 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
 
       <Card
         ref={chatContainerRef}
-        style={{
+        className={sx({
           height: isMobile ? 'calc(100vh - 280px)' : 600,
           overflowY: 'auto',
           marginBottom: 16,
           boxShadow: `0 8px 24px color-mix(in srgb, ${token.colorTextBase} 20%, transparent)`,
           scrollBehavior: 'smooth'
-        }}
+        })}
       >
-        <Space direction="vertical" style={{ width: '100%' }} size="large">
+        <Space direction="vertical" className="u-1f3r3s" size="large">
           {messages.map((msg, index) => (
             <div
               key={index}
-              style={{
+              className={sx({
                 display: 'flex',
                 justifyContent: msg.type === 'ai' ? 'flex-start' : 'flex-end',
                 alignItems: 'flex-start',
                 animation: 'fadeInUp 0.5s ease-out',
                 animationFillMode: 'both',
                 animationDelay: `${index * 0.1}s`
-              }}
+              })}
             >
-              <div style={{
+              <div className={sx({
                 maxWidth: '80%',
                 padding: '12px 16px',
                 borderRadius: 12,
@@ -2031,13 +2060,13 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
                 boxShadow: msg.type === 'ai'
                   ? `0 2px 10px color-mix(in srgb, ${token.colorTextBase} 12%, transparent)`
                   : `0 4px 14px color-mix(in srgb, ${token.colorPrimary} 30%, transparent)`,
-              }}>
+              })}>
                 <Paragraph
-                  style={{
+                  className={sx({
                     margin: 0,
                     color: msg.type === 'ai' ? token.colorText : token.colorWhite,
                     whiteSpace: 'pre-wrap'
-                  }}
+                  })}
                 >
                   {msg.content}
                 </Paragraph>
@@ -2045,7 +2074,7 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
                 {msg.options && msg.options.length > 0 && (
                   <Space
                     direction="vertical"
-                    style={{ width: '100%', marginTop: 12 }}
+                    className="u-1i1ootl"
                     size="small"
                   >
                     {msg.options.map((option, optIndex) => (
@@ -2054,7 +2083,7 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
                         hoverable={!msg.optionsDisabled && !draftActionLoading}
                         size="small"
                         onClick={() => !msg.optionsDisabled && !draftActionLoading && handleSelectOption(option)}
-                        style={{
+                        className={sx(!msg.optionsDisabled && !draftActionLoading && 'inspiration-option-card', {
                           cursor: msg.optionsDisabled || draftActionLoading ? 'not-allowed' : 'pointer',
                           border: `1px solid ${token.colorBorder}`,
                           background: msg.optionsDisabled
@@ -2065,19 +2094,7 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
                           animationDelay: `${optIndex * 0.1}s`,
                           animationFillMode: 'both',
                           transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                        }}
-                        onMouseEnter={(e) => {
-                          if (!msg.optionsDisabled && !draftActionLoading) {
-                            e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
-                            e.currentTarget.style.boxShadow = `0 8px 22px color-mix(in srgb, ${token.colorTextBase} 14%, transparent)`;
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (!msg.optionsDisabled && !draftActionLoading) {
-                            e.currentTarget.style.transform = 'translateY(0) scale(1)';
-                            e.currentTarget.style.boxShadow = 'none';
-                          }
-                        }}
+                        })}
                       >
                         {option}
                       </Card>
@@ -2089,11 +2106,7 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
           ))}
 
           {(loading || draftActionLoading) && (
-            <div style={{
-              textAlign: 'center',
-              padding: 20,
-              animation: 'fadeIn 0.3s ease-in'
-            }}>
+            <div className="u-1i3bfga">
               <Spin tip={draftActionLoading ? "正在保存草稿..." : "AI思考中..."} />
             </div>
           )}
@@ -2103,10 +2116,10 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
       </Card>
 
       <Card
-        style={{ boxShadow: `0 4px 12px color-mix(in srgb, ${token.colorTextBase} 14%, transparent)` }}
+        className={sx({ boxShadow: `0 4px 12px color-mix(in srgb, ${token.colorTextBase} 14%, transparent)` })}
         styles={{ body: { padding: 12 } }}
       >
-        <Space.Compact style={{ width: '100%' }}>
+        <Space.Compact className="u-1f3r3s">
           <TextArea
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
@@ -2132,12 +2145,12 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
             onClick={handleSendMessage}
             loading={loading || Boolean(draftActionLoading)}
             disabled={loading || Boolean(draftActionLoading)}
-            style={{ height: 'auto' }}
+            className="u-jylawy"
           >
             发送
           </Button>
         </Space.Compact>
-        <Text type="secondary" style={{ fontSize: 12, marginTop: 8, display: 'block' }}>
+        <Text type="secondary" className="u-xbsvv1">
           💡 提示：按 Enter 发送，Shift+Enter 换行
         </Text>
       </Card>
@@ -2146,10 +2159,10 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
   };
 
   return (
-    <div style={{
+    <div className={sx({
       minHeight: '100dvh',
       background: token.colorBgBase,
-    }}>
+    })}>
       {contextHolder}
       <style>
         {`
@@ -2190,43 +2203,43 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
       </style>
 
       {/* 顶部标题栏 - 固定不滚动 */}
-      <div style={{
+      <div className={sx({
         position: 'sticky',
         top: 0,
         zIndex: 100,
         background: token.colorPrimary,
         boxShadow: `0 6px 20px color-mix(in srgb, ${token.colorPrimary} 30%, transparent)`,
-      }}>
-        <div style={{
+      })}>
+        <div className={sx({
           maxWidth: 1200,
           margin: '0 auto',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: isMobile ? '12px 16px' : '16px 24px',
-        }}>
+        })}>
           <Button
             icon={<ArrowLeftOutlined />}
             onClick={handleBack}
             size={isMobile ? 'middle' : 'large'}
-            style={{
+            className={sx({
               background: `color-mix(in srgb, ${token.colorWhite} 20%, transparent)`,
               borderColor: `color-mix(in srgb, ${token.colorWhite} 30%, transparent)`,
               color: token.colorWhite,
-            }}
+            })}
           >
             {isMobile ? '返回' : '返回首页'}
           </Button>
 
-          <div style={{ textAlign: 'center' }}>
+          <div className="u-1jt8mdo">
             <Title
               level={isMobile ? 4 : 2}
-              style={{
+              className={sx({
                 margin: 0,
                 color: token.colorWhite,
                 textShadow: '0 2px 4px color-mix(in srgb, var(--ant-color-black) 18%, transparent)',
                 lineHeight: 1.2
-              }}
+              })}
             >
               ✨ 灵感模式
             </Title>
@@ -2250,25 +2263,25 @@ ${hiddenStepSummaryLines ? `${hiddenStepSummaryLines}\n` : ''}👁️ 视角：$
                 });
               }}
               size={isMobile ? 'middle' : 'large'}
-              style={{
+              className={sx({
                 background: `color-mix(in srgb, ${token.colorWhite} 20%, transparent)`,
                 borderColor: `color-mix(in srgb, ${token.colorWhite} 30%, transparent)`,
                 color: token.colorWhite,
-              }}
+              })}
             >
               {isMobile ? '重新' : '重新开始'}
             </Button>
           ) : (
-            <div style={{ width: isMobile ? 60 : 120 }}></div>
+            <div className={sx({ width: isMobile ? 60 : 120 })}></div>
           )}
         </div>
       </div>
 
-      <div style={{
+      <div className={sx({
         maxWidth: 800,
         margin: '0 auto',
         padding: isMobile ? '16px 12px' : '24px 24px',
-      }}>
+      })}>
         {restorableSteps.has(currentStep) && renderChat()}
         {(currentStep === 'generating' || currentStep === 'complete') && generationConfig && (
           <AIProjectGenerator

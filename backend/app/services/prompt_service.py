@@ -4256,6 +4256,7 @@ narrative_perspective：{narrative_perspective}
 - 时代背景：{project_context.get("time_period", "未设定")}
 - 地理位置：{project_context.get("location", "未设定")}
 - 氛围基调：{project_context.get("atmosphere", "未设定")}
+{project_context.get("world_setting_context", "")}
 
 ---
 """)

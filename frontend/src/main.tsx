@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import 'antd/dist/reset.css'
 import './index.css'
+import './styles/common.css'
 import App from './App.tsx'
 import { ThemeProvider } from './theme/ThemeProvider'
 

@@ -13,6 +13,8 @@ import { useParams } from 'react-router-dom';
 import api from '../services/api';
 import AnnotatedText, { type MemoryAnnotation } from '../components/common/AnnotatedText';
 import MemorySidebar from '../components/layout/MemorySidebar';
+import { useIsMobile } from '../hooks/useMediaQuery';
+import { sx } from '../styles/sx';
 
 interface ChapterItem {
   id: string;
@@ -76,18 +78,9 @@ const ChapterAnalysis: React.FC = () => {
   const [chapterListVisible, setChapterListVisible] = useState(false);
   const [scrollToContentAnnotation, setScrollToContentAnnotation] = useState<string | undefined>();
   const [scrollToSidebarAnnotation, setScrollToSidebarAnnotation] = useState<string | undefined>();
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const isMobile = useIsMobile();
   const { token } = theme.useToken();
 
-  // 监听窗口大小变化
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   // 加载章节列表
   useEffect(() => {
@@ -184,44 +177,44 @@ const ChapterAnalysis: React.FC = () => {
 
   if (loading) {
     return (
-      <div style={{ textAlign: 'center', padding: '100px 0' }}>
+      <div className="u-1r8qyk2">
         <Spin size="large" tip="加载章节中..." />
       </div>
     );
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div className="u-14esoxf">
       {/* 页面标题 - 仅桌面端显示 */}
       {!isMobile && (
-        <div style={{
+        <div className={sx({
           padding: '16px 0',
           marginBottom: 16,
           borderBottom: `1px solid ${token.colorBorderSecondary}`
-        }}>
-          <h2 style={{ margin: 0, fontSize: 24 }}>
-            <FundOutlined style={{ marginRight: 8 }} />
+        })}>
+          <h2 className="u-axo8j1">
+            <FundOutlined className="u-1vcwmpp" />
             剧情分析
           </h2>
         </div>
       )}
       
-      <div style={{
+      <div className={sx({
         flex: 1,
         display: 'flex',
         gap: isMobile ? 0 : 16,
         flexDirection: isMobile ? 'column' : 'row',
         overflow: 'hidden'
-      }}>
+      })}>
         {/* 左侧章节列表 - 桌面端 */}
         {!isMobile && (
         <Card
           title="章节列表"
-          style={{ width: 280, height: '100%', overflow: 'hidden' }}
+          className="u-1ydmzuv"
           bodyStyle={{ padding: 0, height: 'calc(100% - 57px)', overflow: 'auto' }}
         >
           {chapters.length === 0 ? (
-            <Empty description="暂无章节" style={{ marginTop: 60 }} />
+            <Empty description="暂无章节" className="u-b4bgkm" />
           ) : (
             <List
               dataSource={chapters}
@@ -229,16 +222,16 @@ const ChapterAnalysis: React.FC = () => {
                 <List.Item
                   key={chapter.id}
                   onClick={() => handleChapterSelect(chapter.id)}
-                  style={{
+                  className={sx({
                     cursor: 'pointer',
                     padding: '12px 16px',
                     background: selectedChapter?.id === chapter.id ? token.colorPrimaryBg : 'transparent',
                     borderLeft: selectedChapter?.id === chapter.id ? `3px solid ${token.colorPrimary}` : '3px solid transparent',
-                  }}
+                  })}
                 >
                   <List.Item.Meta
                     title={
-                      <span style={{ fontSize: 14, fontWeight: selectedChapter?.id === chapter.id ? 600 : 400 }}>
+                      <span className={sx({ fontSize: 14, fontWeight: selectedChapter?.id === chapter.id ? 600 : 400 })}>
                         第{chapter.chapter_number}章: {chapter.title}
                       </span>
                     }
@@ -268,7 +261,7 @@ const ChapterAnalysis: React.FC = () => {
           styles={{ body: { padding: 0 } }}
         >
           {chapters.length === 0 ? (
-            <Empty description="暂无章节" style={{ marginTop: 60 }} />
+            <Empty description="暂无章节" className="u-b4bgkm" />
           ) : (
             <List
               dataSource={chapters}
@@ -276,16 +269,16 @@ const ChapterAnalysis: React.FC = () => {
                 <List.Item
                   key={chapter.id}
                   onClick={() => handleChapterSelect(chapter.id)}
-                  style={{
+                  className={sx({
                     cursor: 'pointer',
                     padding: '12px 16px',
                     background: selectedChapter?.id === chapter.id ? token.colorPrimaryBg : 'transparent',
                     borderLeft: selectedChapter?.id === chapter.id ? `3px solid ${token.colorPrimary}` : '3px solid transparent',
-                  }}
+                  })}
                 >
                   <List.Item.Meta
                     title={
-                      <span style={{ fontSize: 14, fontWeight: selectedChapter?.id === chapter.id ? 600 : 400 }}>
+                      <span className={sx({ fontSize: 14, fontWeight: selectedChapter?.id === chapter.id ? 600 : 400 })}>
                         第{chapter.chapter_number}章: {chapter.title}
                       </span>
                     }
@@ -305,25 +298,20 @@ const ChapterAnalysis: React.FC = () => {
         )}
 
         {/* 右侧内容区域 */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+        <div className="u-1ie7e29">
         {!selectedChapter ? (
-          <Card style={{ height: '100%' }}>
-            <Empty description="请从左侧选择一个章节查看" style={{ marginTop: 100 }} />
+          <Card className="u-j7izwl">
+            <Empty description="请从左侧选择一个章节查看" className="u-14otcnr" />
           </Card>
         ) : (
           <>
             {/* 工具栏 */}
-            <Card size="small" style={{ marginBottom: isMobile ? 8 : 16 }}>
+            <Card size="small" className={sx({ marginBottom: isMobile ? 8 : 16 })}>
               {isMobile ? (
                 // 移动端布局：两行显示
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div className="u-1csnvux">
                   {/* 第一行：标题和翻页按钮 */}
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    gap: 8
-                  }}>
+                  <div className="u-svjc6d">
                     <Button
                       icon={<LeftOutlined />}
                       onClick={handlePreviousChapter}
@@ -331,16 +319,7 @@ const ChapterAnalysis: React.FC = () => {
                       title={navigation?.previous ? `上一章: ${navigation.previous.title}` : '已是第一章'}
                       size="small"
                     />
-                    <span style={{
-                      fontSize: 14,
-                      fontWeight: 600,
-                      flex: 1,
-                      textAlign: 'center',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      padding: '0 8px'
-                    }}>
+                    <span className="u-uthfo5">
                       第{selectedChapter.chapter_number}章: {selectedChapter.title}
                     </span>
                     <Button
@@ -353,12 +332,7 @@ const ChapterAnalysis: React.FC = () => {
                   </div>
 
                   {/* 第二行：章节、开关、分析按钮 */}
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    gap: 8
-                  }}>
+                  <div className="u-svjc6d">
                     <Button
                       icon={<UnorderedListOutlined />}
                       onClick={() => setChapterListVisible(true)}
@@ -375,12 +349,7 @@ const ChapterAnalysis: React.FC = () => {
                           checkedChildren={<EyeOutlined />}
                           unCheckedChildren={<EyeInvisibleOutlined />}
                           size="small"
-                          style={{
-                            flexShrink: 0,
-                            height: 16,
-                            minHeight: 16,
-                            lineHeight: '16px'
-                          }}
+                          className="u-xo57dn"
                         />
                         <Button
                           icon={<MenuOutlined />}
@@ -395,11 +364,7 @@ const ChapterAnalysis: React.FC = () => {
                 </div>
               ) : (
                 // 桌面端布局：保持原样
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}>
+                <div className="u-9n1gl3">
                   <Space>
                     <Button
                       icon={<LeftOutlined />}
@@ -409,7 +374,7 @@ const ChapterAnalysis: React.FC = () => {
                     >
                       上一章
                     </Button>
-                    <span style={{ fontSize: 16, fontWeight: 600 }}>
+                    <span className="u-qc5tj0">
                       第{selectedChapter.chapter_number}章: {selectedChapter.title}
                     </span>
                     <Button
@@ -431,7 +396,7 @@ const ChapterAnalysis: React.FC = () => {
                           checkedChildren={<EyeOutlined />}
                           unCheckedChildren={<EyeInvisibleOutlined />}
                         />
-                        <span style={{ fontSize: 13, color: token.colorTextSecondary }}>显示标注</span>
+                        <span className={sx({ fontSize: 13, color: token.colorTextSecondary })}>显示标注</span>
                       </>
                     )}
                   </Space>
@@ -439,12 +404,12 @@ const ChapterAnalysis: React.FC = () => {
               )}
 
               {hasAnnotations && annotationsData && (
-                <div style={{
+                <div className={sx({
                   marginTop: 12,
                   fontSize: isMobile ? 11 : 12,
                   color: token.colorTextTertiary,
                   lineHeight: 1.5
-                }}>
+                })}>
                   共有 {annotationsData.summary.total_annotations} 个标注：
                   {annotationsData.summary.hooks > 0 && ` 🎣${annotationsData.summary.hooks}个钩子`}
                   {annotationsData.summary.foreshadows > 0 &&
@@ -458,15 +423,15 @@ const ChapterAnalysis: React.FC = () => {
             </Card>
 
             {/* 内容区域 */}
-            <div style={{
+            <div className={sx({
               flex: 1,
               display: 'flex',
               gap: isMobile ? 0 : 16,
               overflow: 'hidden'
-            }}>
+            })}>
               {/* 章节内容 */}
               <Card
-                style={{ flex: 1, overflow: 'auto' }}
+                className="u-1hzrp41"
                 bodyStyle={{ padding: isMobile ? '12px' : '24px' }}
                 loading={contentLoading}
               >
@@ -478,7 +443,7 @@ const ChapterAnalysis: React.FC = () => {
                         description="该章节尚未进行AI分析，无法显示记忆标注。"
                         type="info"
                         showIcon
-                        style={{ marginBottom: 24 }}
+                        className="u-19d88e2"
                       />
                     )}
 
@@ -489,19 +454,19 @@ const ChapterAnalysis: React.FC = () => {
                         onAnnotationClick={(annotation) => handleAnnotationClick(annotation, 'content')}
                         activeAnnotationId={activeAnnotationId}
                         scrollToAnnotation={scrollToContentAnnotation}
-                        style={{
+                        className={sx({
                           lineHeight: isMobile ? 1.8 : 2,
                           fontSize: isMobile ? 14 : 16,
-                        }}
+                        })}
                       />
                     ) : (
                       <div
-                        style={{
+                        className={sx({
                           lineHeight: isMobile ? 1.8 : 2,
                           fontSize: isMobile ? 14 : 16,
                           whiteSpace: 'pre-wrap',
                           wordBreak: 'break-word',
-                        }}
+                        })}
                       >
                         {selectedChapter.content}
                       </div>
@@ -513,7 +478,7 @@ const ChapterAnalysis: React.FC = () => {
               {/* 右侧记忆侧边栏（桌面端） */}
               {hasAnnotations && annotationsData && !isMobile && (
                 <Card
-                  style={{ width: 400, overflow: 'auto' }}
+                  className="u-4t1ckr"
                   bodyStyle={{ padding: 0 }}
                 >
                   <MemorySidebar

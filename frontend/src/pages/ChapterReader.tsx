@@ -13,6 +13,8 @@ import {
 import api from '../services/api';
 import AnnotatedText, { type MemoryAnnotation } from '../components/common/AnnotatedText';
 import MemorySidebar from '../components/layout/MemorySidebar';
+import { useIsMobile } from '../hooks/useMediaQuery';
+import { sx } from '../styles/sx';
 
 interface ChapterData {
   id: string;
@@ -63,6 +65,7 @@ interface NavigationData {
 const ChapterReader: React.FC = () => {
   const { chapterId } = useParams<{ chapterId: string }>();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
 
   const { token } = theme.useToken();
 
@@ -140,7 +143,7 @@ const ChapterReader: React.FC = () => {
   const handleAnnotationClick = (annotation: MemoryAnnotation) => {
     setActiveAnnotationId(annotation.id);
     // 移动端显示侧边栏
-    if (window.innerWidth < 768) {
+    if (isMobile) {
       setSidebarVisible(true);
     }
   };
@@ -222,7 +225,7 @@ const ChapterReader: React.FC = () => {
 
   if (loading) {
     return (
-      <div style={{ textAlign: 'center', padding: '100px 0' }}>
+      <div className="u-1r8qyk2">
         <Spin size="large" tip="加载章节中..." />
       </div>
     );
@@ -230,14 +233,14 @@ const ChapterReader: React.FC = () => {
 
   if (error || !chapter) {
     return (
-      <div style={{ padding: 24 }}>
+      <div className="u-1lb6cvx">
         <Alert
           message="加载失败"
           description={error || '章节不存在'}
           type="error"
           showIcon
         />
-        <Button onClick={handleBackClick} style={{ marginTop: 16 }}>
+        <Button onClick={handleBackClick} className="u-1ir3dsh">
           返回
         </Button>
       </div>
@@ -247,18 +250,13 @@ const ChapterReader: React.FC = () => {
   const hasAnnotations = annotationsData && annotationsData.annotations.length > 0;
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div className="u-8zl9sa">
       {/* 顶部工具栏 */}
       <Card
         size="small"
-        style={{
-          borderRadius: 0,
-          borderLeft: 0,
-          borderRight: 0,
-          borderTop: 0,
-        }}
+        className="u-1dzpu14"
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="u-9n1gl3">
           <Space>
             <Button icon={<ArrowLeftOutlined />} onClick={handleBackClick}>
               返回
@@ -271,7 +269,7 @@ const ChapterReader: React.FC = () => {
             >
               上一章
             </Button>
-            <span style={{ fontSize: 16, fontWeight: 600 }}>
+            <span className="u-qc5tj0">
               第{chapter.chapter_number}章: {chapter.title}
             </span>
             <Button
@@ -301,11 +299,11 @@ const ChapterReader: React.FC = () => {
                   checkedChildren={<EyeOutlined />}
                   unCheckedChildren={<EyeInvisibleOutlined />}
                 />
-                <span style={{ fontSize: 13, color: token.colorTextSecondary }}>显示标注</span>
+                <span className={sx({ fontSize: 13, color: token.colorTextSecondary })}>显示标注</span>
                 <Button
                   icon={<MenuOutlined />}
                   onClick={() => setSidebarVisible(true)}
-                  style={{ display: window.innerWidth < 768 ? 'inline-block' : 'none' }}
+                  className={sx({ display: isMobile ? 'inline-block' : 'none' })}
                 >
                   分析
                 </Button>
@@ -315,16 +313,16 @@ const ChapterReader: React.FC = () => {
         </div>
 
         {analyzing && (
-          <div style={{ marginTop: 12 }}>
+          <div className="u-nj5fkd">
             <Progress percent={analysisProgress} size="small" status="active" />
-            <span style={{ fontSize: 12, color: token.colorTextSecondary, marginLeft: 8 }}>
+            <span className={sx({ fontSize: 12, color: token.colorTextSecondary, marginLeft: 8 })}>
               正在分析章节...
             </span>
           </div>
         )}
 
         {!analyzing && hasAnnotations && annotationsData && (
-          <div style={{ marginTop: 12, fontSize: 12, color: token.colorTextTertiary }}>
+          <div className={sx({ marginTop: 12, fontSize: 12, color: token.colorTextTertiary })}>
             共有 {annotationsData.summary.total_annotations} 个标注：
             {annotationsData.summary.hooks > 0 && ` 🎣${annotationsData.summary.hooks}个钩子`}
             {annotationsData.summary.foreshadows > 0 &&
@@ -338,25 +336,25 @@ const ChapterReader: React.FC = () => {
       </Card>
 
       {/* 主内容区域 */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+      <div className="u-vxron7">
         {/* 左侧：章节内容 */}
         <div
-          style={{
+          className={sx({
             flex: 1,
             overflowY: 'auto',
             padding: '32px 48px',
             maxWidth: hasAnnotations ? 'calc(100% - 400px)' : '100%',
-          }}
+          })}
         >
           <Card>
-            <div style={{ maxWidth: 800, margin: '0 auto' }}>
+            <div className="u-1j8kans">
               {!hasAnnotations && (
                 <Alert
                   message="暂无分析数据"
                   description="该章节尚未进行AI分析，无法显示记忆标注。"
                   type="info"
                   showIcon
-                  style={{ marginBottom: 24 }}
+                  className="u-19d88e2"
                 />
               )}
 
@@ -369,20 +367,15 @@ const ChapterReader: React.FC = () => {
                 />
               ) : (
                 <div
-                  style={{
-                    lineHeight: 2,
-                    fontSize: 16,
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word',
-                  }}
+                  className="u-3y339a"
                 >
                   {chapter.content}
                 </div>
               )}
 
               {/* 底部翻页按钮 */}
-              <div style={{ marginTop: 48, paddingTop: 24, borderTop: `1px solid ${token.colorBorderSecondary}` }}>
-                <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+              <div className={sx({ marginTop: 48, paddingTop: 24, borderTop: `1px solid ${token.colorBorderSecondary}` })}>
+                <Space className="u-1qos3j5">
                   <Button
                     size="large"
                     icon={<LeftOutlined />}
@@ -412,14 +405,14 @@ const ChapterReader: React.FC = () => {
         </div>
 
         {/* 右侧：记忆侧边栏（桌面端） */}
-        {hasAnnotations && annotationsData && window.innerWidth >= 768 && (
+        {hasAnnotations && annotationsData && !isMobile && (
           <div
-            style={{
+            className={sx({
               width: 400,
               borderLeft: `1px solid ${token.colorBorderSecondary}`,
               overflowY: 'auto',
               background: token.colorBgLayout,
-            }}
+            })}
           >
             <MemorySidebar
               annotations={annotationsData.annotations}

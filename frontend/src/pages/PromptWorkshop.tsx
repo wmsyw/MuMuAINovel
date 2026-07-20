@@ -55,6 +55,8 @@ import type {
   User,
 } from '../types';
 import { PROMPT_CATEGORIES } from '../types';
+import { useIsMobile } from '../hooks/useMediaQuery';
+import { sx } from '../styles/sx';
 
 const { TextArea } = Input;
 const { Text, Paragraph } = Typography;
@@ -147,7 +149,7 @@ export default function PromptWorkshop() {
   // 当前活动的 Tab
   const [activeTab, setActiveTab] = useState<string>('browse');
   
-  const isMobile = window.innerWidth <= 768;
+  const isMobile = useIsMobile();
   const { token } = theme.useToken();
   
   // 判断是否为服务端管理员
@@ -471,7 +473,7 @@ export default function PromptWorkshop() {
 
   // 渲染筛选区域（固定在顶部）
   const renderFilterBar = () => (
-    <div style={{ marginBottom: 16 }}>
+    <div className="u-6srbul">
       {/* 服务状态 */}
       {serviceStatus && !serviceStatus.cloud_connected && serviceStatus.mode === 'client' && (
         <Alert
@@ -480,31 +482,26 @@ export default function PromptWorkshop() {
           description="无法访问提示词工坊，请检查网络连接或稍后重试"
           icon={<DisconnectOutlined />}
           showIcon
-          style={{ marginBottom: 16 }}
+          className="u-6srbul"
         />
       )}
       
       {/* 筛选区域 */}
-      <div style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: 12,
-        alignItems: 'center',
-      }}>
+      <div className="u-1i1vrcf">
         <Input
           placeholder="搜索提示词..."
           prefix={<SearchOutlined />}
           value={searchKeyword}
           onChange={e => setSearchKeyword(e.target.value)}
           onPressEnter={() => { setCurrentPage(1); loadItems(); }}
-          style={{ width: isMobile ? '100%' : 200 }}
+          className={sx({ width: isMobile ? '100%' : 200 })}
           allowClear
         />
         <Select
           placeholder="选择分类"
           value={category}
           onChange={v => { setCategory(v); setCurrentPage(1); }}
-          style={{ width: isMobile ? '100%' : 150 }}
+          className={sx({ width: isMobile ? '100%' : 150 })}
           allowClear
         >
           {categoryOptions.map(cat => (
@@ -514,7 +511,7 @@ export default function PromptWorkshop() {
         <Select
           value={sortBy}
           onChange={v => { setSortBy(v); setCurrentPage(1); }}
-          style={{ width: isMobile ? '100%' : 120 }}
+          className={sx({ width: isMobile ? '100%' : 120 })}
         >
           <Select.Option value="newest">最新发布</Select.Option>
           <Select.Option value="popular">最受欢迎</Select.Option>
@@ -532,15 +529,15 @@ export default function PromptWorkshop() {
 
   // 渲染工坊列表（只有卡片部分，用于滚动区域）
   const renderWorkshopList = () => (
-    <div style={{ height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingRight: 4 }}>
+    <div className="u-1b9ffjv">
+      <div className="u-1kvc8wd">
         <Spin spinning={loading}>
           {items.length === 0 ? (
             <Empty description="暂无提示词" />
           ) : (
               <Row
                 gutter={[0, gridConfig.gutter]}
-                style={{ marginLeft: 0, marginRight: 0 }}
+                className="u-1996wtd"
               >
               {items.map(item => (
                 <Col
@@ -550,21 +547,21 @@ export default function PromptWorkshop() {
                   md={gridConfig.md}
                   lg={gridConfig.lg}
                   xl={gridConfig.xl}
-                  style={{
+                  className={sx({
                     paddingLeft: 0,
                     paddingRight: gridConfig.gutter / 2,
                     marginBottom: gridConfig.gutter
-                  }}
+                  })}
                 >
                   <Card
                     hoverable
-                    style={{ 
+                    className={sx({ 
                       height: '100%', 
                       borderRadius: 12,
                       display: 'flex',
                       flexDirection: 'column',
                       border: `1px solid ${token.colorBorderSecondary}`,
-                    }}
+                    })}
                     styles={{ body: { 
                       padding: 16, 
                       display: 'flex', 
@@ -578,11 +575,11 @@ export default function PromptWorkshop() {
                       <Tooltip title={item.is_liked ? '取消点赞' : '点赞'} key="like">
                         <span onClick={() => handleLike(item)}>
                           {item.is_liked ? (
-                            <HeartFilled style={{ color: token.colorError }} />
+                            <HeartFilled className={sx({ color: token.colorError })} />
                           ) : (
                             <HeartOutlined />
                           )}
-                          <span style={{ marginLeft: 4 }}>{item.like_count || 0}</span>
+                          <span className="u-54p264">{item.like_count || 0}</span>
                         </span>
                       </Tooltip>,
                       <Tooltip title="导入到本地" key="import">
@@ -598,9 +595,9 @@ export default function PromptWorkshop() {
                       </Tooltip>,
                     ]}
                   >
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                      <Space style={{ marginBottom: 12 }} wrap>
-                        <Text strong style={{ fontSize: 16 }}>{item.name}</Text>
+                    <div className="u-rcv7pg">
+                      <Space className="u-1qz2mrl" wrap>
+                        <Text strong className="u-tw6n7q">{item.name}</Text>
                         <Tag color={getCategoryColor(item.category)}>
                           {getCategoryName(item.category)}
                         </Tag>
@@ -609,7 +606,7 @@ export default function PromptWorkshop() {
                       {item.description && (
                         <Paragraph
                           type="secondary"
-                          style={{ fontSize: 13, marginBottom: 12 }}
+                          className="u-iqqdzi"
                           ellipsis={{ rows: 2, tooltip: item.description }}
                         >
                           {item.description}
@@ -618,7 +615,7 @@ export default function PromptWorkshop() {
                       
                       <Paragraph
                         type="secondary"
-                        style={{
+                        className={sx({
                           fontSize: 12,
                           marginBottom: 0,
                           backgroundColor: token.colorFillQuaternary,
@@ -626,25 +623,25 @@ export default function PromptWorkshop() {
                           borderRadius: 4,
                           flex: 1,
                           minHeight: 60,
-                        }}
+                        })}
                         ellipsis={{ rows: 3 }}
                       >
                         {item.prompt_content}
                       </Paragraph>
                       
                       {item.tags && item.tags.length > 0 && (
-                        <Space size={4} wrap style={{ marginTop: 8 }}>
+                        <Space size={4} wrap className="u-u35y5u">
                           {item.tags.slice(0, 3).map(tag => (
-                            <Tag key={tag} style={{ fontSize: 11 }}>{tag}</Tag>
+                            <Tag key={tag} className="u-ts7gql">{tag}</Tag>
                           ))}
                           {item.tags.length > 3 && (
-                            <Tag style={{ fontSize: 11 }}>+{item.tags.length - 3}</Tag>
+                            <Tag className="u-ts7gql">+{item.tags.length - 3}</Tag>
                           )}
                         </Space>
                       )}
                     </div>
                     
-                    <div style={{ marginTop: 8, color: token.colorTextTertiary, fontSize: 12 }}>
+                    <div className={sx({ marginTop: 8, color: token.colorTextTertiary, fontSize: 12 })}>
                       <Space>
                         <span><UserOutlined /> {item.author_name || '匿名'}</span>
                       </Space>
@@ -659,14 +656,14 @@ export default function PromptWorkshop() {
 
       {total > 0 && (
         <div
-          style={{
+          className={sx({
             flexShrink: 0,
             textAlign: 'center',
             padding: '12px 0 0',
             marginTop: 12,
             borderTop: `1px solid ${token.colorBorderSecondary}`,
             background: token.colorBgContainer,
-          }}
+          })}
         >
           <Pagination
             current={currentPage}
@@ -684,7 +681,7 @@ export default function PromptWorkshop() {
   // 渲染我的提交
   const renderMySubmissions = () => (
     <div>
-      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="u-1ckhnkw">
         <Text>查看您提交的提示词及审核状态</Text>
         <Button icon={<SyncOutlined />} onClick={loadMySubmissions}>
           刷新
@@ -695,7 +692,7 @@ export default function PromptWorkshop() {
           {mySubmissions.length === 0 ? (
             <Empty description="暂无提交记录" />
           ) : (
-            <Row gutter={[0, gridConfig.gutter]} style={{ marginLeft: 0, marginRight: 0 }}>
+            <Row gutter={[0, gridConfig.gutter]} className="u-1996wtd">
               {mySubmissions.map(sub => (
               <Col 
                 key={sub.id} 
@@ -704,18 +701,18 @@ export default function PromptWorkshop() {
                 md={gridConfig.md} 
                 lg={gridConfig.lg}
                 xl={gridConfig.xl}
-                style={{
+                className={sx({
                   paddingLeft: 0,
                   paddingRight: gridConfig.gutter / 2,
                   marginBottom: gridConfig.gutter
-                }}
+                })}
               >
                 <Card
-                  style={{ borderRadius: 12, height: '100%', border: `1px solid ${token.colorBorderSecondary}` }}
+                  className={sx({ borderRadius: 12, height: '100%', border: `1px solid ${token.colorBorderSecondary}` })}
                   styles={{ body: { padding: 16 } }}
                 >
-                  <Space direction="vertical" style={{ width: '100%' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Space direction="vertical" className="u-1f3r3s">
+                    <div className="u-9n1gl3">
                       <Text strong>{sub.name}</Text>
                       {getStatusTag(sub.status)}
                     </div>
@@ -726,7 +723,7 @@ export default function PromptWorkshop() {
                     
                     <Paragraph
                       type="secondary"
-                      style={{ fontSize: 12, marginBottom: 0 }}
+                      className="u-k4wxjw"
                       ellipsis={{ rows: 2 }}
                     >
                       {sub.prompt_content}
@@ -737,11 +734,11 @@ export default function PromptWorkshop() {
                         type="error"
                         message="拒绝原因"
                         description={sub.review_note}
-                        style={{ fontSize: 12 }}
+                        className="u-1pw6xki"
                       />
                     )}
                     
-                    <div style={{ fontSize: 12, color: token.colorTextTertiary }}>
+                    <div className={sx({ fontSize: 12, color: token.colorTextTertiary })}>
                       提交时间: {sub.created_at ? new Date(sub.created_at).toLocaleDateString() : '-'}
                     </div>
                     
@@ -782,17 +779,17 @@ export default function PromptWorkshop() {
   const renderLorebookPreview = () => {
     const trace = lorePreview?.trace;
     return (
-      <div style={{ paddingRight: isMobile ? 0 : 8 }}>
+      <div className={sx({ paddingRight: isMobile ? 0 : 8 })}>
         <Alert
           type="info"
           showIcon
           message="Lorebook 提示词预览"
           description="这里仅展示会被选中的 Lorebook 条目和提示词追踪；默认不会注入章节生成，除非后端显式开启 lorebook_injection_enabled。"
-          style={{ marginBottom: 16 }}
+          className="u-6srbul"
         />
 
-        <Card style={{ borderRadius: 12, border: `1px solid ${token.colorBorderSecondary}`, marginBottom: 16 }}>
-          <Space direction="vertical" style={{ width: '100%' }} size={12}>
+        <Card className={sx({ borderRadius: 12, border: `1px solid ${token.colorBorderSecondary}`, marginBottom: 16 })}>
+          <Space direction="vertical" className="u-1f3r3s" size={12}>
             <Text strong>激活文本</Text>
             <TextArea
               rows={5}
@@ -816,7 +813,7 @@ export default function PromptWorkshop() {
         </Card>
 
         {trace ? (
-          <Space direction="vertical" style={{ width: '100%' }} size={16}>
+          <Space direction="vertical" className="u-1f3r3s" size={16}>
             <Row gutter={[12, 12]}>
               <Col xs={24} md={8}>
                 <Card size="small"><Statistic title="命中条目" value={trace.selected_count} suffix={`/ ${trace.total_candidates}`} /></Card>
@@ -830,7 +827,7 @@ export default function PromptWorkshop() {
             </Row>
 
             <Card title="追踪摘要" size="small">
-              <Space direction="vertical" style={{ width: '100%' }}>
+              <Space direction="vertical" className="u-1f3r3s">
                 <div><Text type="secondary">来源类型：</Text><Tag color="blue">{trace.source_type}</Tag></div>
                 <div><Text type="secondary">选中 ID：</Text>{trace.selected_lore_ids.length > 0 ? trace.selected_lore_ids.map(id => <Tag key={id}>{id}</Tag>) : <Text type="secondary">无</Text>}</div>
               </Space>
@@ -842,7 +839,7 @@ export default function PromptWorkshop() {
                 locale={{ emptyText: '未命中 Lorebook 条目' }}
                 renderItem={item => (
                   <List.Item>
-                    <Space direction="vertical" style={{ width: '100%' }}>
+                    <Space direction="vertical" className="u-1f3r3s">
                       <Space wrap>
                         <Tag color="processing">#{item.order}</Tag>
                         <Text strong>{item.title}</Text>
@@ -852,7 +849,7 @@ export default function PromptWorkshop() {
                         <Text type="secondary">优先级 {item.priority}</Text>
                       </Space>
                       <Text type="secondary">匹配关键词：{item.matched_keys.join('、') || '无'}</Text>
-                      <Paragraph style={{ marginBottom: 0 }} ellipsis={{ rows: 2, expandable: true }}>
+                      <Paragraph className="u-1sezbee" ellipsis={{ rows: 2, expandable: true }}>
                         {item.content}
                       </Paragraph>
                     </Space>
@@ -863,7 +860,7 @@ export default function PromptWorkshop() {
 
             <Card title="最终预览文本" size="small">
               {trace.final_preview_text ? (
-                <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, fontSize: 13 }}>
+                <pre className="u-1kda7dj">
                   {trace.final_preview_text}
                 </pre>
               ) : (
@@ -881,19 +878,19 @@ export default function PromptWorkshop() {
   const renderRagPreview = () => {
     const trace = ragPreview;
     return (
-      <div style={{ paddingRight: isMobile ? 0 : 8 }}>
+      <div className={sx({ paddingRight: isMobile ? 0 : 8 })}>
         <Alert
           type="info"
           showIcon
           message="Data Bank / RAG 来源预览"
           description="这里仅预览本项目 Data Bank 中哪些来源会进入提示词候选上下文；默认 rag_injection_enabled=false，不会自动注入章节生成，也不会写入、抓取或修改资料库。"
-          style={{ marginBottom: token.marginMD }}
+          className={sx({ marginBottom: token.marginMD })}
         />
 
-        <Card style={{ borderRadius: token.borderRadiusLG, border: `1px solid ${token.colorBorderSecondary}`, marginBottom: token.marginMD }}>
-          <Space direction="vertical" style={{ width: '100%' }} size={token.marginSM}>
+        <Card className={sx({ borderRadius: token.borderRadiusLG, border: `1px solid ${token.colorBorderSecondary}`, marginBottom: token.marginMD })}>
+          <Space direction="vertical" className="u-1f3r3s" size={token.marginSM}>
             <Space align="center" wrap>
-              <DatabaseOutlined style={{ color: token.colorPrimary }} />
+              <DatabaseOutlined className={sx({ color: token.colorPrimary })} />
               <Text strong>检索查询</Text>
               <Tag color="blue">preview-only</Tag>
               <Tag color="default">rag_injection_enabled=false</Tag>
@@ -920,7 +917,7 @@ export default function PromptWorkshop() {
         </Card>
 
         {trace ? (
-          <Space direction="vertical" style={{ width: '100%' }} size={token.marginMD}>
+          <Space direction="vertical" className="u-1f3r3s" size={token.marginMD}>
             <Row gutter={[token.marginSM, token.marginSM]}>
               <Col xs={24} md={8}>
                 <Card size="small"><Statistic title="命中来源" value={trace.returned_count} suffix={`/ ${trace.total_candidates}`} /></Card>
@@ -939,7 +936,7 @@ export default function PromptWorkshop() {
                 locale={{ emptyText: '当前查询未命中 Data Bank 来源' }}
                 renderItem={item => (
                   <List.Item>
-                    <Space direction="vertical" style={{ width: '100%' }} size={token.marginXS}>
+                    <Space direction="vertical" className="u-1f3r3s" size={token.marginXS}>
                       <Space wrap>
                         <Tag color="processing">#{item.order}</Tag>
                         <Text strong>{item.title}</Text>
@@ -953,15 +950,15 @@ export default function PromptWorkshop() {
                       </Text>
                       <Text type="secondary">匹配词：{item.matched_terms.join('、') || '无'}</Text>
                       <div
-                        style={{
+                        className={sx({
                           padding: `${token.paddingXS}px ${token.paddingSM}px`,
                           background: token.colorFillTertiary,
                           border: `1px solid ${token.colorBorderSecondary}`,
                           borderRadius: token.borderRadius,
-                        }}
+                        })}
                       >
-                        <Text type="secondary" style={{ display: 'block', marginBottom: token.marginXXS }}>Excerpt</Text>
-                        <Paragraph style={{ marginBottom: 0 }} ellipsis={{ rows: 3, expandable: true, symbol: '展开' }}>
+                        <Text type="secondary" className={sx({ display: 'block', marginBottom: token.marginXXS })}>Excerpt</Text>
+                        <Paragraph className="u-1sezbee" ellipsis={{ rows: 3, expandable: true, symbol: '展开' }}>
                           {item.content}
                         </Paragraph>
                       </div>
@@ -972,7 +969,7 @@ export default function PromptWorkshop() {
             </Card>
 
             <Card title="预览说明" size="small">
-              <Space direction="vertical" style={{ width: '100%' }}>
+              <Space direction="vertical" className="u-1f3r3s">
                 <div><Text type="secondary">请求范围：</Text><Tag color="green">server-scoped project/user</Tag></div>
                 <div><Text type="secondary">来源 ID：</Text>{trace.results.length > 0 ? trace.results.map(item => <Tag key={`${item.item_id}-${item.chunk_id}`}>{item.item_id}</Tag>) : <Text type="secondary">无</Text>}</div>
                 <Text type="secondary">该界面复用 /api/memories/projects/{'{project_id}'}/data-bank/retrieve；不会在前端生成 embeddings 或抓取远程 URL。</Text>
@@ -989,17 +986,17 @@ export default function PromptWorkshop() {
   const renderAssemblyTrace = () => {
     const trace = assemblyTrace?.trace;
     return (
-      <div style={{ paddingRight: isMobile ? 0 : 8 }}>
+      <div className={sx({ paddingRight: isMobile ? 0 : 8 })}>
         <Alert
           type="info"
           showIcon
           message="提示词组装追踪（不新增预设栈）"
           description="Task 9 调查确认新的预设系统会与提示词工坊高度重叠；这里仅在现有边界内校验层顺序、版本和哈希，不保存、不分享、不执行脚本。"
-          style={{ marginBottom: 16 }}
+          className="u-6srbul"
         />
 
-        <Card style={{ borderRadius: 12, border: `1px solid ${token.colorBorderSecondary}`, marginBottom: 16 }}>
-          <Space direction="vertical" style={{ width: '100%' }} size={12}>
+        <Card className={sx({ borderRadius: 12, border: `1px solid ${token.colorBorderSecondary}`, marginBottom: 16 })}>
+          <Space direction="vertical" className="u-1f3r3s" size={12}>
             <Row gutter={[12, 12]}>
               <Col xs={24} lg={8}>
                 <Text strong>系统模板 / 基础提示词</Text>
@@ -1008,7 +1005,7 @@ export default function PromptWorkshop() {
                   value={assemblySystemPrompt}
                   onChange={event => setAssemblySystemPrompt(event.target.value)}
                   placeholder="粘贴系统模板或章节基础提示词..."
-                  style={{ marginTop: 8 }}
+                  className="u-u35y5u"
                 />
               </Col>
               <Col xs={24} lg={8}>
@@ -1018,7 +1015,7 @@ export default function PromptWorkshop() {
                   value={assemblyWorkshopPrompt}
                   onChange={event => setAssemblyWorkshopPrompt(event.target.value)}
                   placeholder="粘贴从工坊导入或本地写作风格内容..."
-                  style={{ marginTop: 8 }}
+                  className="u-u35y5u"
                 />
               </Col>
               <Col xs={24} lg={8}>
@@ -1028,7 +1025,7 @@ export default function PromptWorkshop() {
                   value={assemblyUserInstruction}
                   onChange={event => setAssemblyUserInstruction(event.target.value)}
                   placeholder="填写一次性的章节/场景要求..."
-                  style={{ marginTop: 8 }}
+                  className="u-u35y5u"
                 />
               </Col>
             </Row>
@@ -1044,7 +1041,7 @@ export default function PromptWorkshop() {
         </Card>
 
         {trace ? (
-          <Space direction="vertical" style={{ width: '100%' }} size={16}>
+          <Space direction="vertical" className="u-1f3r3s" size={16}>
             <Row gutter={[12, 12]}>
               <Col xs={24} md={8}>
                 <Card size="small"><Statistic title="追踪ID" value={trace.trace_id} /></Card>
@@ -1058,7 +1055,7 @@ export default function PromptWorkshop() {
             </Row>
 
             <Card title="边界与校验" size="small">
-              <Space direction="vertical" style={{ width: '100%' }}>
+              <Space direction="vertical" className="u-1f3r3s">
                 <div><Text type="secondary">Schema：</Text><Tag>{trace.schema_version}</Tag></div>
                 <div><Text type="secondary">边界：</Text><Tag color="purple">{trace.preset_boundary}</Tag><Tag color="green">{assemblyTrace?.boundary.mode}</Tag></div>
                 <div><Text type="secondary">是否有效：</Text><Tag color={trace.validation.valid ? 'green' : 'red'}>{trace.validation.valid ? 'valid' : 'invalid'}</Tag></div>
@@ -1071,7 +1068,7 @@ export default function PromptWorkshop() {
                 dataSource={trace.layers}
                 renderItem={item => (
                   <List.Item>
-                    <Space direction="vertical" style={{ width: '100%' }}>
+                    <Space direction="vertical" className="u-1f3r3s">
                       <Space wrap>
                         <Tag color="processing">#{item.order}</Tag>
                         <Text strong>{item.label}</Text>
@@ -1088,7 +1085,7 @@ export default function PromptWorkshop() {
 
             <Card title="最终组装预览" size="small">
               {trace.final_prompt ? (
-                <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, fontSize: 13 }}>
+                <pre className="u-1kda7dj">
                   {trace.final_prompt}
                 </pre>
               ) : (
@@ -1255,7 +1252,7 @@ export default function PromptWorkshop() {
     <div>
       {/* 统计数据 */}
       {adminStats && (
-        <Row gutter={16} style={{ marginBottom: 24 }}>
+        <Row gutter={16} className="u-19d88e2">
           <Col span={4}>
             <Card size="small">
               <Statistic title="总提示词" value={adminStats.total_items} />
@@ -1282,7 +1279,7 @@ export default function PromptWorkshop() {
             </Card>
           </Col>
           <Col span={4}>
-            <Card size="small" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+            <Card size="small" className="u-73x94m">
               <Button type="primary" icon={<PlusOutlined />} onClick={() => setAddOfficialModalOpen(true)}>
                 添加官方
               </Button>
@@ -1292,7 +1289,7 @@ export default function PromptWorkshop() {
       )}
       
       {/* 待审核列表 */}
-      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="u-1ckhnkw">
         <Text strong>待审核提交 ({adminPendingCount})</Text>
         <Button icon={<SyncOutlined />} onClick={loadAdminSubmissions}>
           刷新
@@ -1303,7 +1300,7 @@ export default function PromptWorkshop() {
         {adminSubmissions.length === 0 ? (
           <Empty description="暂无待审核提交" />
         ) : (
-          <Row gutter={[0, gridConfig.gutter]} style={{ marginLeft: 0, marginRight: 0 }}>
+          <Row gutter={[0, gridConfig.gutter]} className="u-1996wtd">
             {adminSubmissions.map(sub => (
               <Col 
                 key={sub.id} 
@@ -1312,20 +1309,20 @@ export default function PromptWorkshop() {
                 md={gridConfig.md} 
                 lg={gridConfig.lg}
                 xl={gridConfig.xl}
-                style={{
+                className={sx({
                   paddingLeft: 0,
                   paddingRight: gridConfig.gutter / 2,
                   marginBottom: gridConfig.gutter
-                }}
+                })}
               >
                 <Card
-                  style={{ borderRadius: 12, border: `1px solid ${token.colorBorderSecondary}` }}
+                  className={sx({ borderRadius: 12, border: `1px solid ${token.colorBorderSecondary}` })}
                       styles={{ body: { padding: 16 } }}
                   actions={[
                     <Button
                       key="approve"
                       type="link"
-                      style={{ color: token.colorSuccess }}
+                      className={sx({ color: token.colorSuccess })}
                       onClick={() => {
                         setReviewingSubmission(sub);
                         reviewForm.setFieldsValue({
@@ -1339,7 +1336,7 @@ export default function PromptWorkshop() {
                     </Button>,
                   ]}
                 >
-                  <Space direction="vertical" style={{ width: '100%' }}>
+                  <Space direction="vertical" className="u-1f3r3s">
                     <Text strong>{sub.name}</Text>
                     <Tag color={getCategoryColor(sub.category)}>
                       {getCategoryName(sub.category)}
@@ -1347,13 +1344,13 @@ export default function PromptWorkshop() {
                     
                     <Paragraph
                       type="secondary"
-                      style={{ fontSize: 12, marginBottom: 0 }}
+                      className="u-k4wxjw"
                       ellipsis={{ rows: 3 }}
                     >
                       {sub.prompt_content}
                     </Paragraph>
                     
-                    <div style={{ fontSize: 11, color: token.colorTextTertiary }}>
+                    <div className={sx({ fontSize: 11, color: token.colorTextTertiary })}>
                       <div>提交者: {sub.submitter_name || '未知'}</div>
                       <div>来源: {sub.source_instance}</div>
                       <div>时间: {sub.created_at ? new Date(sub.created_at).toLocaleDateString() : '-'}</div>
@@ -1367,7 +1364,7 @@ export default function PromptWorkshop() {
       </Spin>
       
       {/* 已发布提示词管理 */}
-      <div style={{ marginTop: 32, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="u-e36gxl">
         <Text strong>已发布提示词管理 ({publishedItems.length})</Text>
         <Button icon={<SyncOutlined />} onClick={loadPublishedItems}>
           刷新
@@ -1378,7 +1375,7 @@ export default function PromptWorkshop() {
         {publishedItems.length === 0 ? (
           <Empty description="暂无已发布提示词" />
         ) : (
-          <Row gutter={[0, gridConfig.gutter]} style={{ marginLeft: 0, marginRight: 0 }}>
+          <Row gutter={[0, gridConfig.gutter]} className="u-1996wtd">
             {publishedItems.map(item => (
               <Col 
                 key={item.id} 
@@ -1387,14 +1384,14 @@ export default function PromptWorkshop() {
                 md={gridConfig.md} 
                 lg={gridConfig.lg}
                 xl={gridConfig.xl}
-                style={{
+                className={sx({
                   paddingLeft: 0,
                   paddingRight: gridConfig.gutter / 2,
                   marginBottom: gridConfig.gutter
-                }}
+                })}
               >
                 <Card
-                  style={{ borderRadius: 12, border: `1px solid ${token.colorBorderSecondary}` }}
+                  className={sx({ borderRadius: 12, border: `1px solid ${token.colorBorderSecondary}` })}
                       styles={{ body: { padding: 16 } }}
                   actions={[
                     <Tooltip title="编辑" key="edit">
@@ -1414,9 +1411,9 @@ export default function PromptWorkshop() {
                     </Tooltip>,
                   ]}
                 >
-                  <Space direction="vertical" style={{ width: '100%' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Text strong ellipsis style={{ maxWidth: 120 }}>{item.name}</Text>
+                  <Space direction="vertical" className="u-1f3r3s">
+                    <div className="u-9n1gl3">
+                      <Text strong ellipsis className="u-1lc5w4i">{item.name}</Text>
                       {item.is_official && <Tag color="gold">官方</Tag>}
                     </div>
                     <Tag color={getCategoryColor(item.category)}>
@@ -1425,13 +1422,13 @@ export default function PromptWorkshop() {
                     
                     <Paragraph
                       type="secondary"
-                      style={{ fontSize: 12, marginBottom: 0 }}
+                      className="u-k4wxjw"
                       ellipsis={{ rows: 2 }}
                     >
                       {item.prompt_content}
                     </Paragraph>
                     
-                    <div style={{ fontSize: 11, color: token.colorTextTertiary }}>
+                    <div className={sx({ fontSize: 11, color: token.colorTextTertiary })}>
                       <Space>
                         <span><HeartOutlined /> {item.like_count || 0}</span>
                         <span><DownloadOutlined /> {item.download_count || 0}</span>
@@ -1448,11 +1445,11 @@ export default function PromptWorkshop() {
   );
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+    <div className="u-1j847d7">
       {/* 固定区域：标题 + Tabs切换栏 + 筛选栏 */}
-      <div style={{ flexShrink: 0 }}>
+      <div className="u-xj35t1">
         {/* 标题和操作区 */}
-        <div style={{
+        <div className={sx({
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
@@ -1461,12 +1458,12 @@ export default function PromptWorkshop() {
           borderBottom: `1px solid ${token.colorBorderSecondary}`,
           flexWrap: 'wrap',
           gap: 12,
-        }}>
-          <h2 style={{ margin: 0, fontSize: isMobile ? 18 : 24, display: 'flex', alignItems: 'center', gap: 8 }}>
+        })}>
+          <h2 className={sx({ margin: 0, fontSize: isMobile ? 18 : 24, display: 'flex', alignItems: 'center', gap: 8 })}>
             <CloudOutlined />
             提示词工坊
             {serviceStatus?.mode === 'server' && (
-              <Badge status="success" text="服务端模式" style={{ marginLeft: 8, fontSize: 12 }} />
+              <Badge status="success" text="服务端模式" className="u-w1gyqm" />
             )}
           </h2>
           <Button
@@ -1519,22 +1516,22 @@ export default function PromptWorkshop() {
       </div>
 
       {/* 内容区域：浏览工坊内部固定分页，其他 Tab 保持自身滚动 */}
-      <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+      <div className="u-cbt35m">
         {activeTab === 'browse' && renderWorkshopList()}
         {activeTab === 'lorebook-preview' && (
-          <div style={{ height: '100%', overflowY: 'auto' }}>{renderLorebookPreview()}</div>
+          <div className="u-pcktze">{renderLorebookPreview()}</div>
         )}
         {activeTab === 'rag-preview' && (
-          <div style={{ height: '100%', overflowY: 'auto' }}>{renderRagPreview()}</div>
+          <div className="u-pcktze">{renderRagPreview()}</div>
         )}
         {activeTab === 'assembly-trace' && (
-          <div style={{ height: '100%', overflowY: 'auto' }}>{renderAssemblyTrace()}</div>
+          <div className="u-pcktze">{renderAssemblyTrace()}</div>
         )}
         {activeTab === 'submissions' && (
-          <div style={{ height: '100%', overflowY: 'auto' }}>{renderMySubmissions()}</div>
+          <div className="u-pcktze">{renderMySubmissions()}</div>
         )}
         {activeTab === 'admin' && (
-          <div style={{ height: '100%', overflowY: 'auto' }}>{renderAdminPanel()}</div>
+          <div className="u-pcktze">{renderAdminPanel()}</div>
         )}
       </div>
 
@@ -1554,7 +1551,7 @@ export default function PromptWorkshop() {
           type="info"
           message="提交须知"
           description="您的提示词将提交给管理员审核，审核通过后会在工坊中展示。请确保内容原创且不含敏感信息。"
-          style={{ marginBottom: 16 }}
+          className="u-6srbul"
           showIcon
         />
         
@@ -1609,7 +1606,7 @@ export default function PromptWorkshop() {
           </Form.Item>
           
           <Form.Item>
-            <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+            <Space className="u-1qyyh4r">
               <Button onClick={() => {
                 setIsSubmitModalOpen(false);
                 submitForm.resetFields();
@@ -1651,7 +1648,7 @@ export default function PromptWorkshop() {
       >
         {detailItem && (
           <div>
-            <Space style={{ marginBottom: 16 }} wrap>
+            <Space className="u-6srbul" wrap>
               <Tag color={getCategoryColor(detailItem.category)}>
                 {getCategoryName(detailItem.category)}
               </Tag>
@@ -1661,26 +1658,21 @@ export default function PromptWorkshop() {
             </Space>
             
             {detailItem.description && (
-              <Paragraph style={{ marginBottom: 16 }}>
+              <Paragraph className="u-6srbul">
                 {detailItem.description}
               </Paragraph>
             )}
             
-            <div style={{
+            <div className={sx({
               backgroundColor: token.colorFillSecondary,
               padding: 16,
               borderRadius: 8,
               marginBottom: 16,
               maxHeight: 400,
               overflow: 'auto',
-            }}>
-              <Text strong style={{ display: 'block', marginBottom: 8 }}>提示词内容</Text>
-              <pre style={{
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word',
-                margin: 0,
-                fontSize: 13,
-              }}>
+            })}>
+              <Text strong className="u-smjnfl">提示词内容</Text>
+              <pre className="u-1kda7dj">
                 {detailItem.prompt_content}
               </pre>
             </div>
@@ -1717,21 +1709,16 @@ export default function PromptWorkshop() {
       >
         {reviewingSubmission && (
           <div>
-            <div style={{
+            <div className={sx({
               backgroundColor: token.colorFillSecondary,
               padding: 16,
               borderRadius: 8,
               marginBottom: 16,
               maxHeight: 300,
               overflow: 'auto',
-            }}>
-              <Text strong style={{ display: 'block', marginBottom: 8 }}>提示词内容预览</Text>
-              <pre style={{
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word',
-                margin: 0,
-                fontSize: 13,
-              }}>
+            })}>
+              <Text strong className="u-smjnfl">提示词内容预览</Text>
+              <pre className="u-1kda7dj">
                 {reviewingSubmission.prompt_content}
               </pre>
             </div>
@@ -1754,7 +1741,7 @@ export default function PromptWorkshop() {
               </Form.Item>
               
               <Form.Item>
-                <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+                <Space className="u-1qyyh4r">
                   <Button onClick={() => setReviewModalOpen(false)}>
                     取消
                   </Button>
@@ -1825,7 +1812,7 @@ export default function PromptWorkshop() {
           </Form.Item>
           
           <Form.Item>
-            <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+            <Space className="u-1qyyh4r">
               <Button onClick={() => {
                 setAddOfficialModalOpen(false);
                 addOfficialForm.resetFields();
@@ -1895,7 +1882,7 @@ export default function PromptWorkshop() {
           </Form.Item>
           
           <Form.Item>
-            <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+            <Space className="u-1qyyh4r">
               <Button onClick={() => {
                 setEditModalOpen(false);
                 setEditingItem(null);

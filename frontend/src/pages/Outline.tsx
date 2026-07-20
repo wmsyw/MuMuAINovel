@@ -8,6 +8,8 @@ import { useOutlineSync } from '../store/hooks';
 import { generateOutlineBackground } from '../services/backgroundTaskService';
 import { outlineApi, chapterApi, projectApi, characterApi } from '../services/api';
 import type { ApiError, Character } from '../types';
+import { useIsMobile } from '../hooks/useMediaQuery';
+import { sx } from '../styles/sx';
 
 // 大纲生成请求数据类型
 interface OutlineGenerateRequestData {
@@ -114,7 +116,7 @@ export default function Outline() {
   const [modalApi, contextHolder] = Modal.useModal();
   const [batchExpansionForm] = Form.useForm();
   const [manualCreateForm] = Form.useForm();
-  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const isMobile = useIsMobile();
   const [isExpanding, setIsExpanding] = useState(false);
   const [projectCharacters, setProjectCharacters] = useState<Array<{ label: string; value: string }>>([]);
   const { token } = theme.useToken();
@@ -127,14 +129,6 @@ export default function Outline() {
   // ✅ 新增：记录场景区域的展开/折叠状态
   const [scenesExpandStatus, setScenesExpandStatus] = useState<Record<string, boolean>>({});
 
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth <= 768);
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   // 大纲查询与分页状态
   const [outlineSearchKeyword, setOutlineSearchKeyword] = useState('');
@@ -304,13 +298,13 @@ export default function Outline() {
           <Form
             form={editForm}
             layout="vertical"
-            style={{ marginTop: 12 }}
+            className="u-nj5fkd"
           >
             <Form.Item
               label="标题"
               name="title"
               rules={[{ required: true, message: '请输入标题' }]}
-              style={{ marginBottom: 12 }}
+              className="u-1qz2mrl"
             >
               <Input placeholder="输入大纲标题" />
             </Form.Item>
@@ -319,7 +313,7 @@ export default function Outline() {
               label="内容"
               name="content"
               rules={[{ required: true, message: '请输入内容' }]}
-              style={{ marginBottom: 12 }}
+              className="u-1qz2mrl"
             >
               <TextArea rows={4} placeholder="输入大纲内容..." />
             </Form.Item>
@@ -328,11 +322,11 @@ export default function Outline() {
               label="涉及角色"
               name="characters"
               tooltip="从项目角色中选择，也可以手动输入新角色名"
-              style={{ marginBottom: 12 }}
+              className="u-1qz2mrl"
             >
               <Select
                 mode="tags"
-                style={{ width: '100%' }}
+                className="u-1f3r3s"
                 placeholder="选择或输入角色名"
                 options={projectCharacters}
                 tokenSeparators={[',', '，']}
@@ -344,11 +338,11 @@ export default function Outline() {
               label="涉及组织"
               name="organizations"
               tooltip="从项目组织中选择，也可以手动输入新组织名"
-              style={{ marginBottom: 12 }}
+              className="u-1qz2mrl"
             >
               <Select
                 mode="tags"
-                style={{ width: '100%' }}
+                className="u-1f3r3s"
                 placeholder="选择或输入组织/势力名"
                 tokenSeparators={[',', '，']}
                 maxTagCount="responsive"
@@ -359,7 +353,7 @@ export default function Outline() {
               label="场景信息"
               name="scenes"
               tooltip="支持两种格式：简单描述（每行一个场景）或详细格式（地点|角色|目的）"
-              style={{ marginBottom: 12 }}
+              className="u-1qz2mrl"
             >
               <TextArea
                 rows={3}
@@ -371,7 +365,7 @@ export default function Outline() {
               label="情节要点"
               name="key_points"
               tooltip="每行一个情节要点"
-              style={{ marginBottom: 12 }}
+              className="u-1qz2mrl"
             >
               <TextArea
                 rows={2}
@@ -383,7 +377,7 @@ export default function Outline() {
               label="情感基调"
               name="emotion"
               tooltip="描述本章的情感氛围"
-              style={{ marginBottom: 12 }}
+              className="u-1qz2mrl"
             >
               <Input placeholder="例如：冷冽与躁动并存" />
             </Form.Item>
@@ -392,7 +386,7 @@ export default function Outline() {
               label="叙事目标"
               name="goal"
               tooltip="本章要达成的叙事目的"
-              style={{ marginBottom: 0 }}
+              className="u-1sezbee"
             >
               <Input placeholder="例如：建立世界观对比并完成主角初遇" />
             </Form.Item>
@@ -615,7 +609,7 @@ export default function Outline() {
         <Form
           form={generateForm}
           layout="vertical"
-          style={{ marginTop: 16 }}
+          className="u-1ir3dsh"
           initialValues={{
             mode: initialMode,
             chapter_count: 5,
@@ -755,7 +749,7 @@ export default function Outline() {
                   generateForm.setFieldsValue({ model: value });
                 }}
               />
-              <div style={{ color: token.colorTextTertiary, fontSize: 12, marginTop: 4 }}>
+              <div className={sx({ color: token.colorTextTertiary, fontSize: 12, marginTop: 4 })}>
                 {defaultModel ? `当前默认模型: ${loadedModels.find(m => m.value === defaultModel)?.label || defaultModel}` : '未配置默认模型'}
               </div>
             </Form.Item>
@@ -786,7 +780,7 @@ export default function Outline() {
           form={manualCreateForm}
           layout="vertical"
           initialValues={{ order_index: nextOrderIndex }}
-          style={{ marginTop: 16 }}
+          className="u-1ir3dsh"
         >
           <Form.Item
             label="大纲序号"
@@ -794,7 +788,7 @@ export default function Outline() {
             rules={[{ required: true, message: '请输入序号' }]}
             tooltip={currentProject?.outline_mode === 'one-to-one' ? '在传统模式下，序号即章节编号' : '在细化模式下，序号为卷数'}
           >
-            <InputNumber min={1} style={{ width: '100%' }} placeholder="自动计算的下一个序号" />
+            <InputNumber min={1} className="u-1f3r3s" placeholder="自动计算的下一个序号" />
           </Form.Item>
 
           <Form.Item
@@ -830,21 +824,21 @@ export default function Outline() {
             content: (
               <div>
                 <p>序号 <strong>{values.order_index}</strong> 已被使用：</p>
-                <div style={{
+                <div className={sx({
                   padding: 12,
                   background: token.colorWarningBg,
                   borderRadius: token.borderRadius,
                   border: `1px solid ${token.colorWarningBorder}`,
                   marginTop: 8
-                }}>
-                  <div style={{ fontWeight: 500, color: token.colorWarning }}>
+                })}>
+                  <div className={sx({ fontWeight: 500, color: token.colorWarning })}>
                     {currentProject?.outline_mode === 'one-to-one'
                       ? `第${existingOutline.order_index}章`
                       : `第${existingOutline.order_index}卷`
                     }：{existingOutline.title}
                   </div>
                 </div>
-                <p style={{ marginTop: 12, color: token.colorTextSecondary }}>
+                <p className={sx({ marginTop: 12, color: token.colorTextSecondary })}>
                   💡 建议使用序号 <strong>{nextOrderIndex}</strong>，或选择其他未使用的序号
                 </p>
               </div>
@@ -902,23 +896,23 @@ export default function Outline() {
                 centered: true,
                 content: (
                   <div>
-                    <p style={{ marginBottom: 12 }}>
+                    <p className="u-1qz2mrl">
                       为了保持章节编号的连续性和内容的连贯性，请先展开前面的大纲。
                     </p>
-                    <div style={{
+                    <div className={sx({
                       padding: 12,
                       background: token.colorWarningBg,
                       borderRadius: token.borderRadius,
                       border: `1px solid ${token.colorWarningBorder}`
-                    }}>
-                      <div style={{ fontWeight: 500, marginBottom: 8, color: token.colorWarning }}>
+                    })}>
+                      <div className={sx({ fontWeight: 500, marginBottom: 8, color: token.colorWarning })}>
                         ⚠️ 需要先展开：
                       </div>
-                      <div style={{ color: token.colorTextSecondary }}>
+                      <div className={sx({ color: token.colorTextSecondary })}>
                         第{prevOutline.order_index}卷：《{prevOutline.title}》
                       </div>
                     </div>
-                    <p style={{ marginTop: 12, color: token.colorTextSecondary, fontSize: 13 }}>
+                    <p className={sx({ marginTop: 12, color: token.colorTextSecondary, fontSize: 13 })}>
                       💡 提示：您也可以使用「批量展开」功能，系统会自动按顺序处理所有大纲。
                     </p>
                   </div>
@@ -957,9 +951,9 @@ export default function Outline() {
         centered: true,
         content: (
           <div>
-            <div style={{ marginBottom: 16, padding: 12, background: token.colorBgLayout, borderRadius: token.borderRadius }}>
-              <div style={{ fontWeight: 500, marginBottom: 4 }}>大纲标题</div>
-              <div style={{ color: token.colorTextSecondary }}>{outlineTitle}</div>
+            <div className={sx({ marginBottom: 16, padding: 12, background: token.colorBgLayout, borderRadius: token.borderRadius })}>
+              <div className="u-5l9l9x">大纲标题</div>
+              <div className={sx({ color: token.colorTextSecondary })}>{outlineTitle}</div>
             </div>
             <Form
               form={expansionForm}
@@ -978,7 +972,7 @@ export default function Outline() {
                 <InputNumber
                   min={2}
                   max={1000}
-                  style={{ width: '100%' }}
+                  className="u-1f3r3s"
                   placeholder="建议2-5章"
                 />
               </Form.Item>
@@ -1089,8 +1083,8 @@ export default function Outline() {
   ) => {
     modalApi.info({
       title: (
-        <Space style={{ flexWrap: 'wrap' }}>
-          <CheckCircleOutlined style={{ color: token.colorSuccess }} />
+        <Space className="u-wk8z2o">
+          <CheckCircleOutlined className={sx({ color: token.colorSuccess })} />
           <span>《{outlineTitle}》展开信息</span>
         </Space>
       ),
@@ -1109,7 +1103,7 @@ export default function Outline() {
         }
       },
       footer: (
-        <Space wrap style={{ width: '100%', justifyContent: isMobile ? 'center' : 'flex-end' }}>
+        <Space wrap className={sx({ width: '100%', justifyContent: isMobile ? 'center' : 'flex-end' })}>
           <Button
             danger
             icon={<DeleteOutlined />}
@@ -1122,10 +1116,10 @@ export default function Outline() {
                 content: (
                   <div>
                     <p>此操作将删除大纲《{outlineTitle}》展开的所有 <strong>{data.chapter_count}</strong> 个章节。</p>
-                    <p style={{ color: token.colorPrimary, marginTop: 8 }}>
+                    <p className={sx({ color: token.colorPrimary, marginTop: 8 })}>
                       📝 注意：大纲本身会保留，您可以重新展开
                     </p>
-                    <p style={{ color: token.colorError, marginTop: 8 }}>
+                    <p className={sx({ color: token.colorError, marginTop: 8 })}>
                       ⚠️ 警告：章节内容将永久删除且无法恢复！
                     </p>
                   </div>
@@ -1148,17 +1142,11 @@ export default function Outline() {
       ),
       content: (
         <div>
-          <div style={{ marginBottom: 16 }}>
-            <Space wrap style={{ maxWidth: '100%' }}>
+          <div className="u-6srbul">
+            <Space wrap className="u-5iasub">
               <Tag
                 color="blue"
-                style={{
-                  whiteSpace: 'normal',
-                  wordBreak: 'break-word',
-                  height: 'auto',
-                  lineHeight: '1.5',
-                  padding: '4px 8px'
-                }}
+                className="u-1iquttw"
               >
                 大纲: {outlineTitle}
               </Tag>
@@ -1172,45 +1160,33 @@ export default function Outline() {
             items={data.expansion_plans?.map((plan, idx) => ({
               key: idx.toString(),
               label: (
-                <Space size="small" style={{ maxWidth: isMobile ? '150px' : 'none' }}>
+                <Space size="small" className={sx({ maxWidth: isMobile ? '150px' : 'none' })}>
                   <span
-                    style={{
+                    className={sx({
                       fontWeight: 500,
                       whiteSpace: isMobile ? 'normal' : 'nowrap',
                       wordBreak: isMobile ? 'break-word' : 'normal',
                       fontSize: isMobile ? 12 : 14
-                    }}
+                    })}
                   >
                     {plan.sub_index}. {plan.title}
                   </span>
                 </Space>
               ),
               children: (
-                <div style={{ maxHeight: '500px', overflowY: 'auto', padding: '8px 0' }}>
-                  <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                <div className="u-gatmdt">
+                  <Space direction="vertical" size="middle" className="u-1f3r3s">
                     <Card size="small" title="基本信息">
-                      <Space wrap style={{ maxWidth: '100%' }}>
+                      <Space wrap className="u-5iasub">
                         <Tag
                           color="blue"
-                          style={{
-                            whiteSpace: 'normal',
-                            wordBreak: 'break-word',
-                            height: 'auto',
-                            lineHeight: '1.5',
-                            padding: '4px 8px'
-                          }}
+                          className="u-1iquttw"
                         >
                           {plan.emotional_tone}
                         </Tag>
                         <Tag
                           color="orange"
-                          style={{
-                            whiteSpace: 'normal',
-                            wordBreak: 'break-word',
-                            height: 'auto',
-                            lineHeight: '1.5',
-                            padding: '4px 8px'
-                          }}
+                          className="u-1iquttw"
                         >
                           {plan.conflict_type}
                         </Tag>
@@ -1219,35 +1195,23 @@ export default function Outline() {
                     </Card>
 
                     <Card size="small" title="情节概要">
-                      <div style={{
-                        wordBreak: 'break-word',
-                        whiteSpace: 'normal',
-                        overflowWrap: 'break-word'
-                      }}>
+                      <div className="u-1noffu8">
                         {plan.plot_summary}
                       </div>
                     </Card>
 
                     <Card size="small" title="叙事目标">
-                      <div style={{
-                        wordBreak: 'break-word',
-                        whiteSpace: 'normal',
-                        overflowWrap: 'break-word'
-                      }}>
+                      <div className="u-1noffu8">
                         {plan.narrative_goal}
                       </div>
                     </Card>
 
                     <Card size="small" title="关键事件">
-                      <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                      <Space direction="vertical" size="small" className="u-1f3r3s">
                         {plan.key_events.map((event, eventIdx) => (
                           <div
                             key={eventIdx}
-                            style={{
-                              wordBreak: 'break-word',
-                              whiteSpace: 'normal',
-                              overflowWrap: 'break-word'
-                            }}
+                            className="u-1noffu8"
                           >
                             • {event}
                           </div>
@@ -1256,17 +1220,12 @@ export default function Outline() {
                     </Card>
 
                     <Card size="small" title="涉及角色">
-                      <Space wrap style={{ maxWidth: '100%' }}>
+                      <Space wrap className="u-5iasub">
                         {plan.character_focus.map((char, charIdx) => (
                           <Tag
                             key={charIdx}
                             color="purple"
-                            style={{
-                              whiteSpace: 'normal',
-                              wordBreak: 'break-word',
-                              height: 'auto',
-                              lineHeight: '1.5'
-                            }}
+                            className="u-mw95nt"
                           >
                             {char}
                           </Tag>
@@ -1276,36 +1235,24 @@ export default function Outline() {
 
                     {plan.scenes && plan.scenes.length > 0 && (
                       <Card size="small" title="场景">
-                        <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                        <Space direction="vertical" size="small" className="u-1f3r3s">
                           {plan.scenes.map((scene, sceneIdx) => (
                             <Card
                               key={sceneIdx}
                               size="small"
-                              style={{
+                              className={sx({
                                 backgroundColor: token.colorFillQuaternary,
                                 maxWidth: '100%',
                                 overflow: 'hidden'
-                              }}
+                              })}
                             >
-                              <div style={{
-                                wordBreak: 'break-word',
-                                whiteSpace: 'normal',
-                                overflowWrap: 'break-word'
-                              }}>
+                              <div className="u-1noffu8">
                                 <strong>地点：</strong>{scene.location}
                               </div>
-                              <div style={{
-                                wordBreak: 'break-word',
-                                whiteSpace: 'normal',
-                                overflowWrap: 'break-word'
-                              }}>
+                              <div className="u-1noffu8">
                                 <strong>角色：</strong>{scene.characters.join('、')}
                               </div>
-                              <div style={{
-                                wordBreak: 'break-word',
-                                whiteSpace: 'normal',
-                                overflowWrap: 'break-word'
-                              }}>
+                              <div className="u-1noffu8">
                                 <strong>目的：</strong>{scene.purpose}
                               </div>
                             </Card>
@@ -1343,15 +1290,15 @@ export default function Outline() {
       content: (
         <div>
           <div
-            style={{
+            className={sx({
               marginBottom: 16,
               padding: 12,
               background: token.colorWarningBg,
               borderRadius: token.borderRadius,
               border: `1px solid ${token.colorWarningBorder}`,
-            }}
+            })}
           >
-            <div style={{ color: token.colorWarningText }}>
+            <div className={sx({ color: token.colorWarningText })}>
               ⚠️ 将对当前项目的所有 {outlines.length} 个大纲进行展开
             </div>
           </div>
@@ -1372,7 +1319,7 @@ export default function Outline() {
               <InputNumber
                 min={2}
                 max={10}
-                style={{ width: '100%' }}
+                className="u-1f3r3s"
                 placeholder="建议2-5章"
               />
             </Form.Item>
@@ -1435,9 +1382,9 @@ export default function Outline() {
     <>
       {contextHolder}
 
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div className="u-14esoxf">
         {/* 固定头部 */}
-        <div style={{
+        <div className={sx({
           position: 'sticky',
           top: 0,
           zIndex: 10,
@@ -1450,14 +1397,14 @@ export default function Outline() {
           gap: isMobile ? 12 : 0,
           justifyContent: 'space-between',
           alignItems: isMobile ? 'stretch' : 'center'
-        }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <h2 style={{ margin: 0, fontSize: isMobile ? 18 : 24 }}>
-              <FileTextOutlined style={{ marginRight: 8 }} />
+        })}>
+          <div className="u-1dshp92">
+            <h2 className={sx({ margin: 0, fontSize: isMobile ? 18 : 24 })}>
+              <FileTextOutlined className="u-1vcwmpp" />
               故事大纲
             </h2>
             {currentProject?.outline_mode && (
-              <Tag color={currentProject.outline_mode === 'one-to-one' ? 'blue' : 'green'} style={{ width: 'fit-content' }}>
+              <Tag color={currentProject.outline_mode === 'one-to-one' ? 'blue' : 'green'} className="u-1jqy0x5">
                 {currentProject.outline_mode === 'one-to-one' ? '传统模式 (1→1)' : '细化模式 (1→N)'}
               </Tag>
             )}
@@ -1468,7 +1415,7 @@ export default function Outline() {
               placeholder="搜索大纲（序号/标题/内容）"
               value={outlineSearchKeyword}
               onChange={(e) => setOutlineSearchKeyword(e.target.value)}
-              style={{ width: isMobile ? '100%' : 280 }}
+              className={sx({ width: isMobile ? '100%' : 280 })}
             />
             <Button
               icon={<PlusOutlined />}
@@ -1501,7 +1448,7 @@ export default function Outline() {
         </div>
 
         {/* 可滚动内容区域 */}
-        <div style={{ flex: 1, overflowY: 'auto' }}>
+        <div className="u-250t5n">
           {outlines.length === 0 ? (
             <Empty description="还没有大纲，开始创建吧！" />
           ) : filteredOutlines.length === 0 ? (
@@ -1521,61 +1468,45 @@ export default function Outline() {
 
                   return (
                     <List.Item
-                      style={{
-                        marginBottom: 16,
-                        padding: 0,
-                        border: 'none'
-                      }}
+                      className="u-13l1on0"
                     >
                       <Card
-                        style={{
+                        className={sx(!isMobile && 'outline-card-hover', {
                           width: '100%',
                           borderRadius: isMobile ? 6 : 8,
                           border: `1px solid ${token.colorBorderSecondary}`,
                           boxShadow: `0 1px 2px ${alphaColor(token.colorTextBase, 0.08)}`,
                           transition: 'all 0.3s ease'
-                        }}
+                        })}
                         bodyStyle={{
                           padding: isMobile ? '10px 12px' : 16
                         }}
-                        onMouseEnter={(e) => {
-                          if (!isMobile) {
-                            e.currentTarget.style.boxShadow = `0 4px 12px ${alphaColor(token.colorTextBase, 0.16)}`;
-                            e.currentTarget.style.borderColor = token.colorPrimary;
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (!isMobile) {
-                            e.currentTarget.style.boxShadow = `0 1px 2px ${alphaColor(token.colorTextBase, 0.08)}`;
-                            e.currentTarget.style.borderColor = token.colorBorderSecondary;
-                          }
-                        }}
                       >
                         <List.Item.Meta
-                          style={{ width: '100%' }}
+                          className="u-1f3r3s"
                           title={
-                            <Space size="small" style={{ fontSize: isMobile ? 13 : 16, flexWrap: 'wrap', lineHeight: isMobile ? '1.4' : '1.5' }}>
-                              <span style={{ color: token.colorPrimary, fontWeight: 'bold', fontSize: isMobile ? 13 : 16 }}>
+                            <Space size="small" className={sx({ fontSize: isMobile ? 13 : 16, flexWrap: 'wrap', lineHeight: isMobile ? '1.4' : '1.5' })}>
+                              <span className={sx({ color: token.colorPrimary, fontWeight: 'bold', fontSize: isMobile ? 13 : 16 })}>
                                 {currentProject?.outline_mode === 'one-to-one'
                                   ? `第${item.order_index || '?'}章`
                                   : `第${item.order_index || '?'}卷`
                                 }
                               </span>
-                              <span style={{ fontSize: isMobile ? 13 : 16 }}>{item.title}</span>
+                              <span className={sx({ fontSize: isMobile ? 13 : 16 })}>{item.title}</span>
                               {/* ✅ 新增：展开状态标识 - 仅在一对多模式显示 */}
                               {currentProject?.outline_mode === 'one-to-many' && (
                                 outlineExpandStatus[item.id] ? (
-                                  <Tag color="success" icon={<CheckCircleOutlined />} style={{ fontSize: isMobile ? 11 : 12 }}>已展开</Tag>
+                                  <Tag color="success" icon={<CheckCircleOutlined />} className={sx({ fontSize: isMobile ? 11 : 12 })}>已展开</Tag>
                                 ) : (
-                                  <Tag color="default" style={{ fontSize: isMobile ? 11 : 12 }}>未展开</Tag>
+                                  <Tag color="default" className={sx({ fontSize: isMobile ? 11 : 12 })}>未展开</Tag>
                                 )
                               )}
                             </Space>
                           }
                           description={
-                            <div style={{ fontSize: isMobile ? 12 : 14, lineHeight: isMobile ? '1.5' : '1.6' }}>
+                            <div className={sx({ fontSize: isMobile ? 12 : 14, lineHeight: isMobile ? '1.5' : '1.6' })}>
                               {/* 大纲内容 */}
-                              <div style={{
+                              <div className={sx({
                                 marginBottom: isMobile ? 10 : 12,
                                 padding: isMobile ? '8px 10px' : '10px 12px',
                                 background: token.colorFillQuaternary,
@@ -1584,20 +1515,20 @@ export default function Outline() {
                                 fontSize: isMobile ? 12 : 13,
                                 color: token.colorText,
                                 lineHeight: '1.6'
-                              }}>
-                                <div style={{
+                              })}>
+                                <div className={sx({
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'space-between',
                                   gap: 8,
                                   marginBottom: isMobile ? 4 : 6,
                                   flexWrap: isMobile ? 'wrap' : 'nowrap'
-                                }}>
-                                  <div style={{
+                                })}>
+                                  <div className={sx({
                                     fontWeight: 600,
                                     color: token.colorTextSecondary,
                                     fontSize: isMobile ? 12 : 13
-                                  }}>
+                                  })}>
                                     📝 大纲内容
                                   </div>
                                   <Button
@@ -1607,16 +1538,16 @@ export default function Outline() {
                                       ...prev,
                                       [item.id]: !isOutlineExpanded
                                     }))}
-                                    style={{
+                                    className={sx({
                                       padding: 0,
                                       height: 'auto',
                                       fontSize: isMobile ? 12 : 13
-                                    }}
+                                    })}
                                   >
                                     {isOutlineExpanded ? '收起' : '展开'}
                                   </Button>
                                 </div>
-                                <div style={{
+                                <div className={sx({
                                   padding: isMobile ? '6px 8px' : '6px 10px',
                                   background: token.colorBgContainer,
                                   border: `1px solid ${token.colorBorder}`,
@@ -1626,7 +1557,7 @@ export default function Outline() {
                                   lineHeight: '1.8',
                                   whiteSpace: isOutlineExpanded ? 'pre-wrap' : 'normal',
                                   wordBreak: 'break-word'
-                                }}>
+                                })}>
                                   {isOutlineExpanded ? item.content : previewContent.text || '暂无内容'}
                                 </div>
                               </div>
@@ -1635,36 +1566,31 @@ export default function Outline() {
                                 <>
                               {/* ✨ 涉及角色展示 - 优化版（支持角色/组织分类显示） */}
                               {characterNames.length > 0 && (
-                                <div style={{
+                                <div className={sx({
                                   marginTop: isMobile ? 10 : 12,
                                   padding: isMobile ? '8px 10px' : '10px 12px',
                                   background: token.colorPrimaryBg,
                                   borderLeft: `3px solid ${token.colorPrimary}`,
                                   borderRadius: token.borderRadius
-                                }}>
-                                  <div style={{
+                                })}>
+                                  <div className={sx({
                                     display: 'flex',
                                     alignItems: 'center',
                                     gap: isMobile ? 6 : 8,
                                     marginBottom: isMobile ? 6 : 8
-                                  }}>
-                                    <span style={{
+                                  })}>
+                                    <span className={sx({
                                       fontSize: isMobile ? 12 : 13,
                                       fontWeight: 600,
                                       color: token.colorPrimary,
                                       display: 'flex',
                                       alignItems: 'center',
                                       gap: 4
-                                    }}>
+                                    })}>
                                       👥 涉及角色
                                       <Tag
                                         color="purple"
-                                        style={{
-                                          margin: 0,
-                                          fontSize: 10,
-                                          borderRadius: 10,
-                                          padding: '0 6px'
-                                        }}
+                                        className="u-1lcia4b"
                                       >
                                         {characterNames.length}
                                       </Tag>
@@ -1675,7 +1601,7 @@ export default function Outline() {
                                       <Tag
                                         key={idx}
                                         color="purple"
-                                        style={{
+                                        className={sx({
                                           margin: 0,
                                           borderRadius: 4,
                                           padding: isMobile ? '2px 8px' : '3px 10px',
@@ -1688,7 +1614,7 @@ export default function Outline() {
                                           wordBreak: 'break-word',
                                           height: 'auto',
                                           lineHeight: '1.5'
-                                        }}
+                                        })}
                                       >
                                         {name}
                                       </Tag>
@@ -1699,36 +1625,31 @@ export default function Outline() {
 
                               {/* 🏛️ 涉及组织展示 */}
                               {organizationNames.length > 0 && (
-                                <div style={{
+                                <div className={sx({
                                   marginTop: isMobile ? 10 : 12,
                                   padding: isMobile ? '8px 10px' : '10px 12px',
                                   background: token.colorWarningBg,
                                   borderLeft: `3px solid ${token.colorWarning}`,
                                   borderRadius: token.borderRadius
-                                }}>
-                                  <div style={{
+                                })}>
+                                  <div className={sx({
                                     display: 'flex',
                                     alignItems: 'center',
                                     gap: isMobile ? 6 : 8,
                                     marginBottom: isMobile ? 6 : 8
-                                  }}>
-                                    <span style={{
+                                  })}>
+                                    <span className={sx({
                                       fontSize: isMobile ? 12 : 13,
                                       fontWeight: 600,
                                       color: token.colorWarning,
                                       display: 'flex',
                                       alignItems: 'center',
                                       gap: 4
-                                    }}>
+                                    })}>
                                       🏛️ 涉及组织
                                       <Tag
                                         color="orange"
-                                        style={{
-                                          margin: 0,
-                                          fontSize: 10,
-                                          borderRadius: 10,
-                                          padding: '0 6px'
-                                        }}
+                                        className="u-1lcia4b"
                                       >
                                         {organizationNames.length}
                                       </Tag>
@@ -1739,7 +1660,7 @@ export default function Outline() {
                                       <Tag
                                         key={idx}
                                         color="orange"
-                                        style={{
+                                        className={sx({
                                           margin: 0,
                                           borderRadius: 4,
                                           padding: isMobile ? '2px 8px' : '3px 10px',
@@ -1752,7 +1673,7 @@ export default function Outline() {
                                           wordBreak: 'break-word',
                                           height: 'auto',
                                           lineHeight: '1.5'
-                                        }}
+                                        })}
                                       >
                                         {name}
                                       </Tag>
@@ -1769,38 +1690,33 @@ export default function Outline() {
                                 const visibleScenes = isExpanded ? structureData.scenes : structureData.scenes!.slice(0, maxVisibleScenes);
 
                                 return (
-                                  <div style={{
+                                  <div className={sx({
                                     marginTop: isMobile ? 10 : 12,
                                     padding: isMobile ? '8px 10px' : '10px 12px',
                                     background: token.colorInfoBg,
                                     borderLeft: `3px solid ${token.colorInfo}`,
                                     borderRadius: token.borderRadius
-                                  }}>
-                                    <div style={{
+                                  })}>
+                                    <div className={sx({
                                       display: 'flex',
                                       alignItems: 'center',
                                       justifyContent: 'space-between',
                                       marginBottom: isMobile ? 6 : 8,
                                       flexWrap: isMobile ? 'wrap' : 'nowrap',
                                       gap: isMobile ? 4 : 0
-                                    }}>
-                                      <span style={{
+                                    })}>
+                                      <span className={sx({
                                         fontSize: isMobile ? 12 : 13,
                                         fontWeight: 600,
                                         color: token.colorInfo,
                                         display: 'flex',
                                         alignItems: 'center',
                                         gap: 4
-                                      }}>
+                                      })}>
                                         🎬 场景设定
                                         <Tag
                                           color="cyan"
-                                          style={{
-                                            margin: 0,
-                                            fontSize: 10,
-                                            borderRadius: 10,
-                                            padding: '0 6px'
-                                          }}
+                                          className="u-1lcia4b"
                                         >
                                           {structureData.scenes!.length}
                                         </Tag>
@@ -1813,25 +1729,25 @@ export default function Outline() {
                                             ...prev,
                                             [item.id]: !isExpanded
                                           }))}
-                                          style={{
+                                          className={sx({
                                             fontSize: isMobile ? 10 : 11,
                                             height: isMobile ? 20 : 22,
                                             padding: isMobile ? '0 6px' : '0 8px',
                                             color: token.colorInfo
-                                          }}
+                                          })}
                                         >
                                           {isExpanded ? '收起 ▲' : `展开 (${structureData.scenes!.length - maxVisibleScenes}+) ▼`}
                                         </Button>
                                       )}
                                     </div>
                                     {/* 使用grid布局，移动端一列，桌面端两列 */}
-                                    <div style={{
+                                    <div className={sx({
                                       display: 'grid',
                                       gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(280px, 1fr))',
                                       gap: isMobile ? 6 : 8,
                                       width: '100%',
                                       minWidth: 0  // 防止grid子元素溢出
-                                    }}>
+                                    })}>
                                       {visibleScenes!.map((scene, idx) => {
                                       // 判断是字符串还是对象
                                       if (typeof scene === 'string') {
@@ -1839,7 +1755,7 @@ export default function Outline() {
                                         return (
                                           <div
                                             key={idx}
-                                            style={{
+                                            className={sx(!isMobile && 'outline-info-card-hover', {
                                               padding: isMobile ? '6px 8px' : '8px 10px',
                                               background: token.colorBgContainer,
                                               border: `1px solid ${token.colorInfoBorder}`,
@@ -1854,38 +1770,15 @@ export default function Outline() {
                                               width: '100%',
                                               minWidth: 0,
                                               boxSizing: 'border-box'
-                                            }}
-                                            onMouseEnter={(e) => {
-                                              if (!isMobile) {
-                                                e.currentTarget.style.borderColor = token.colorInfo;
-                                                e.currentTarget.style.boxShadow = `0 2px 8px ${alphaColor(token.colorInfo, 0.25)}`;
-                                              }
-                                            }}
-                                            onMouseLeave={(e) => {
-                                              if (!isMobile) {
-                                                e.currentTarget.style.borderColor = token.colorInfoBorder;
-                                                e.currentTarget.style.boxShadow = 'none';
-                                              }
-                                            }}
+                                            })}
                                           >
                                             <Tag
                                               color="cyan"
-                                              style={{
-                                                margin: 0,
-                                                fontSize: 10,
-                                                borderRadius: 4,
-                                                flexShrink: 0
-                                              }}
+                                              className="u-14q7mkq"
                                             >
                                               {idx + 1}
                                             </Tag>
-                                            <span style={{
-                                              flex: 1,
-                                              lineHeight: '1.6',
-                                              overflow: 'hidden',
-                                              textOverflow: 'ellipsis',
-                                              whiteSpace: 'nowrap'
-                                            }}>{scene}</span>
+                                            <span className="u-e1wyyr">{scene}</span>
                                           </div>
                                         );
                                       } else {
@@ -1893,7 +1786,7 @@ export default function Outline() {
                                         return (
                                           <div
                                             key={idx}
-                                            style={{
+                                            className={sx(!isMobile && 'outline-info-card-hover', {
                                               padding: isMobile ? '8px 10px' : '10px 12px',
                                               background: token.colorBgContainer,
                                               border: `1px solid ${token.colorInfoBorder}`,
@@ -1904,38 +1797,22 @@ export default function Outline() {
                                               width: '100%',
                                               minWidth: 0,
                                               boxSizing: 'border-box'
-                                            }}
-                                            onMouseEnter={(e) => {
-                                              if (!isMobile) {
-                                                e.currentTarget.style.borderColor = token.colorInfo;
-                                                e.currentTarget.style.boxShadow = `0 2px 8px ${alphaColor(token.colorInfo, 0.25)}`;
-                                              }
-                                            }}
-                                            onMouseLeave={(e) => {
-                                              if (!isMobile) {
-                                                e.currentTarget.style.borderColor = token.colorInfoBorder;
-                                                e.currentTarget.style.boxShadow = 'none';
-                                              }
-                                            }}
+                                            })}
                                           >
-                                            <div style={{
+                                            <div className={sx({
                                               display: 'flex',
                                               alignItems: 'center',
                                               gap: isMobile ? 6 : 8,
                                               marginBottom: isMobile ? 4 : 6,
                                               flexWrap: 'wrap'
-                                            }}>
+                                            })}>
                                               <Tag
                                                 color="cyan"
-                                                style={{
-                                                  margin: 0,
-                                                  fontSize: 10,
-                                                  borderRadius: 4
-                                                }}
+                                                className="u-1b79pht"
                                               >
                                                 场景{idx + 1}
                                               </Tag>
-                                              <span style={{
+                                              <span className={sx({
                                                 fontWeight: 600,
                                                 color: token.colorText,
                                                 fontSize: isMobile ? 12 : 13,
@@ -1943,12 +1820,12 @@ export default function Outline() {
                                                 overflow: 'hidden',
                                                 textOverflow: 'ellipsis',
                                                 whiteSpace: 'nowrap'
-                                              }}>
+                                              })}>
                                                 📍 {scene.location}
                                               </span>
                                             </div>
                                             {scene.characters && scene.characters.length > 0 && (
-                                              <div style={{
+                                              <div className={sx({
                                                 fontSize: isMobile ? 10 : 11,
                                                 color: token.colorTextSecondary,
                                                 marginBottom: 4,
@@ -1956,13 +1833,13 @@ export default function Outline() {
                                                 overflow: 'hidden',
                                                 textOverflow: 'ellipsis',
                                                 whiteSpace: 'nowrap'
-                                              }}>
-                                                <span style={{ fontWeight: 500 }}>👤 角色：</span>
+                                              })}>
+                                                <span className="u-1urjidp">👤 角色：</span>
                                                 {scene.characters.join(' · ')}
                                               </div>
                                             )}
                                             {scene.purpose && (
-                                              <div style={{
+                                              <div className={sx({
                                                 fontSize: isMobile ? 10 : 11,
                                                 color: token.colorTextSecondary,
                                                 paddingLeft: isMobile ? 2 : 4,
@@ -1970,8 +1847,8 @@ export default function Outline() {
                                                 overflow: 'hidden',
                                                 textOverflow: 'ellipsis',
                                                 whiteSpace: 'nowrap'
-                                              }}>
-                                                <span style={{ fontWeight: 500 }}>🎯 目的：</span>
+                                              })}>
+                                                <span className="u-1urjidp">🎯 目的：</span>
                                                 {scene.purpose}
                                               </div>
                                             )}
@@ -1986,46 +1863,36 @@ export default function Outline() {
 
                             {/* ✨ 关键事件展示 */}
                             {structureData.key_events && structureData.key_events.length > 0 && (
-                              <div style={{
+                              <div className={sx({
                                 marginTop: 12,
                                 padding: '10px 12px',
                                 background: token.colorWarningBg,
                                 borderLeft: `3px solid ${token.colorWarning}`,
                                 borderRadius: token.borderRadius
-                              }}>
-                                <div style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: 8,
-                                  marginBottom: 8
-                                }}>
-                                  <span style={{
+                              })}>
+                                <div className="u-ribffq">
+                                  <span className={sx({
                                     fontSize: 13,
                                     fontWeight: 600,
                                     color: token.colorWarning,
                                     display: 'flex',
                                     alignItems: 'center',
                                     gap: 4
-                                  }}>
+                                  })}>
                                     ⚡ 关键事件
                                     <Tag
                                       color="orange"
-                                      style={{
-                                        margin: 0,
-                                        fontSize: 11,
-                                        borderRadius: 10,
-                                        padding: '0 6px'
-                                      }}
+                                      className="u-115rp00"
                                     >
                                       {structureData.key_events.length}
                                     </Tag>
                                   </span>
                                 </div>
-                                <Space direction="vertical" size={6} style={{ width: '100%' }}>
+                                <Space direction="vertical" size={6} className="u-1f3r3s">
                                   {structureData.key_events.map((event, idx) => (
                                     <div
                                       key={idx}
-                                      style={{
+                                      className={sx({
                                         padding: '6px 10px',
                                         background: token.colorBgContainer,
                                         border: `1px solid ${token.colorWarningBorder}`,
@@ -2035,26 +1902,15 @@ export default function Outline() {
                                         display: 'flex',
                                         alignItems: 'flex-start',
                                         gap: 8
-                                      }}
+                                      })}
                                     >
                                       <Tag
                                         color="orange"
-                                        style={{
-                                          margin: 0,
-                                          fontSize: 11,
-                                          borderRadius: 4,
-                                          flexShrink: 0
-                                        }}
+                                        className="u-1b5jtub"
                                       >
                                         {idx + 1}
                                       </Tag>
-                                      <span style={{
-                                        flex: 1,
-                                        lineHeight: '1.6',
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                        whiteSpace: 'nowrap'
-                                      }}>{event}</span>
+                                      <span className="u-e1wyyr">{event}</span>
                                     </div>
                                   ))}
                                 </Space>
@@ -2063,53 +1919,43 @@ export default function Outline() {
 
                             {/* ✨ 情节要点展示 (key_points) */}
                             {structureData.key_points && structureData.key_points.length > 0 && (
-                              <div style={{
+                              <div className={sx({
                                 marginTop: 12,
                                 padding: '10px 12px',
                                 background: token.colorSuccessBg,
                                 borderLeft: `3px solid ${token.colorSuccess}`,
                                 borderRadius: token.borderRadius
-                              }}>
-                                <div style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: 8,
-                                  marginBottom: 8
-                                }}>
-                                  <span style={{
+                              })}>
+                                <div className="u-ribffq">
+                                  <span className={sx({
                                     fontSize: 13,
                                     fontWeight: 600,
                                     color: token.colorSuccess,
                                     display: 'flex',
                                     alignItems: 'center',
                                     gap: 4
-                                  }}>
+                                  })}>
                                     💡 情节要点
                                     <Tag
                                       color="green"
-                                      style={{
-                                        margin: 0,
-                                        fontSize: 11,
-                                        borderRadius: 10,
-                                        padding: '0 6px'
-                                      }}
+                                      className="u-115rp00"
                                     >
                                       {structureData.key_points.length}
                                     </Tag>
                                   </span>
                                 </div>
                                 {/* 使用grid布局，移动端一列，桌面端两列 */}
-                                <div style={{
+                                <div className={sx({
                                   display: 'grid',
                                   gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(280px, 1fr))',
                                   gap: isMobile ? 6 : 8,
                                   width: '100%',
                                   minWidth: 0
-                                }}>
+                                })}>
                                   {structureData.key_points.map((point, idx) => (
                                     <div
                                       key={idx}
-                                      style={{
+                                      className={sx(!isMobile && 'outline-success-card-hover', {
                                         padding: isMobile ? '6px 8px' : '8px 10px',
                                         background: token.colorBgContainer,
                                         border: `1px solid ${token.colorSuccessBorder}`,
@@ -2124,38 +1970,15 @@ export default function Outline() {
                                         width: '100%',
                                         minWidth: 0,
                                         boxSizing: 'border-box'
-                                      }}
-                                      onMouseEnter={(e) => {
-                                        if (!isMobile) {
-                                          e.currentTarget.style.borderColor = token.colorSuccess;
-                                          e.currentTarget.style.boxShadow = `0 2px 8px ${alphaColor(token.colorSuccess, 0.25)}`;
-                                        }
-                                      }}
-                                      onMouseLeave={(e) => {
-                                        if (!isMobile) {
-                                          e.currentTarget.style.borderColor = token.colorSuccessBorder;
-                                          e.currentTarget.style.boxShadow = 'none';
-                                        }
-                                      }}
+                                      })}
                                     >
                                       <Tag
                                         color="green"
-                                        style={{
-                                          margin: 0,
-                                          fontSize: 10,
-                                          borderRadius: 4,
-                                          flexShrink: 0
-                                        }}
+                                        className="u-14q7mkq"
                                       >
                                         {idx + 1}
                                       </Tag>
-                                      <span style={{
-                                        flex: 1,
-                                        lineHeight: '1.6',
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                        whiteSpace: 'nowrap'
-                                      }}>{point}</span>
+                                      <span className="u-e1wyyr">{point}</span>
                                     </div>
                                   ))}
                                 </div>
@@ -2164,7 +1987,7 @@ export default function Outline() {
 
                             {/* ✨ 情感基调展示 (emotion) */}
                             {structureData.emotion && (
-                              <div style={{
+                              <div className={sx({
                                 marginTop: 12,
                                 padding: '10px 12px',
                                 background: token.colorWarningBg,
@@ -2173,17 +1996,17 @@ export default function Outline() {
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: 8
-                              }}>
-                                <span style={{
+                              })}>
+                                <span className={sx({
                                   fontSize: 13,
                                   fontWeight: 600,
                                   color: token.colorWarning
-                                }}>
+                                })}>
                                   💫 情感基调：
                                 </span>
                                 <Tag
                                   color="gold"
-                                  style={{
+                                  className={sx({
                                     margin: 0,
                                     fontSize: 12,
                                     padding: '2px 12px',
@@ -2191,7 +2014,7 @@ export default function Outline() {
                                     background: token.colorBgContainer,
                                     border: `1px solid ${token.colorWarningBorder}`,
                                     color: token.colorWarningText
-                                  }}
+                                  })}
                                 >
                                   {structureData.emotion}
                                 </Tag>
@@ -2200,22 +2023,22 @@ export default function Outline() {
 
                             {/* ✨ 叙事目标展示 (goal) */}
                             {structureData.goal && (
-                              <div style={{
+                              <div className={sx({
                                 marginTop: 12,
                                 padding: '10px 12px',
                                 background: token.colorInfoBg,
                                 borderLeft: `3px solid ${token.colorInfo}`,
                                 borderRadius: token.borderRadius
-                              }}>
-                                <div style={{
+                              })}>
+                                <div className={sx({
                                   fontSize: 13,
                                   fontWeight: 600,
                                   color: token.colorInfo,
                                   marginBottom: 6
-                                }}>
+                                })}>
                                   🎯 叙事目标
                                 </div>
-                                <div style={{
+                                <div className={sx({
                                   fontSize: 12,
                                   color: token.colorText,
                                   lineHeight: '1.6',
@@ -2226,7 +2049,7 @@ export default function Outline() {
                                   overflow: 'hidden',
                                   textOverflow: 'ellipsis',
                                   whiteSpace: 'nowrap'
-                                }}>
+                                })}>
                                   {structureData.goal}
                                 </div>
                               </div>
@@ -2238,14 +2061,14 @@ export default function Outline() {
                       />
 
                         {/* 操作按钮区域 - 在卡片内部 */}
-                        <div style={{
+                        <div className={sx({
                           marginTop: 16,
                           paddingTop: 12,
                           borderTop: `1px solid ${token.colorBorderSecondary}`,
                           display: 'flex',
                           justifyContent: 'flex-end',
                           gap: 8
-                        }}>
+                        })}>
                           {currentProject?.outline_mode === 'one-to-many' && (
                             <Button
                               icon={<BranchesOutlined />}
@@ -2290,7 +2113,7 @@ export default function Outline() {
         {/* 固定底部分页栏 */}
         {outlines.length > 0 && (
           <div
-            style={{
+            className={sx({
               position: 'sticky',
               bottom: 0,
               zIndex: 10,
@@ -2299,7 +2122,7 @@ export default function Outline() {
               padding: isMobile ? '8px 0' : '10px 0',
               display: 'flex',
               justifyContent: 'flex-end'
-            }}
+            })}
           >
             <Pagination
               current={outlinePage}

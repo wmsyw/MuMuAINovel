@@ -34,9 +34,11 @@ import {
   SearchOutlined,
   MoreOutlined,
 } from '@ant-design/icons';
+import { useIsMobile } from '../hooks/useMediaQuery';
 import { adminApi } from '../services/api';
 import type { User } from '../types';
 import UserMenu from '../components/common/UserMenu';
+import { sx } from '../styles/sx';
 
 const { Title, Text } = Typography;
 
@@ -183,7 +185,7 @@ export default function UserManagement() {
             <div>
               <p>用户名：<Text strong>{values.username}</Text></p>
               <p>初始密码：<Text strong copyable>{res.default_password}</Text></p>
-              <p style={{ color: token.colorError, marginTop: 16 }}>
+              <p className={sx({ color: token.colorError, marginTop: 16 })}>
                 ⚠️ 请复制密码并告知用户，此密码仅显示一次！
               </p>
             </div>
@@ -273,7 +275,7 @@ export default function UserManagement() {
           <div>
             <p>用户：<Text strong>{currentUser.username}</Text></p>
             <p>新密码：<Text strong copyable>{res.new_password}</Text></p>
-            <p style={{ color: token.colorError, marginTop: 16 }}>
+            <p className={sx({ color: token.colorError, marginTop: 16 })}>
               ⚠️ 请复制密码并告知用户！
             </p>
           </div>
@@ -302,7 +304,7 @@ export default function UserManagement() {
     }
   };
 
-  const isMobile = window.innerWidth <= 768;
+  const isMobile = useIsMobile();
 
   // 表格列定义
   const columns = [
@@ -315,7 +317,7 @@ export default function UserManagement() {
       sortOrder: sortField === 'username' ? sortOrder : null,
       render: (text: string) => (
         <Space>
-          <UserOutlined style={{ color: token.colorPrimary }} />
+          <UserOutlined className={sx({ color: token.colorPrimary })} />
           <Text strong>{text}</Text>
         </Space>
       ),
@@ -509,28 +511,20 @@ export default function UserManagement() {
   ];
 
   return (
-    <div style={{
+    <div className={sx({
       height: '100vh',
       background: `linear-gradient(180deg, ${token.colorBgLayout} 0%, ${alphaColor(token.colorPrimary, 0.08)} 100%)`,
       padding: isMobile ? '20px 16px' : '40px 24px',
       display: 'flex',
       flexDirection: 'column',
       overflow: 'hidden',
-    }}>
+    })}>
       {contextHolder}
-      <div style={{
-        maxWidth: 1400,
-        margin: '0 auto',
-        width: '100%',
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-      }}>
+      <div className="u-5a7lpi">
         {/* 顶部导航卡片 */}
         <Card
           variant="borderless"
-          style={{
+          className={sx({
             background: `linear-gradient(135deg, ${token.colorPrimary} 0%, ${alphaColor(token.colorPrimary, 0.8)} 50%, ${token.colorPrimaryHover} 100%)`,
             borderRadius: isMobile ? 16 : 24,
             boxShadow: `0 12px 40px ${alphaColor(token.colorPrimary, 0.25)}, 0 4px 12px ${alphaColor(token.colorText, 0.08)}`,
@@ -538,31 +532,31 @@ export default function UserManagement() {
             border: 'none',
             position: 'relative',
             overflow: 'hidden'
-          }}
+          })}
         >
           {/* 装饰性背景元素 */}
-          <div style={{ position: 'absolute', top: -60, right: -60, width: 200, height: 200, borderRadius: '50%', background: alphaColor(token.colorWhite, 0.08), pointerEvents: 'none' }} />
-          <div style={{ position: 'absolute', bottom: -40, left: '30%', width: 120, height: 120, borderRadius: '50%', background: alphaColor(token.colorWhite, 0.05), pointerEvents: 'none' }} />
-          <div style={{ position: 'absolute', top: '50%', right: '15%', width: 80, height: 80, borderRadius: '50%', background: alphaColor(token.colorWhite, 0.06), pointerEvents: 'none' }} />
+          <div className={sx({ position: 'absolute', top: -60, right: -60, width: 200, height: 200, borderRadius: '50%', background: alphaColor(token.colorWhite, 0.08), pointerEvents: 'none' })} />
+          <div className={sx({ position: 'absolute', bottom: -40, left: '30%', width: 120, height: 120, borderRadius: '50%', background: alphaColor(token.colorWhite, 0.05), pointerEvents: 'none' })} />
+          <div className={sx({ position: 'absolute', top: '50%', right: '15%', width: 80, height: 80, borderRadius: '50%', background: alphaColor(token.colorWhite, 0.06), pointerEvents: 'none' })} />
 
-          <Row align="middle" justify="space-between" gutter={[16, 16]} style={{ position: 'relative', zIndex: 1 }}>
+          <Row align="middle" justify="space-between" gutter={[16, 16]} className="u-5dyu45">
             <Col xs={24} sm={12}>
               <Space direction="vertical" size={4}>
-                <Title level={isMobile ? 3 : 2} style={{ margin: 0, color: token.colorWhite, textShadow: `0 2px 4px ${alphaColor(token.colorText, 0.2)}` }}>
-                  <TeamOutlined style={{ color: alphaColor(token.colorWhite, 0.9), marginRight: 12 }} />
+                <Title level={isMobile ? 3 : 2} className={sx({ margin: 0, color: token.colorWhite, textShadow: `0 2px 4px ${alphaColor(token.colorText, 0.2)}` })}>
+                  <TeamOutlined className={sx({ color: alphaColor(token.colorWhite, 0.9), marginRight: 12 })} />
                   用户管理
                 </Title>
-                <Text style={{ fontSize: isMobile ? 12 : 14, color: alphaColor(token.colorWhite, 0.85) }}>
+                <Text className={sx({ fontSize: isMobile ? 12 : 14, color: alphaColor(token.colorWhite, 0.85) })}>
                   管理系统用户和权限
                 </Text>
               </Space>
             </Col>
             <Col xs={24} sm={12}>
-              <Space size={12} style={{ display: 'flex', justifyContent: isMobile ? 'flex-start' : 'flex-end', width: '100%' }}>
+              <Space size={12} className={sx({ display: 'flex', justifyContent: isMobile ? 'flex-start' : 'flex-end', width: '100%' })}>
                 <Button
                   icon={<ArrowLeftOutlined />}
                   onClick={() => navigate('/')}
-                  style={{
+                  className={sx('user-management-back', {
                     borderRadius: 12,
                     background: alphaColor(token.colorWhite, 0.15),
                     border: `1px solid ${alphaColor(token.colorWhite, 0.3)}`,
@@ -570,15 +564,7 @@ export default function UserManagement() {
                     color: token.colorWhite,
                     backdropFilter: 'blur(10px)',
                     transition: 'all 0.3s ease'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = alphaColor(token.colorWhite, 0.25);
-                    e.currentTarget.style.transform = 'translateY(-1px)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = alphaColor(token.colorWhite, 0.15);
-                    e.currentTarget.style.transform = 'none';
-                  }}
+                  })}
                 >
                   返回主页
                 </Button>
@@ -586,14 +572,14 @@ export default function UserManagement() {
                   type="primary"
                   icon={<PlusOutlined />}
                   onClick={() => setModalVisible(true)}
-                  style={{
+                  className={sx({
                     borderRadius: 12,
                     background: alphaColor(token.colorWarning, 0.95),
                     border: `1px solid ${alphaColor(token.colorWhite, 0.3)}`,
                     boxShadow: `0 4px 16px ${alphaColor(token.colorWarning, 0.4)}`,
                     color: token.colorWhite,
                     fontWeight: 600
-                  }}
+                  })}
                 >
                   添加用户
                 </Button>
@@ -606,7 +592,7 @@ export default function UserManagement() {
         {/* 主内容卡片 */}
         <Card
           variant="borderless"
-          style={{
+          className={sx({
             background: alphaColor(token.colorBgContainer, 0.72),
             borderRadius: isMobile ? 16 : 24,
             border: `1px solid ${alphaColor(token.colorWhite, 0.45)}`,
@@ -616,7 +602,7 @@ export default function UserManagement() {
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
-          }}
+          })}
           bodyStyle={{
             padding: 0,
             height: '100%',
@@ -626,31 +612,25 @@ export default function UserManagement() {
           }}
         >
           {/* 搜索栏 */}
-          <div style={{
+          <div className={sx({
             padding: '16px 24px 0 24px',
             borderBottom: `1px solid ${alphaColor(token.colorText, 0.06)}`,
-          }}>
+          })}>
             <Input
               placeholder="搜索用户名、显示名称或用户ID"
-              prefix={<SearchOutlined style={{ color: token.colorTextTertiary }} />}
+              prefix={<SearchOutlined className={sx({ color: token.colorTextTertiary })} />}
               value={searchText}
               onChange={(e) => {
                 setSearchText(e.target.value);
                 setCurrentPage(1); // 搜索时重置到第一页
               }}
               allowClear
-              style={{
-                borderRadius: 8,
-              }}
+              className="u-xp90i1"
             />
           </div>
 
           {/* 表格区域 */}
-          <div style={{
-            flex: 1,
-            overflow: 'auto',
-            padding: '16px 24px 0 24px',
-          }}>
+          <div className="u-uthssj">
             <Table
               columns={columns}
               dataSource={sortedUsers.slice((currentPage - 1) * pageSize, currentPage * pageSize)}
@@ -677,13 +657,13 @@ export default function UserManagement() {
           </div>
 
           {/* 固定分页控件 */}
-          <div style={{
+          <div className={sx({
             padding: '16px 24px 24px 24px',
             borderTop: `1px solid ${alphaColor(token.colorText, 0.06)}`,
             background: 'transparent',
             display: 'flex',
             justifyContent: 'center',
-          }}>
+          })}>
             <Pagination
               current={currentPage}
               pageSize={pageSize}
@@ -706,7 +686,7 @@ export default function UserManagement() {
 
       {/* 添加用户对话框 */}
       <Modal
-        title={<span><PlusOutlined style={{ marginRight: 8 }} />添加用户</span>}
+        title={<span><PlusOutlined className="u-1vcwmpp" />添加用户</span>}
         open={modalVisible}
         onCancel={() => {
           setModalVisible(false);
@@ -769,7 +749,7 @@ export default function UserManagement() {
             name="trust_level"
             initialValue={0}
           >
-            <InputNumber min={0} max={9} style={{ width: '100%' }} />
+            <InputNumber min={0} max={9} className="u-1f3r3s" />
           </Form.Item>
 
           <Form.Item
@@ -780,12 +760,12 @@ export default function UserManagement() {
           >
             <Switch
               size={isMobile ? 'small' : 'default'}
-              style={{
+              className={sx({
                 flexShrink: 0,
                 height: isMobile ? 16 : 22,
                 minHeight: isMobile ? 16 : 22,
                 lineHeight: isMobile ? '16px' : '22px'
-              }}
+              })}
             />
           </Form.Item>
         </Form>
@@ -793,7 +773,7 @@ export default function UserManagement() {
 
       {/* 编辑用户对话框 */}
       <Modal
-        title={<span><EditOutlined style={{ marginRight: 8 }} />编辑用户</span>}
+        title={<span><EditOutlined className="u-1vcwmpp" />编辑用户</span>}
         open={editModalVisible}
         onCancel={() => {
           setEditModalVisible(false);
@@ -832,7 +812,7 @@ export default function UserManagement() {
             label="信任等级"
             name="trust_level"
           >
-            <InputNumber min={0} max={9} style={{ width: '100%' }} />
+            <InputNumber min={0} max={9} className="u-1f3r3s" />
           </Form.Item>
 
           <Form.Item
@@ -842,12 +822,12 @@ export default function UserManagement() {
           >
             <Switch
               size={isMobile ? 'small' : 'default'}
-              style={{
+              className={sx({
                 flexShrink: 0,
                 height: isMobile ? 16 : 22,
                 minHeight: isMobile ? 16 : 22,
                 lineHeight: isMobile ? '16px' : '22px'
-              }}
+              })}
             />
           </Form.Item>
         </Form>
@@ -855,7 +835,7 @@ export default function UserManagement() {
 
       {/* 重置密码对话框 */}
       <Modal
-        title={<span><KeyOutlined style={{ marginRight: 8 }} />重置密码</span>}
+        title={<span><KeyOutlined className="u-1vcwmpp" />重置密码</span>}
         open={resetPasswordModalVisible}
         onCancel={() => {
           setResetPasswordModalVisible(false);
@@ -867,7 +847,7 @@ export default function UserManagement() {
         okText="确认重置"
         cancelText="取消"
       >
-        <div style={{ marginBottom: 16 }}>
+        <div className="u-6srbul">
           <Text>用户：<Text strong>{currentUser?.username}</Text></Text>
         </div>
         <Form layout="vertical">

@@ -13,6 +13,7 @@ from app.services.ai_service import AIService
 from app.services.json_helper import loads_json
 from app.services.prompt_service import prompt_service, PromptService
 from app.logger import get_logger, safe_preview
+from app.services.world_setting_data_service import dynamic_world_setting_context
 
 logger = get_logger(__name__)
 
@@ -138,6 +139,9 @@ class PlotExpansionService:
             scene_instruction="",  # 暂时为空
             scene_field=""  # 暂时为空
         )
+        dynamic_context = dynamic_world_setting_context(project)
+        if dynamic_context:
+            prompt = f"{prompt}\n\n【动态世界设定】\n{dynamic_context}"
 
         # 调用AI生成章节规划
         logger.info(f"调用AI生成章节规划...")
@@ -273,6 +277,9 @@ class PlotExpansionService:
                 scene_instruction="", # 暂时为空
                 scene_field="" # 暂时为空
             )
+            dynamic_context = dynamic_world_setting_context(project)
+            if dynamic_context:
+                prompt = f"{prompt}\n\n【动态世界设定】\n{dynamic_context}"
 
             # 调用AI生成当前批次
             logger.info(f"调用AI生成第{batch_num + 1}批...")

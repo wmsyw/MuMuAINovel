@@ -25,6 +25,7 @@ from app.services.relationship_merge_service import RelationshipMergeService
 from app.logger import get_logger, safe_preview
 from app.utils.sse_response import SSEResponse, create_sse_response, WizardProgressTracker
 from app.api.settings import get_user_ai_service
+from app.services.world_setting_data_service import dynamic_world_setting_context, world_setting_context
 
 router = APIRouter(prefix="/wizard-stream", tags=["项目创建向导(流式)"])
 logger = get_logger(__name__)
@@ -157,6 +158,9 @@ async def world_building_generator(
             genre=genre or "通用类型",
             description=description or "暂无简介"
         )
+        existing_project = await get_owned_project(db, data.get("project_id"), user_id)
+        if existing_project:
+            base_prompt = f"{base_prompt}\n\n【当前动态世界设定】\n{world_setting_context(existing_project)}"
         inspiration_prompt = build_inspiration_context_prompt(data)
         if inspiration_prompt:
             base_prompt = f"{base_prompt}\n\n{inspiration_prompt}"
@@ -465,6 +469,9 @@ async def career_system_generator(
             atmosphere=world_data.get('atmosphere', '未设定'),
             rules=world_data.get('rules', '未设定')
         )
+        dynamic_context = dynamic_world_setting_context(project)
+        if dynamic_context:
+            career_prompt = f"{career_prompt}\n\n【动态世界设定】\n{dynamic_context}"
         
         estimated_total = 5000
         MAX_CAREER_RETRIES = 3  # 最多重试3次
@@ -874,6 +881,9 @@ async def characters_generator(
                         genre=genre or project.genre or "",
                         requirements=batch_requirements + careers_context  # 添加职业上下文
                     )
+                    dynamic_context = dynamic_world_setting_context(project)
+                    if dynamic_context:
+                        base_prompt = f"{base_prompt}\n\n【动态世界设定】\n{dynamic_context}"
                     
                     prompt = base_prompt
                     
@@ -1429,6 +1439,9 @@ async def outline_generator(
             mcp_references="",
             requirements=outline_requirements
         )
+        dynamic_context = dynamic_world_setting_context(project)
+        if dynamic_context:
+            outline_prompt = f"{outline_prompt}\n\n【动态世界设定】\n{dynamic_context}"
         inspiration_prompt = build_inspiration_context_prompt(data)
         if inspiration_prompt:
             outline_prompt = f"{outline_prompt}\n\n{inspiration_prompt}"
@@ -1694,6 +1707,9 @@ async def world_building_regenerate_generator(
             genre=project.genre or "通用",
             description=project.description or "暂无简介"
         )
+        dynamic_context = dynamic_world_setting_context(project)
+        if dynamic_context:
+            base_prompt = f"{base_prompt}\n\n【当前动态世界设定】\n{dynamic_context}"
         
         # 设置用户信息以启用MCP
         if user_id:

@@ -1,5 +1,6 @@
 """导入导出服务"""
 import json
+from copy import deepcopy
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Any
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -40,6 +41,11 @@ from app.services.character_card_service import (
     character_card_field_values,
     normalize_character_card_fields,
     validate_character_card_envelope,
+)
+from app.services.world_setting_data_service import (
+    WorldSettingDataError,
+    legacy_values_from_dynamic,
+    normalize_world_setting_data,
 )
 
 logger = get_logger(__name__)
@@ -84,7 +90,18 @@ class ImportExportService:
         if not project:
             raise ValueError(f"项目不存在: {project_id}")
         
-        # 项目基本信息
+        # 动态世界设定包含模板元数据、字段定义、自定义字段和值；不要丢失任何一部分。
+        world_setting_data = normalize_world_setting_data(
+            project.world_setting_data,
+            legacy_values={
+                "world_time_period": project.world_time_period,
+                "world_location": project.world_location,
+                "world_atmosphere": project.world_atmosphere,
+                "world_rules": project.world_rules,
+            },
+            default_template_name="基础世界设定",
+            require_required=False,
+        )
         project_data = {
             "title": project.title,
             "description": project.description,
@@ -97,6 +114,7 @@ class ImportExportService:
             "world_location": project.world_location,
             "world_atmosphere": project.world_atmosphere,
             "world_rules": project.world_rules,
+            "world_setting_data": deepcopy(world_setting_data),
             "chapter_count": project.chapter_count,
             "narrative_perspective": project.narrative_perspective,
             "character_count": project.character_count,
@@ -681,8 +699,20 @@ class ImportExportService:
             errors.append("缺少项目信息")
         else:
             project = data["project"]
-            if not project.get("title"):
-                errors.append("项目标题不能为空")
+            if not isinstance(project, dict):
+                errors.append("项目信息格式无效")
+            else:
+                if not project.get("title"):
+                    errors.append("项目标题不能为空")
+                try:
+                    normalize_world_setting_data(
+                        project.get("world_setting_data"),
+                        legacy_values=project,
+                        default_template_name="旧版世界设定",
+                        require_required=True,
+                    )
+                except WorldSettingDataError as exc:
+                    errors.append(f"动态世界设定无效: {exc}")
         
         # 统计数据（包含新增字段）
         statistics = {
@@ -756,6 +786,13 @@ class ImportExportService:
             
             # 创建项目
             project_data = data["project"]
+            world_setting_data = normalize_world_setting_data(
+                project_data.get("world_setting_data"),
+                legacy_values=project_data,
+                default_template_name="旧版世界设定",
+                require_required=True,
+            )
+            legacy_world_values = legacy_values_from_dynamic(world_setting_data["values"])
             new_project = Project(
                 user_id=user_id,  # 设置为当前用户ID
                 title=project_data.get("title"),
@@ -764,10 +801,11 @@ class ImportExportService:
                 genre=project_data.get("genre"),
                 target_words=project_data.get("target_words"),
                 status=project_data.get("status", "planning"),
-                world_time_period=project_data.get("world_time_period"),
-                world_location=project_data.get("world_location"),
-                world_atmosphere=project_data.get("world_atmosphere"),
-                world_rules=project_data.get("world_rules"),
+                world_time_period=legacy_world_values["world_time_period"],
+                world_location=legacy_world_values["world_location"],
+                world_atmosphere=legacy_world_values["world_atmosphere"],
+                world_rules=legacy_world_values["world_rules"],
+                world_setting_data=world_setting_data,
                 chapter_count=project_data.get("chapter_count"),
                 narrative_perspective=project_data.get("narrative_perspective"),
                 character_count=project_data.get("character_count"),

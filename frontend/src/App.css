@@ -5,15 +5,15 @@
 }
 
 /* 移动端按钮文本优化 */
-@media (max-width: 576px) {
+@media (max-width: 575px) {
   .button-text-mobile {
     font-size: 14px;
   }
-  
-  /* 小屏幕下按钮文字可以隐藏，只保留图标 */
-  @media (max-width: 480px) {
-    .button-text-mobile {
-      display: none;
-    }
+}
+
+/* 超小屏幕只保留按钮图标 */
+@media (max-width: 479px) {
+  .button-text-mobile {
+    display: none;
   }
 }

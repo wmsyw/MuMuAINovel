@@ -37,6 +37,7 @@ import type {
   VoicePersonaCreate,
   VoicePersonaPromptPreviewResponse,
 } from '../types';
+import { sx } from '../styles/sx';
 
 const { Paragraph, Text, Title } = Typography;
 const { TextArea } = Input;
@@ -274,7 +275,7 @@ export default function VoicePersonas() {
       title: '文风与约束',
       key: 'style_constraints',
       render: (_, item) => (
-        <Paragraph ellipsis={{ rows: 2, expandable: true, symbol: '展开' }} style={{ marginBottom: 0, whiteSpace: 'pre-wrap' }}>
+        <Paragraph ellipsis={{ rows: 2, expandable: true, symbol: '展开' }} className="u-19o9sm6">
           {[item.style, item.constraints].filter(Boolean).join('\n') || '未设置'}
         </Paragraph>
       ),
@@ -306,13 +307,13 @@ export default function VoicePersonas() {
   const renderPreview = () => {
     const trace = preview?.trace;
     return (
-      <Card title="Prompt Trace 预览" style={{ borderRadius: token.borderRadiusLG, border: `1px solid ${token.colorBorderSecondary}` }}>
-        <Space direction="vertical" style={{ width: '100%' }} size={token.marginSM}>
+      <Card title="Prompt Trace 预览" className={sx({ borderRadius: token.borderRadiusLG, border: `1px solid ${token.colorBorderSecondary}` })}>
+        <Space direction="vertical" className="u-1f3r3s" size={token.marginSM}>
           <Row gutter={[token.marginSM, token.marginSM]}>
             <Col xs={24} md={8}>
               <Text strong>选择声音画像</Text>
               <Select
-                style={{ width: '100%', marginTop: token.marginXS }}
+                className={sx({ width: '100%', marginTop: token.marginXS })}
                 placeholder="选择画像"
                 value={previewPersonaId}
                 onChange={setPreviewPersonaId}
@@ -323,7 +324,7 @@ export default function VoicePersonas() {
               <Text strong>应用会话（可选）</Text>
               <Select
                 allowClear
-                style={{ width: '100%', marginTop: token.marginXS }}
+                className={sx({ width: '100%', marginTop: token.marginXS })}
                 placeholder="项目级或选择会话"
                 value={previewSessionId || selectedSessionId}
                 onChange={value => setPreviewSessionId(value)}
@@ -332,7 +333,7 @@ export default function VoicePersonas() {
             </Col>
             <Col xs={24} md={8}>
               <Text strong>应用到预览 Prompt</Text>
-              <div style={{ marginTop: token.marginXS }}>
+              <div className={sx({ marginTop: token.marginXS })}>
                 <Switch
                   checked={previewInjectionEnabled}
                   onChange={setPreviewInjectionEnabled}
@@ -357,9 +358,9 @@ export default function VoicePersonas() {
           </Space>
 
           {trace ? (
-            <Space direction="vertical" style={{ width: '100%' }} size={token.marginSM}>
+            <Space direction="vertical" className="u-1f3r3s" size={token.marginSM}>
               <Card size="small" title="Trace 摘要">
-                <Space direction="vertical" style={{ width: '100%' }}>
+                <Space direction="vertical" className="u-1f3r3s">
                   <div><Text type="secondary">Trace ID：</Text><Tag>{trace.trace_id}</Tag></div>
                   <div><Text type="secondary">画像 ID：</Text><Tag>{trace.selected_voice_persona_id}</Tag></div>
                   <div><Text type="secondary">顺序：</Text><Tag>order {trace.items[0]?.order}</Tag><Tag>source_order {trace.source_order}</Tag></div>
@@ -367,12 +368,12 @@ export default function VoicePersonas() {
                 </Space>
               </Card>
               <Card size="small" title="最终声音画像文本">
-                <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, fontSize: 13 }}>
+                <pre className="u-1kda7dj">
                   {trace.final_preview_text}
                 </pre>
               </Card>
               <Card size="small" title="预览 Prompt">
-                <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, fontSize: 13 }}>
+                <pre className="u-1kda7dj">
                   {preview.preview_prompt || '未启用注入预览，基础提示词保持不变。'}
                 </pre>
               </Card>
@@ -386,15 +387,15 @@ export default function VoicePersonas() {
   };
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: token.paddingMD }}>
+    <div className={sx({ height: '100%', display: 'flex', flexDirection: 'column', gap: token.paddingMD })}>
       <Card>
-        <Space align="start" style={{ width: '100%', justifyContent: 'space-between' }} wrap>
+        <Space align="start" className="u-1qos3j5" wrap>
           <Space direction="vertical" size={4}>
             <Space>
-              <SoundOutlined style={{ color: token.colorPrimary, fontSize: 24 }} />
-              <Title level={3} style={{ margin: 0 }}>旁白声音画像</Title>
+              <SoundOutlined className={sx({ color: token.colorPrimary, fontSize: 24 })} />
+              <Title level={3} className="u-avalr8">旁白声音画像</Title>
             </Space>
-            <Paragraph type="secondary" style={{ marginBottom: 0 }}>
+            <Paragraph type="secondary" className="u-1sezbee">
               记录项目或单个创作会话的叙述语气、文风、视角和写作约束。它只作为作者侧声音 Profile 进入 Prompt Trace，不承载对话身份或互动状态。
             </Paragraph>
           </Space>
@@ -403,7 +404,7 @@ export default function VoicePersonas() {
               allowClear
               placeholder="按会话查看"
               value={selectedSessionId}
-              style={{ minWidth: 220 }}
+              className="u-1376ovb"
               onChange={value => {
                 setSelectedSessionId(value);
                 setPreviewSessionId(value);
@@ -420,7 +421,7 @@ export default function VoicePersonas() {
 
       {error && <Alert type="warning" showIcon message={error} />}
 
-      <Card style={{ flex: 1, minHeight: 0, overflow: 'hidden' }} bodyStyle={{ height: '100%', overflow: 'auto' }}>
+      <Card className="u-1tqrzca" bodyStyle={{ height: '100%', overflow: 'auto' }}>
         <Table<VoicePersona>
           rowKey="id"
           columns={columns}
@@ -447,7 +448,7 @@ export default function VoicePersonas() {
         <Alert
           type="info"
           showIcon
-          style={{ marginBottom: token.marginMD }}
+          className={sx({ marginBottom: token.marginMD })}
           message="作者侧声音 Profile"
           description="只保存旁白创作指令：语气、文风、POV 和约束。服务端会按项目/会话校验，避免扩散成全局可变状态。"
         />
@@ -472,7 +473,7 @@ export default function VoicePersonas() {
           <Row gutter={token.marginMD}>
             <Col xs={24} md={12}>
               <Form.Item name="sort_order" label="显示顺序">
-                <InputNumber style={{ width: '100%' }} min={0} precision={0} />
+                <InputNumber className="u-1f3r3s" min={0} precision={0} />
               </Form.Item>
             </Col>
             <Col xs={24} md={12}>

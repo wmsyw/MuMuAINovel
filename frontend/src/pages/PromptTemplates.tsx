@@ -28,7 +28,9 @@ import {
   InfoCircleOutlined
 } from '@ant-design/icons';
 import axios from 'axios';
-import { promptTemplateCardStyles, promptTemplateCardHoverHandlers, promptTemplateGridConfig } from '../components/common/CardStyles';
+import { promptTemplateCardStyles, promptTemplateCardClassName, promptTemplateGridConfig } from '../components/common/CardStyles';
+import { useIsMobile } from '../hooks/useMediaQuery';
+import { sx } from '../styles/sx';
 
 const { TextArea } = Input;
 const { Title, Text, Paragraph } = Typography;
@@ -62,7 +64,7 @@ export default function PromptTemplates() {
   const [editorVisible, setEditorVisible] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const isMobile = window.innerWidth <= 768;
+  const isMobile = useIsMobile();
 
   // 加载模板数据
   const loadTemplates = async () => {
@@ -218,11 +220,11 @@ export default function PromptTemplates() {
           centered: true,
           content: (
             <div>
-              <p style={{ marginBottom: 16 }}>{successMsg}</p>
+              <p className="u-6srbul">{successMsg}</p>
               {result.converted_templates.length > 0 && (
                 <div>
-                  <p style={{ fontWeight: 'bold', marginBottom: 8 }}>以下模板内容与系统默认不一致，已转为自定义：</p>
-                  <ul style={{ marginLeft: 20 }}>
+                  <p className="u-1gs80nf">以下模板内容与系统默认不一致，已转为自定义：</p>
+                  <ul className="u-ishgxs">
                     {result.converted_templates.map((t: { template_key: string; template_name: string }) => (
                       <li key={t.template_key}>
                         {t.template_name} ({t.template_key})
@@ -254,25 +256,18 @@ export default function PromptTemplates() {
   return (
     <>
       {contextHolder}
-      <div style={{
+      <div className={sx({
       minHeight: '90vh',
       background: pageBackground,
       padding: isMobile ? '20px 16px 70px' : '24px 24px 70px',
       display: 'flex',
       flexDirection: 'column',
-    }}>
-      <div style={{
-        maxWidth: 1400,
-        margin: '0 auto',
-        width: '100%',
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-      }}>
+    })}>
+      <div className="u-6fn1p3">
         {/* 顶部导航卡片 */}
         <Card
           variant="borderless"
-          style={{
+          className={sx({
             background: headerBackground,
             borderRadius: isMobile ? 16 : 24,
             boxShadow: token.boxShadowSecondary,
@@ -280,32 +275,32 @@ export default function PromptTemplates() {
             border: 'none',
             position: 'relative',
             overflow: 'hidden'
-          }}
+          })}
         >
           {/* 装饰性背景元素 */}
-          <div style={{ position: 'absolute', top: -60, right: -60, width: 200, height: 200, borderRadius: '50%', background: token.colorWhite, opacity: 0.08, pointerEvents: 'none' }} />
-          <div style={{ position: 'absolute', bottom: -40, left: '30%', width: 120, height: 120, borderRadius: '50%', background: token.colorWhite, opacity: 0.05, pointerEvents: 'none' }} />
-          <div style={{ position: 'absolute', top: '50%', right: '15%', width: 80, height: 80, borderRadius: '50%', background: token.colorWhite, opacity: 0.06, pointerEvents: 'none' }} />
+          <div className={sx({ position: 'absolute', top: -60, right: -60, width: 200, height: 200, borderRadius: '50%', background: token.colorWhite, opacity: 0.08, pointerEvents: 'none' })} />
+          <div className={sx({ position: 'absolute', bottom: -40, left: '30%', width: 120, height: 120, borderRadius: '50%', background: token.colorWhite, opacity: 0.05, pointerEvents: 'none' })} />
+          <div className={sx({ position: 'absolute', top: '50%', right: '15%', width: 80, height: 80, borderRadius: '50%', background: token.colorWhite, opacity: 0.06, pointerEvents: 'none' })} />
 
-          <Row align="middle" justify="space-between" gutter={[16, 16]} style={{ position: 'relative', zIndex: 1 }}>
+          <Row align="middle" justify="space-between" gutter={[16, 16]} className="u-5dyu45">
             <Col xs={24} sm={12} md={14}>
               <Space direction="vertical" size={4}>
-                <Title level={isMobile ? 3 : 2} style={{ margin: 0, color: token.colorWhite, textShadow: `0 2px 4px ${token.colorBgMask}` }}>
-                  <FileSearchOutlined style={{ color: token.colorWhite, opacity: 0.9, marginRight: 8 }} />
+                <Title level={isMobile ? 3 : 2} className={sx({ margin: 0, color: token.colorWhite, textShadow: `0 2px 4px ${token.colorBgMask}` })}>
+                  <FileSearchOutlined className={sx({ color: token.colorWhite, opacity: 0.9, marginRight: 8 })} />
                   提示词模板管理
                 </Title>
-                <Text style={{ fontSize: isMobile ? 12 : 14, color: token.colorTextLightSolid, opacity: 0.85, marginLeft: isMobile ? 40 : 48 }}>
+                <Text className={sx({ fontSize: isMobile ? 12 : 14, color: token.colorTextLightSolid, opacity: 0.85, marginLeft: isMobile ? 40 : 48 })}>
                   按账户隔离自定义AI生成提示词
                 </Text>
               </Space>
             </Col>
             <Col xs={24} sm={12} md={10}>
-              <Space wrap style={{ justifyContent: isMobile ? 'flex-start' : 'flex-end', width: '100%' }}>
+              <Space wrap className={sx({ justifyContent: isMobile ? 'flex-start' : 'flex-end', width: '100%' })}>
                 <Button
                   icon={<DownloadOutlined />}
                   onClick={handleExport}
                   size={isMobile ? 'small' : 'middle'}
-                  style={{
+                  className={sx({
                     borderRadius: 12,
                     background: token.colorWhite,
                     border: `1px solid ${token.colorWhite}`,
@@ -314,7 +309,7 @@ export default function PromptTemplates() {
                     fontWeight: 600,
                     backdropFilter: 'blur(10px)',
                     transition: 'all 0.3s ease'
-                  }}
+                  })}
                 >
                   导出配置
                 </Button>
@@ -326,7 +321,7 @@ export default function PromptTemplates() {
                   <Button
                     icon={<UploadOutlined />}
                     size={isMobile ? 'small' : 'middle'}
-                    style={{
+                    className={sx({
                       borderRadius: 12,
                       background: token.colorWhite,
                       border: `1px solid ${token.colorWhite}`,
@@ -334,7 +329,7 @@ export default function PromptTemplates() {
                       color: token.colorPrimary,
                       fontWeight: 600,
                       backdropFilter: 'blur(10px)',
-                    }}
+                    })}
                   >
                     导入配置
                   </Button>
@@ -347,44 +342,44 @@ export default function PromptTemplates() {
           <Alert
             message={
               <Space align="center">
-                <InfoCircleOutlined style={{ fontSize: 16, color: token.colorPrimary }} />
-                <Text strong style={{ fontSize: isMobile ? 13 : 14 }}>使用说明</Text>
+                <InfoCircleOutlined className={sx({ fontSize: 16, color: token.colorPrimary })} />
+                <Text strong className={sx({ fontSize: isMobile ? 13 : 14 })}>使用说明</Text>
               </Space>
             }
             description={
               <div>
-                <Text style={{ fontSize: isMobile ? 12 : 13, display: 'block', marginBottom: 8 }}>
+                <Text className={sx({ fontSize: isMobile ? 12 : 13, display: 'block', marginBottom: 8 })}>
                   • <strong>系统默认模板</strong>（灰色头部）：始终启用，无需手动开关。点击"编辑"后将创建仅当前账户生效的自定义副本。
                 </Text>
-                <Text style={{ fontSize: isMobile ? 12 : 13, display: 'block' }}>
+                <Text className={sx({ fontSize: isMobile ? 12 : 13, display: 'block' })}>
                   • <strong>已自定义模板</strong>（紫色头部）：仅当前账户生效，可通过开关控制启用/禁用，使用 <Text code>{'{variable_name}'}</Text> 格式表示变量占位符。点击"重置"可恢复为系统默认。
                 </Text>
               </div>
             }
             type="info"
             showIcon={false}
-            style={{
+            className={sx({
               marginTop: isMobile ? 16 : 24,
               borderRadius: 12,
               background: token.colorInfoBg,
               border: `1px solid ${token.colorInfoBorder}`
-            }}
+            })}
           />
         </Card>
 
         {/* 主内容区 */}
-        <div style={{ flex: 1 }}>
+        <div className="u-e4rq7y">
           <Spin spinning={loading}>
             {/* 分类标签 */}
             {categories.length > 0 && (
               <Card
                 variant="borderless"
-                style={{
+                className={sx({
                   background: token.colorBgContainer,
                   borderRadius: isMobile ? 12 : 16,
                   boxShadow: token.boxShadowSecondary,
                   marginBottom: isMobile ? 16 : 24
-                }}
+                })}
                 styles={{ body: { padding: isMobile ? '12px' : '16px' } }}
               >
                 <Tabs
@@ -405,15 +400,15 @@ export default function PromptTemplates() {
             {currentTemplates.length === 0 ? (
               <Card
                 variant="borderless"
-                style={{
+                className={sx({
                   background: token.colorBgContainer,
                   borderRadius: isMobile ? 12 : 16,
                   boxShadow: token.boxShadowSecondary,
-                }}
+                })}
               >
                 <Empty
                   description="暂无模板数据"
-                  style={{ padding: '80px 0' }}
+                  className="u-m8n68v"
                 />
               </Card>
             ) : (
@@ -423,21 +418,20 @@ export default function PromptTemplates() {
                     <Card
                       hoverable
                       variant="borderless"
-                      style={promptTemplateCardStyles.templateCard}
+                      className={sx(promptTemplateCardClassName, promptTemplateCardStyles.templateCard)}
                       styles={{ body: { padding: 0, overflow: 'hidden' } }}
-                      {...promptTemplateCardHoverHandlers}
                     >
                       {/* 头部 */}
-                      <div style={{
+                      <div className={sx({
                         background: template.is_system_default
                           ? token.colorFillTertiary
                           : token.colorPrimary,
                         padding: isMobile ? '16px' : '20px',
                         position: 'relative'
-                      }}>
-                        <Space direction="vertical" size={8} style={{ width: '100%' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <Title level={isMobile ? 5 : 4} style={{ margin: 0, color: template.is_system_default ? token.colorText : token.colorWhite, flex: 1 }} ellipsis>
+                      })}>
+                        <Space direction="vertical" size={8} className="u-1f3r3s">
+                          <div className="u-tkfywx">
+                            <Title level={isMobile ? 5 : 4} className={sx({ margin: 0, color: template.is_system_default ? token.colorText : token.colorWhite, flex: 1 })} ellipsis>
                               {template.template_name}
                             </Title>
                             {!template.is_system_default && (
@@ -445,15 +439,15 @@ export default function PromptTemplates() {
                                 checked={template.is_active}
                                 onChange={(checked) => handleToggleActive(template, checked)}
                                 size={isMobile ? 'small' : 'default'}
-                                style={{ marginLeft: 8 }}
+                                className="u-12ggiv4"
                               />
                             )}
                           </div>
                           <Space wrap>
-                            <Tag color={template.is_system_default ? 'default' : 'rgba(255,255,255,0.3)'} style={{ color: template.is_system_default ? token.colorTextSecondary : token.colorWhite, border: 'none' }}>
+                            <Tag color={template.is_system_default ? 'default' : 'rgba(255,255,255,0.3)'} className={sx({ color: template.is_system_default ? token.colorTextSecondary : token.colorWhite, border: 'none' })}>
                               {template.category}
                             </Tag>
-                            <Tag color={template.is_system_default ? 'default' : 'rgba(255,255,255,0.3)'} style={{ color: template.is_system_default ? token.colorTextSecondary : token.colorWhite, border: 'none' }}>
+                            <Tag color={template.is_system_default ? 'default' : 'rgba(255,255,255,0.3)'} className={sx({ color: template.is_system_default ? token.colorTextSecondary : token.colorWhite, border: 'none' })}>
                               {template.is_system_default ? '系统默认' : '已自定义'}
                             </Tag>
                           </Space>
@@ -461,16 +455,16 @@ export default function PromptTemplates() {
                       </div>
 
                       {/* 内容 */}
-                      <div style={{ padding: isMobile ? '16px' : '20px' }}>
+                      <div className={sx({ padding: isMobile ? '16px' : '20px' })}>
                         <Paragraph
                           type="secondary"
                           ellipsis={{ rows: 3 }}
-                          style={{ minHeight: 66, marginBottom: 16 }}
+                          className="u-rlqyeh"
                         >
                           {template.description || '暂无描述'}
                         </Paragraph>
 
-                        <Space wrap style={{ marginBottom: 16 }}>
+                        <Space wrap className="u-6srbul">
                           <Tag
                             icon={<CheckCircleOutlined />}
                             color={template.is_system_default || template.is_active ? 'success' : 'default'}
@@ -479,18 +473,18 @@ export default function PromptTemplates() {
                           </Tag>
                         </Space>
 
-                        <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 16 }}>
+                        <Text type="secondary" className="u-1cmexky">
                           模板键: {template.template_key}
                         </Text>
 
                         {/* 操作按钮 */}
-                        <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+                        <Space className="u-1qos3j5">
                           <Button
                             type="primary"
                             icon={<EditOutlined />}
                             onClick={() => handleEdit(template)}
                             size={isMobile ? 'small' : 'middle'}
-                            style={{ borderRadius: 6 }}
+                            className="u-1x33gzz"
                           >
                             编辑
                           </Button>
@@ -498,7 +492,7 @@ export default function PromptTemplates() {
                             icon={<ReloadOutlined />}
                             onClick={() => handleReset(template.template_key)}
                             size={isMobile ? 'small' : 'middle'}
-                            style={{ borderRadius: 6 }}
+                            className="u-1x33gzz"
                           >
                             重置
                           </Button>
@@ -524,7 +518,7 @@ export default function PromptTemplates() {
         confirmLoading={loading}
         okText="保存"
         cancelText="取消"
-        style={isMobile ? { top: 0, paddingBottom: 0, maxWidth: '100vw' } : undefined}
+        className={sx(isMobile ? { top: 0, paddingBottom: 0, maxWidth: '100vw' } : undefined)}
         styles={isMobile ? {
           body: {
             maxHeight: 'calc(100vh - 110px)',
@@ -533,9 +527,9 @@ export default function PromptTemplates() {
           }
         } : undefined}
       >
-        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+        <Space direction="vertical" className="u-1f3r3s" size="middle">
           <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500 }}>模板名称</label>
+            <label className="u-1lnguzq">模板名称</label>
             <Input
               value={editingTemplate?.template_name || ''}
               onChange={(e) => setEditingTemplate(prev => prev ? { ...prev, template_name: e.target.value } : null)}
@@ -544,7 +538,7 @@ export default function PromptTemplates() {
           </div>
 
           <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500 }}>描述</label>
+            <label className="u-1lnguzq">描述</label>
             <TextArea
               value={editingTemplate?.description || ''}
               onChange={(e) => setEditingTemplate(prev => prev ? { ...prev, description: e.target.value } : null)}
@@ -554,12 +548,12 @@ export default function PromptTemplates() {
           </div>
 
           <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500 }}>模板内容</label>
+            <label className="u-1lnguzq">模板内容</label>
             <TextArea
               value={editingTemplate?.template_content || ''}
               onChange={(e) => setEditingTemplate(prev => prev ? { ...prev, template_content: e.target.value } : null)}
               rows={isMobile ? 15 : 20}
-              style={{ fontFamily: 'monospace', fontSize: '13px' }}
+              className="u-1vsi3qm"
               placeholder="输入提示词模板内容..."
             />
           </div>
@@ -568,7 +562,7 @@ export default function PromptTemplates() {
             message="提示：使用 {variable_name} 格式表示变量占位符"
             type="info"
             showIcon
-            style={{ borderRadius: 8 }}
+            className="u-xp90i1"
           />
         </Space>
       </Modal>

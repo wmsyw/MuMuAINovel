@@ -438,3 +438,76 @@ def test_merge_cards_rejects_one_or_three_cards_before_ai_call(
         assert detail["details"] == {"expected_count": 2, "actual_count": len(invalid_cards)}
 
     assert fake_ai.calls == []
+
+
+def test_batch_generation_forwards_platform_channel_and_refinement_context(
+    api_client: tuple[TestClient, FakeAIService],
+) -> None:
+    client, fake_ai = api_client
+    fake_ai.queue_json(_cards_payload([
+        _direction_card("batch_card_1"),
+        _direction_card("batch_card_2"),
+        _direction_card("batch_card_3"),
+    ]))
+    previous_card = _direction_card("previous_card_1", title="上一批方向")
+
+    response = client.post(
+        "/api/inspiration/batch-generate",
+        json={
+            "base_idea": "被逐出宗门的阵法师重返故乡",
+            "platform": "qidian",
+            "channel": "男频",
+            "genre_tags": ["玄幻", "升级"],
+            "plot_keywords": ["复仇", "成长"],
+            "character_traits": ["冷静", "坚韧"],
+            "count": 3,
+            "extra_requirement": "强化开局危机",
+            "previous_cards": [previous_card],
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert len(payload["ideas"]) == 3
+    assert payload["generation_meta"] == {
+        "count": 3,
+        "requested_count": 3,
+        "platform": "qidian",
+        "channel": "男频",
+        "extra_requirement": "强化开局危机",
+        "filters": {
+            "genre_tags": ["玄幻", "升级"],
+            "plot_keywords": ["复仇", "成长"],
+            "character_traits": ["冷静", "坚韧"],
+        },
+        "warnings": [],
+    }
+    system_prompt = fake_ai.calls[0]["system_prompt"]
+    assert "目标平台：起点中文网（qidian）" in system_prompt
+    assert "题材频道：男频" in system_prompt
+    assert "强化开局危机" in system_prompt
+    assert "上一批方向" in system_prompt
+
+
+@pytest.mark.parametrize(
+    "invalid_payload",
+    [
+        {"base_idea": "   "},
+        {"base_idea": "a" * 2001},
+        {"base_idea": "有效创意", "genre_tags": ["a" * 31]},
+        {"base_idea": "有效创意", "plot_keywords": ["   "]},
+        {"base_idea": "有效创意", "character_traits": ["角色"] * 6},
+        {"base_idea": "有效创意", "extra_requirement": "a" * 501},
+    ],
+)
+def test_batch_generation_rejects_blank_or_oversized_input_before_ai_call(
+    api_client: tuple[TestClient, FakeAIService],
+    invalid_payload: dict[str, Any],
+) -> None:
+    client, fake_ai = api_client
+
+    response = client.post("/api/inspiration/batch-generate", json=invalid_payload)
+
+    assert response.status_code == 422
+    assert response.json().get("detail")
+    assert fake_ai.calls == []

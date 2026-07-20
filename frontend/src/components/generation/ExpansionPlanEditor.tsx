@@ -205,8 +205,8 @@ export default function ExpansionPlanEditor({
           tooltip="至少添加一个关键事件"
           required
         >
-          <Space direction="vertical" style={{ width: '100%' }}>
-            <Space.Compact style={{ width: '100%' }}>
+          <Space direction="vertical" className="u-1f3r3s">
+            <Space.Compact className="u-1f3r3s">
               <Input
                 placeholder="输入关键事件后按回车或点击添加"
                 value={keyEventInput}
@@ -231,9 +231,9 @@ export default function ExpansionPlanEditor({
                     setKeyEvents(keyEvents.filter((_, i) => i !== idx));
                   }}
                   color="purple"
-                  style={{ marginBottom: 8 }}
+                  className="u-1jeouum"
                 >
-                  <span style={{ fontWeight: 'bold', marginRight: 4 }}>#{idx + 1}</span>
+                  <span className="u-9nm99q">#{idx + 1}</span>
                   {event}
                 </Tag>
               ))}
@@ -247,10 +247,10 @@ export default function ExpansionPlanEditor({
           tooltip="从项目现有角色中选择"
           required
         >
-          <Space direction="vertical" style={{ width: '100%' }}>
+          <Space direction="vertical" className="u-1f3r3s">
             <Select
               placeholder="选择角色"
-              style={{ width: '100%' }}
+              className="u-1f3r3s"
               loading={loadingCharacters}
               onChange={handleAddCharacter}
               value={undefined}
@@ -325,7 +325,7 @@ export default function ExpansionPlanEditor({
             min={500}
             max={10000}
             step={100}
-            style={{ width: '100%' }}
+            className="u-1f3r3s"
             formatter={(value) => `${value} 字`}
             parser={(value) => Number(value?.replace(' 字', '')) as 500 | 10000}
           />

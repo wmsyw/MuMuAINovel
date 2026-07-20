@@ -13,6 +13,7 @@ import {
 } from '@ant-design/icons';
 import { getProjectTasks, cancelTask, cancelBatchTask, deleteTask, clearProjectTasks, type TaskStatus } from '../services/backgroundTaskService';
 import { eventBus } from '../store/eventBus';
+import { sx } from '../styles/sx';
 
 interface FloatingTaskPanelProps {
   projectId: string;
@@ -172,7 +173,7 @@ export const FloatingTaskPanel: React.FC<FloatingTaskPanelProps> = ({
 
   return (
     <div
-      style={{
+      className={sx({
         position: 'fixed',
         bottom: 10,
         right: 23,
@@ -183,7 +184,7 @@ export const FloatingTaskPanel: React.FC<FloatingTaskPanelProps> = ({
         borderRadius: token.borderRadiusLG,
         overflow: 'hidden',
         transition: 'all 0.3s ease',
-      }}
+      })}
     >
       <Card
         size="small"
@@ -252,13 +253,13 @@ export const FloatingTaskPanel: React.FC<FloatingTaskPanelProps> = ({
                 renderItem={(task: TaskStatus) => (
                   <List.Item
                     key={task.id}
-                    style={{
+                    className={sx({
                       padding: '8px 0',
                       borderBottom: `1px solid ${token.colorBorderSecondary}`,
-                    }}
+                    })}
                   >
-                    <div style={{ width: '100%' }}>
-                      <div style={{ marginBottom: 4 }}>
+                    <div className="u-1f3r3s">
+                      <div className="u-ohn8hu">
                         <Space size={4} wrap>
                           {getTaskStatusTag(task.status)}
                           <Tag color="blue">{getTaskTypeLabel(task.task_type)}</Tag>
@@ -267,11 +268,11 @@ export const FloatingTaskPanel: React.FC<FloatingTaskPanelProps> = ({
 
                       {task.status_message && (
                         <div
-                          style={{
+                          className={sx({
                             fontSize: 12,
                             color: token.colorTextSecondary,
                             marginBottom: 4,
-                          }}
+                          })}
                         >
                           {task.status_message}
                         </div>
@@ -282,23 +283,23 @@ export const FloatingTaskPanel: React.FC<FloatingTaskPanelProps> = ({
                           percent={task.progress}
                           size="small"
                           status={task.status === 'running' ? 'active' : 'normal'}
-                          style={{ marginBottom: 4 }}
+                          className="u-ohn8hu"
                         />
                       )}
 
                       {task.error_message && (
                         <div
-                          style={{
+                          className={sx({
                             fontSize: 12,
                             color: token.colorError,
                             marginBottom: 4,
-                          }}
+                          })}
                         >
                           错误: {task.error_message}
                         </div>
                       )}
 
-                      <div style={{ marginTop: 8 }}>
+                      <div className="u-u35y5u">
                         <Space size={4}>
                           {(task.status === 'running' || task.status === 'pending') && (
                             <Popconfirm

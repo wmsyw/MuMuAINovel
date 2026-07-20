@@ -36,6 +36,7 @@ from app.services.memory_service import memory_service
 from app.logger import get_logger
 from app.api.settings import get_user_ai_service
 from app.utils.sse_response import SSEResponse, create_sse_response, WizardProgressTracker
+from app.services.world_setting_data_service import dynamic_world_setting_context
 
 router = APIRouter(prefix="/outlines", tags=["大纲管理"])
 logger = get_logger(__name__)
@@ -495,6 +496,9 @@ async def _build_outline_continue_context(
             f"世界规则：{project.world_rules or '未设定'}",
             f"叙事视角：{project.narrative_perspective or '第三人称'}"
         ]
+        dynamic_context = dynamic_world_setting_context(project)
+        if dynamic_context:
+            project_info_parts.extend(["", dynamic_context])
         context['project_info'] = "\n".join(project_info_parts)
         
         # 2. 最近10章的完整大纲structure（解析JSON转化为文本）
@@ -1096,6 +1100,9 @@ async def new_outline_generator(
             requirements=data.get("requirements") or "",
             mcp_references=""
         )
+        dynamic_context = dynamic_world_setting_context(project)
+        if dynamic_context:
+            prompt = f"{prompt}\n\n【动态世界设定】\n{dynamic_context}"
         logger.debug(f"大纲生成提示词完成: prompt_length={len(prompt)}")
         # 添加调试日志
         model_param = data.get("model")
@@ -1559,6 +1566,9 @@ async def continue_outline_generator(
                 requirements=data.get("requirements", ""),
                 mcp_references=""
             )
+            dynamic_context = dynamic_world_setting_context(project)
+            if dynamic_context:
+                prompt = f"{prompt}\n\n【动态世界设定】\n{dynamic_context}"
             logger.debug(f"续写提示词完成: batch={batch_num + 1}, prompt_length={len(prompt)}")
             # 调用AI生成当前批次
             model_param = data.get("model")
@@ -1913,6 +1923,9 @@ async def _run_new_outline_bg(
         requirements=data.get("requirements") or "",
         mcp_references=""
     )
+    dynamic_context = dynamic_world_setting_context(project)
+    if dynamic_context:
+        prompt = f"{prompt}\n\n【动态世界设定】\n{dynamic_context}"
 
     model_param = data.get("model")
     provider_param = data.get("provider")
@@ -2149,6 +2162,9 @@ async def _run_continue_outline_bg(
             requirements=data.get("requirements", ""),
             mcp_references=""
         )
+        dynamic_context = dynamic_world_setting_context(project)
+        if dynamic_context:
+            prompt = f"{prompt}\n\n【动态世界设定】\n{dynamic_context}"
 
         accumulated_text = ""
         chunk_count = 0

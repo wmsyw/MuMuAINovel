@@ -4,6 +4,7 @@ import { SaveOutlined, DeleteOutlined, ReloadOutlined, InfoCircleOutlined, Check
 import { settingsApi, mcpPluginApi } from '../services/api';
 import type { SettingsUpdate, APIKeyPreset, PresetCreateRequest, APIKeyPresetConfig, ReasoningCapabilitiesResponse, ReasoningCapability, ReasoningIntensity } from '../types';
 import { eventBus, EventNames } from '../store/eventBus';
+import { sx } from '../styles/sx';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -24,10 +25,30 @@ const REASONING_INTENSITY_LABELS: Record<ReasoningIntensity, string> = {
 const DEFAULT_REASONING_INTENSITY: ReasoningIntensity = 'auto';
 const ENTITY_GENERATION_WARNING_COPY = '默认从正文自动提取角色/组织/职业；开启后才允许 AI 直接生成入库';
 
-const normalizeReasoningProvider = (provider?: string) => {
-  const normalized = (provider || '').trim().toLowerCase();
-  return normalized === 'mumu' ? 'openai' : normalized;
+const LEGACY_PROVIDER_ALIASES: Record<string, string> = {
+  mumu: 'openai',
+  'openai-compatible': 'openai',
+  openai_compatible: 'openai',
+  custom: 'openai',
 };
+
+const normalizeProviderAlias = (provider?: string) => {
+  const normalized = (provider || '').trim().toLowerCase();
+  return LEGACY_PROVIDER_ALIASES[normalized] || normalized;
+};
+
+const SUPPORTED_SETTINGS_PROVIDERS: Record<string, true> = {
+  xiaomi_mimo: true,
+  openai: true,
+  anthropic: true,
+  gemini: true,
+};
+const normalizeSettingsProvider = (provider?: string) => {
+  const normalized = normalizeProviderAlias(provider) || 'openai';
+  return SUPPORTED_SETTINGS_PROVIDERS[normalized] ? normalized : 'openai';
+};
+
+const normalizeReasoningProvider = (provider?: string) => normalizeProviderAlias(provider);
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -168,6 +189,7 @@ const isFormValidationError = (error: unknown) => isRecord(error) && 'errorField
 
 const normalizeSettingsFormDefaults = <T extends Partial<SettingsUpdate>>(settings?: T) => ({
   ...settings,
+  api_provider: normalizeSettingsProvider(settings?.api_provider),
   default_reasoning_intensity: settings?.default_reasoning_intensity || DEFAULT_REASONING_INTENSITY,
   allow_ai_entity_generation: settings?.allow_ai_entity_generation ?? false,
 });
@@ -179,54 +201,68 @@ type CoverApiProvider = {
   readonly defaultModel?: string;
 };
 
-type MumuCoverBaseUrlOption = {
-  readonly value: string;
-  readonly label: string;
-  readonly defaultModel: string;
-};
 
 type CoverProviderUpdateValues = Partial<Pick<SettingsUpdate, 'cover_api_base_url' | 'cover_image_model' | 'cover_api_key'>>;
-type MumuCoverBaseUrlUpdateValues = Pick<SettingsUpdate, 'cover_api_base_url' | 'cover_image_model'>;
-
-const mumuTextDefaultUrl = 'https://api.mumuverse.space/v1';
-const mumuRegisterUrl = 'https://api.mumuverse.space/register?aff=4NN8';
 const xiaomiMimoDefaultUrl = 'https://token-plan-cn.xiaomimimo.com/v1';
 const builtInKeyProviders = ['xiaomi_mimo'];
 const xiaomiMimoDefaultModel = 'mimo-v2.5';
 const xiaomiMimoDefaultModels = [
   { value: xiaomiMimoDefaultModel, label: xiaomiMimoDefaultModel, description: 'Xiaomi MiMo 官方内置推荐模型' },
 ];
-const defaultMumuCoverBaseUrlOption: MumuCoverBaseUrlOption = {
-  value: 'https://api.mumuverse.space/v1beta',
-  label: 'https://api.mumuverse.space/v1beta',
-  defaultModel: 'gemini-3.1-flash-image-preview',
-};
-const mumuV1CoverBaseUrlOption: MumuCoverBaseUrlOption = {
-  value: 'https://api.mumuverse.space/v1',
-  label: 'https://api.mumuverse.space/v1',
-  defaultModel: 'gpt-image-1.5',
-};
-const mumuCoverBaseUrlOptions: MumuCoverBaseUrlOption[] = [
-  defaultMumuCoverBaseUrlOption,
-  mumuV1CoverBaseUrlOption,
-];
 const coverApiProviders: CoverApiProvider[] = [
-  {
-    value: 'mumu',
-    label: 'MuMuのAPI',
-    defaultUrl: defaultMumuCoverBaseUrlOption.value,
-    defaultModel: defaultMumuCoverBaseUrlOption.defaultModel,
-  },
   { value: 'openai', label: 'OpenAI Images', defaultUrl: 'https://api.openai.com/v1', defaultModel: 'gpt-image-2' },
   { value: 'gemini', label: 'Google Gemini', defaultUrl: 'https://generativelanguage.googleapis.com/v1beta' },
   { value: 'grok', label: 'Grok', defaultUrl: 'https://api.x.ai/v1' },
 ];
 const defaultCoverSettings = {
   cover_enabled: false,
-  cover_api_provider: 'mumu',
+  cover_api_provider: 'openai',
   cover_api_key: '',
-  cover_api_base_url: defaultMumuCoverBaseUrlOption.value,
-  cover_image_model: defaultMumuCoverBaseUrlOption.defaultModel,
+  cover_api_base_url: 'https://api.openai.com/v1',
+  cover_image_model: 'gpt-image-2',
+};
+
+const normalizeCoverApiProvider = (
+  provider?: string,
+  apiBaseUrl?: string,
+  model?: string,
+) => {
+  const rawProvider = (provider || '').trim().toLowerCase();
+  if (rawProvider === 'mumu') {
+    const normalizedBaseUrl = (apiBaseUrl || '').trim().replace(/\/+$/, '').toLowerCase();
+    const normalizedModel = (model || '').trim().toLowerCase();
+    if (normalizedBaseUrl.endsWith('/v1beta')) {
+      return 'gemini';
+    }
+    if (normalizedModel.startsWith('gpt-image-')) {
+      return 'openai';
+    }
+    if (normalizedModel.startsWith('grok-') || normalizedBaseUrl.includes('api.x.ai')) {
+      return 'grok';
+    }
+    return 'openai';
+  }
+
+  const normalized = normalizeProviderAlias(rawProvider);
+  return coverApiProviders.some(item => item.value === normalized)
+    ? normalized
+    : defaultCoverSettings.cover_api_provider;
+};
+
+const normalizeCoverSettingsFormValues = (settings?: Partial<SettingsUpdate>) => {
+  const provider = normalizeCoverApiProvider(
+    settings?.cover_api_provider,
+    settings?.cover_api_base_url,
+    settings?.cover_image_model,
+  );
+  const providerDefaults = coverApiProviders.find(item => item.value === provider);
+  return {
+    cover_enabled: settings?.cover_enabled ?? defaultCoverSettings.cover_enabled,
+    cover_api_provider: provider,
+    cover_api_key: settings?.cover_api_key ?? defaultCoverSettings.cover_api_key,
+    cover_api_base_url: settings?.cover_api_base_url || providerDefaults?.defaultUrl || defaultCoverSettings.cover_api_base_url,
+    cover_image_model: settings?.cover_image_model || providerDefaults?.defaultModel || getCoverImageModelPlaceholder(provider),
+  };
 };
 
 const getCoverApiBaseUrlPlaceholder = (provider?: string) => {
@@ -243,8 +279,6 @@ const getCoverApiBaseUrlPlaceholder = (provider?: string) => {
 
 const getCoverImageModelPlaceholder = (provider?: string) => {
   switch (provider) {
-    case 'mumu':
-      return '选择地址后自动填入推荐模型';
     case 'openai':
       return 'gpt-image-2';
     case 'grok':
@@ -256,7 +290,8 @@ const getCoverImageModelPlaceholder = (provider?: string) => {
 };
 
 const getCoverProviderUpdateValues = (providerValue: string): CoverProviderUpdateValues | undefined => {
-  const provider = coverApiProviders.find(item => item.value === providerValue);
+  const normalizedProvider = normalizeProviderAlias(providerValue);
+  const provider = coverApiProviders.find(item => item.value === normalizedProvider);
   if (!provider) {
     return undefined;
   }
@@ -268,19 +303,9 @@ const getCoverProviderUpdateValues = (providerValue: string): CoverProviderUpdat
   if (provider.defaultModel) {
     nextValues.cover_image_model = provider.defaultModel;
   }
-  if (provider.value === 'mumu') {
-    nextValues.cover_api_key = '';
-  }
   return nextValues;
 };
 
-const getMumuCoverBaseUrlUpdateValues = (value: string): MumuCoverBaseUrlUpdateValues => {
-  const option = mumuCoverBaseUrlOptions.find(item => item.value === value);
-  return {
-    cover_api_base_url: value,
-    cover_image_model: option?.defaultModel || defaultMumuCoverBaseUrlOption.defaultModel,
-  };
-};
 
 function SettingsPage() {
   const { token } = theme.useToken();
@@ -378,13 +403,8 @@ function SettingsPage() {
     try {
       const settings = await settingsApi.getSettings();
       form.setFieldsValue({
-        ...defaultCoverSettings,
         ...normalizeSettingsFormDefaults(settings),
-        cover_api_provider: settings.cover_api_provider || defaultCoverSettings.cover_api_provider,
-        cover_api_key: settings.cover_api_key ?? defaultCoverSettings.cover_api_key,
-        cover_api_base_url: settings.cover_api_base_url || defaultCoverSettings.cover_api_base_url,
-        cover_image_model: settings.cover_image_model || defaultCoverSettings.cover_image_model,
-        cover_enabled: settings.cover_enabled ?? defaultCoverSettings.cover_enabled,
+        ...normalizeCoverSettingsFormValues(settings),
       });
 
       // 判断是否为默认设置（id='0'表示来自.env的默认配置）
@@ -420,7 +440,14 @@ function SettingsPage() {
   };
 
   const handleSave = async (values: SettingsUpdate) => {
-    const reasoningError = validateReasoningSelection(values);
+    const normalizedApiProvider = normalizeSettingsProvider(values.api_provider);
+    const normalizedValues: SettingsUpdate = {
+      ...values,
+      api_provider: normalizedApiProvider,
+      cover_api_provider: normalizeCoverApiProvider(values.cover_api_provider),
+      api_key: builtInKeyProviders.includes(normalizedApiProvider) ? '' : values.api_key,
+    };
+    const reasoningError = validateReasoningSelection(normalizedValues);
     if (reasoningError) {
       message.error(reasoningError);
       return;
@@ -428,10 +455,6 @@ function SettingsPage() {
 
     setLoading(true);
     try {
-      const normalizedValues: SettingsUpdate = {
-        ...values,
-        api_key: builtInKeyProviders.includes(values.api_provider || '') ? '' : values.api_key,
-      };
       // 检查是否与 MCP 缓存的配置不一致
       const verifiedConfigStr = localStorage.getItem('mcp_verified_config');
       let configChanged = false;
@@ -491,27 +514,27 @@ function SettingsPage() {
             modal.warning({
               title: (
                 <Space>
-                  <WarningOutlined style={{ color: token.colorWarning }} />
+                  <WarningOutlined className={sx({ color: token.colorWarning })} />
                   <span>API 配置已更改</span>
                 </Space>
               ),
               centered: true,
               content: (
-                <div style={{ padding: '8px 0' }}>
+                <div className="u-15tlmef">
                   <Alert
                     message="检测到您修改了 API 配置（提供商、地址或模型），为确保 MCP 插件正常工作，系统已自动禁用所有插件。"
                     type="warning"
                     showIcon
-                    style={{ marginBottom: 16 }}
+                    className="u-6srbul"
                   />
-                  <div style={{
+                  <div className={sx({
                     padding: 12,
                     background: token.colorInfoBg,
                     border: `1px solid ${token.colorInfoBorder}`,
                     borderRadius: 8
-                  }}>
-                    <Text strong style={{ display: 'block', marginBottom: 8 }}>请完成以下步骤：</Text>
-                    <ol style={{ margin: 0, paddingLeft: 20, fontSize: 13 }}>
+                  })}>
+                    <Text strong className="u-smjnfl">请完成以下步骤：</Text>
+                    <ol className="u-1ltb8xg">
                       <li>前往 MCP 插件管理页面</li>
                       <li>重新进行"模型能力检查"</li>
                       <li>确认新模型支持 Function Calling 后再启用插件</li>
@@ -587,12 +610,6 @@ function SettingsPage() {
 
   const apiProviders = [
     {
-      value: 'mumu',
-      label: 'MuMuのAPI',
-      defaultUrl: mumuTextDefaultUrl,
-      defaultModel: 'gemini-3-flash-preview'
-    },
-    {
       value: 'xiaomi_mimo',
       label: 'Xiaomi MiMo（内置）',
       defaultUrl: xiaomiMimoDefaultUrl,
@@ -648,10 +665,6 @@ function SettingsPage() {
       if (provider.defaultUrl) {
         nextValues.api_base_url = provider.defaultUrl;
       }
-      if (provider.value === 'mumu') {
-        nextValues.api_key = '';
-        nextValues.llm_model = provider.defaultModel || 'gemini-3-flash-preview';
-      }
 nextValues.default_reasoning_intensity = DEFAULT_REASONING_INTENSITY;
       if (builtInKeyProviders.includes(provider.value)) {
         nextValues.api_key = '';
@@ -675,10 +688,6 @@ nextValues.default_reasoning_intensity = DEFAULT_REASONING_INTENSITY;
     setCoverTestResult(null);
   };
 
-  const handleMumuCoverBaseUrlChange = (value: string) => {
-    form.setFieldsValue(getMumuCoverBaseUrlUpdateValues(value));
-    setCoverTestResult(null);
-  };
 
   const handleCoverTestConnection = async () => {
     const coverApiProvider = form.getFieldValue('cover_api_provider');
@@ -843,7 +852,14 @@ nextValues.default_reasoning_intensity = DEFAULT_REASONING_INTENSITY;
     setPresetsLoading(true);
     try {
       const response = await settingsApi.getPresets();
-      setPresets(response.presets);
+      const normalizedPresets = response.presets.map(preset => ({
+        ...preset,
+        config: {
+          ...preset.config,
+          api_provider: normalizeSettingsProvider(preset.config.api_provider),
+        },
+      }));
+      setPresets(normalizedPresets);
       setActivePresetId(response.active_preset_id);
       setChapterAnalysisPresetId(response.chapter_analysis_preset_id);
     } catch (error) {
@@ -946,10 +962,6 @@ nextValues.default_reasoning_intensity = DEFAULT_REASONING_INTENSITY;
       const nextValues: Record<string, string> = {};
       if (provider.defaultUrl) {
         nextValues.api_base_url = provider.defaultUrl;
-      }
-      if (provider.value === 'mumu') {
-        nextValues.api_key = '';
-        nextValues.llm_model = provider.defaultModel || 'gemini-3-flash-preview';
       }
 nextValues.default_reasoning_intensity = DEFAULT_REASONING_INTENSITY;
       if (builtInKeyProviders.includes(provider.value)) {
@@ -1098,27 +1110,27 @@ const reasoningError = validateReasoningSelection(values, presetForm);
               modal.warning({
                 title: (
                   <Space>
-                    <WarningOutlined style={{ color: token.colorWarning }} />
+                    <WarningOutlined className={sx({ color: token.colorWarning })} />
                     <span>API 配置已更改</span>
                   </Space>
                 ),
                 centered: true,
                 content: (
-                  <div style={{ padding: '8px 0' }}>
+                  <div className="u-15tlmef">
                     <Alert
                       message={`切换到预设「${presetName}」后，API 配置发生了变化。为确保 MCP 插件正常工作，系统已自动禁用所有插件。`}
                       type="warning"
                       showIcon
-                      style={{ marginBottom: 16 }}
+                      className="u-6srbul"
                     />
-                    <div style={{
+                    <div className={sx({
                       padding: 12,
                       background: token.colorInfoBg,
                       border: `1px solid ${token.colorInfoBorder}`,
                       borderRadius: 8
-                    }}>
-                      <Text strong style={{ display: 'block', marginBottom: 8 }}>请完成以下步骤：</Text>
-                      <ol style={{ margin: 0, paddingLeft: 20, fontSize: 13 }}>
+                    })}>
+                      <Text strong className="u-smjnfl">请完成以下步骤：</Text>
+                      <ol className="u-1ltb8xg">
                         <li>前往 MCP 插件管理页面</li>
                         <li>重新进行"模型能力检查"</li>
                         <li>确认新模型支持 Function Calling 后再启用插件</li>
@@ -1180,29 +1192,29 @@ const reasoningError = validateReasoningSelection(values, presetForm);
           centered: true,
           width: isMobile ? '90%' : 600,
           content: (
-            <div style={{ padding: '8px 0' }}>
-              <div style={{ marginBottom: 24, padding: 16, background: token.colorSuccessBg, border: `1px solid ${token.colorSuccessBorder}`, borderRadius: 8 }}>
-                <Typography.Text strong style={{ color: token.colorSuccess }}>
+            <div className="u-15tlmef">
+              <div className={sx({ marginBottom: 24, padding: 16, background: token.colorSuccessBg, border: `1px solid ${token.colorSuccessBorder}`, borderRadius: 8 })}>
+                <Typography.Text strong className={sx({ color: token.colorSuccess })}>
                   ✓ API 连接正常
                 </Typography.Text>
               </div>
 
-              <div style={{
+              <div className={sx({
                 padding: 16,
                 background: token.colorBgLayout,
                 borderRadius: 8,
                 marginBottom: 16
-              }}>
-                <div style={{ marginBottom: 8, fontSize: 14 }}>
+              })}>
+                <div className="u-1dodjzi">
                   <Text type="secondary">提供商：</Text>
                   <Text strong>{result.provider?.toUpperCase() || 'N/A'}</Text>
                 </div>
-                <div style={{ marginBottom: 8, fontSize: 14 }}>
+                <div className="u-1dodjzi">
                   <Text type="secondary">模型：</Text>
                   <Text strong>{result.model || 'N/A'}</Text>
                 </div>
                 {result.response_time_ms !== undefined && (
-                  <div style={{ fontSize: 14 }}>
+                  <div className="u-17mbhes">
                     <Text type="secondary">响应时间：</Text>
                     <Text strong>{result.response_time_ms}ms</Text>
                   </div>
@@ -1223,8 +1235,8 @@ const reasoningError = validateReasoningSelection(values, presetForm);
           centered: true,
           width: isMobile ? '90%' : 600,
           content: (
-            <div style={{ padding: '8px 0' }}>
-              <div style={{ marginBottom: 16 }}>
+            <div className="u-15tlmef">
+              <div className="u-6srbul">
                 <Alert
                   message={result.message || 'API 测试失败'}
                   type="error"
@@ -1233,32 +1245,32 @@ const reasoningError = validateReasoningSelection(values, presetForm);
               </div>
 
               {result.error && (
-                <div style={{
+                <div className={sx({
                   padding: 16,
                   background: token.colorErrorBg,
                   border: `1px solid ${token.colorErrorBorder}`,
                   borderRadius: 8,
                   marginBottom: 16
-                }}>
-                  <Text strong style={{ fontSize: 14, display: 'block', marginBottom: 8 }}>错误信息:</Text>
-                  <Text style={{ fontSize: 13, color: token.colorError, fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                })}>
+                  <Text strong className="u-5d0dy1">错误信息:</Text>
+                  <Text className={sx({ fontSize: 13, color: token.colorError, fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word' })}>
                     {result.error}
                   </Text>
                 </div>
               )}
 
               {result.suggestions && result.suggestions.length > 0 && (
-                <div style={{
+                <div className={sx({
                   padding: 16,
                   background: token.colorWarningBg,
                   border: `1px solid ${token.colorWarningBorder}`,
                   borderRadius: 8,
                   marginBottom: 16
-                }}>
-                  <Text strong style={{ fontSize: 14, display: 'block', marginBottom: 8 }}>💡 建议:</Text>
-                  <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13 }}>
+                })}>
+                  <Text strong className="u-5d0dy1">💡 建议:</Text>
+                  <ul className="u-1ltb8xg">
                     {result.suggestions.map((s, i) => (
-                      <li key={i} style={{ marginBottom: 4 }}>{s}</li>
+                      <li key={i} className="u-ohn8hu">{s}</li>
                     ))}
                   </ul>
                 </div>
@@ -1300,8 +1312,6 @@ const reasoningError = validateReasoningSelection(values, presetForm);
         return 'purple';
       case 'gemini':
         return 'green';
-      case 'mumu':
-        return 'magenta';
       default:
         return 'default';
     }
@@ -1314,7 +1324,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
       <Tooltip title={option.reason} placement="right">
         <Space size={6} wrap>
           <span>{option.label}</span>
-          <Text type="secondary" style={{ fontSize: 12 }}>{option.value}</Text>
+          <Text type="secondary" className="u-1pw6xki">{option.value}</Text>
           {option.disabled && <Tag color="default">不可用</Tag>}
         </Space>
       </Tooltip>
@@ -1333,7 +1343,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
           type="info"
           showIcon
           message="正在加载后端推理能力元数据..."
-          style={{ marginBottom: 16 }}
+          className="u-6srbul"
         />
       );
     }
@@ -1349,7 +1359,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
           showIcon
           message="未匹配到该模型的推理能力元数据"
           description="当前仅开放“自动”推理强度，保存和测试前会再次预检，后端仍会做最终校验。"
-          style={{ marginBottom: 16 }}
+          className="u-6srbul"
         />
       );
     }
@@ -1362,7 +1372,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
         showIcon
         message="当前模型推理能力"
         description={
-          <Space direction="vertical" size={8} style={{ width: '100%' }}>
+          <Space direction="vertical" size={8} className="u-1f3r3s">
             <Space wrap size={[8, 4]}>
               <Tag color={getProviderColor(provider)}>{capability.provider}</Tag>
               <Tag>{capability.model_pattern}</Tag>
@@ -1379,12 +1389,12 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                 </Tag>
               ))}
             </Space>
-            <Text type="secondary" style={{ fontSize: isMobile ? 12 : 13 }}>
+            <Text type="secondary" className={sx({ fontSize: isMobile ? 12 : 13 })}>
               {capability.notes}
             </Text>
           </Space>
         }
-        style={{ marginBottom: 16 }}
+        className="u-6srbul"
       />
     );
   };
@@ -1393,8 +1403,8 @@ const reasoningError = validateReasoningSelection(values, presetForm);
 
   const renderPresetsList = () => (
     <Spin spinning={presetsLoading}>
-      <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <Space direction="vertical" size="middle" className="u-1f3r3s">
+        <div className="u-9n1gl3">
           <Text type="secondary">管理你的API配置预设，快速切换不同的配置</Text>
           <Space>
             <Button icon={<CopyOutlined />} onClick={handleCreateFromCurrent}>
@@ -1406,12 +1416,12 @@ const reasoningError = validateReasoningSelection(values, presetForm);
           </Space>
         </div>
 
-        <Card size="small" style={{ background: token.colorFillAlter, borderColor: token.colorBorderSecondary }}>
-          <Space direction="vertical" size={8} style={{ width: '100%' }}>
-            <Space wrap align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
+        <Card size="small" className={sx({ background: token.colorFillAlter, borderColor: token.colorBorderSecondary })}>
+          <Space direction="vertical" size={8} className="u-1f3r3s">
+            <Space wrap align="center" className="u-1qos3j5">
               <Space direction="vertical" size={2}>
                 <Text strong>章节内容分析 API 配置</Text>
-                <Text type="secondary" style={{ fontSize: 12 }}>
+                <Text type="secondary" className="u-1pw6xki">
                   指定章节内容分析使用的预设；未选择时使用默认的文本模型配置。
                 </Text>
               </Space>
@@ -1421,7 +1431,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                 value={chapterAnalysisPresetId}
                 loading={savingChapterAnalysisPreset}
                 disabled={presetsLoading || savingChapterAnalysisPreset}
-                style={{ minWidth: isMobile ? '100%' : 280 }}
+                className={sx({ minWidth: isMobile ? '100%' : 280 })}
                 onChange={(value) => handleChapterAnalysisPresetChange(value)}
                 options={presets.map((preset) => ({
                   value: preset.id,
@@ -1433,7 +1443,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
               showIcon
               type="info"
               message={chapterAnalysisPresetId ? '章节内容分析将优先使用所选预设。' : '当前未指定章节内容分析预设，将使用默认API配置。'}
-              style={{ padding: '6px 10px' }}
+              className="u-wpgo52"
             />
           </Space>
         </Card>
@@ -1442,7 +1452,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
           <Empty
             description="暂无预设配置"
             image={Empty.PRESENTED_IMAGE_SIMPLE}
-            style={{ margin: '40px 0' }}
+            className="u-1w2siy2"
           >
             <Button type="primary" icon={<PlusOutlined />} onClick={() => showPresetModal()}>
               创建第一个预设
@@ -1456,13 +1466,13 @@ const reasoningError = validateReasoningSelection(values, presetForm);
               return (
                 <List.Item
                   key={preset.id}
-                  style={{
+                  className={sx({
                     background: isActive ? token.colorInfoBg : 'transparent',
                     padding: '16px',
                     marginBottom: '8px',
                     border: isActive ? `2px solid ${token.colorPrimary}` : `1px solid ${token.colorBorderSecondary}`,
                     borderRadius: '8px',
-                  }}
+                  })}
                   actions={[
                     !isActive && (
                       <Button
@@ -1510,21 +1520,21 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                     avatar={
                       isActive && (
                         <CheckCircleOutlined
-                          style={{ fontSize: '24px', color: token.colorSuccess }}
+                          className={sx({ fontSize: '24px', color: token.colorSuccess })}
                         />
                       )
                     }
                     title={
                       <Space>
-                        <span style={{ fontWeight: 'bold' }}>{preset.name}</span>
+                        <span className="u-th3jef">{preset.name}</span>
                         {isActive && <Tag color="success">激活中</Tag>}
                         {preset.id === chapterAnalysisPresetId && <Tag color="processing">章节分析</Tag>}
                       </Space>
                     }
                     description={
-                      <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                      <Space direction="vertical" size="small" className="u-1f3r3s">
                         {preset.description && (
-                          <div style={{ color: token.colorTextSecondary }}>{preset.description}</div>
+                          <div className={sx({ color: token.colorTextSecondary })}>{preset.description}</div>
                         )}
                         <Space wrap>
                           <Tag color={getProviderColor(preset.config.api_provider)}>
@@ -1537,7 +1547,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                             推理: {REASONING_INTENSITY_LABELS[preset.config.default_reasoning_intensity || DEFAULT_REASONING_INTENSITY]}
                           </Tag>
                         </Space>
-                        <div style={{ fontSize: '12px', color: token.colorTextTertiary }}>
+                        <div className={sx({ fontSize: '12px', color: token.colorTextTertiary })}>
                           创建于: {new Date(preset.created_at).toLocaleString()}
                         </div>
                       </Space>
@@ -1555,25 +1565,18 @@ const reasoningError = validateReasoningSelection(values, presetForm);
   return (
     <>
       {contextHolder}
-      <div style={{
+      <div className={sx({
         minHeight: '90vh',
         background: pageBackground,
         padding: isMobile ? '20px 16px 70px' : '24px 24px 70px',
         display: 'flex',
         flexDirection: 'column',
-      }}>
-        <div style={{
-          maxWidth: 1400,
-          margin: '0 auto',
-          width: '100%',
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-        }}>
+      })}>
+        <div className="u-6fn1p3">
           {/* 顶部导航卡片 */}
           <Card
             variant="borderless"
-            style={{
+            className={sx({
               background: headerBackground,
               borderRadius: isMobile ? 16 : 24,
               boxShadow: token.boxShadowSecondary,
@@ -1581,20 +1584,20 @@ const reasoningError = validateReasoningSelection(values, presetForm);
               border: 'none',
               position: 'relative',
               overflow: 'hidden'
-            }}
+            })}
           >
             {/* 装饰性背景元素 */}
-            <div style={{ position: 'absolute', top: -60, right: -60, width: 200, height: 200, borderRadius: '50%', background: token.colorWhite, opacity: 0.08, pointerEvents: 'none' }} />
-            <div style={{ position: 'absolute', bottom: -40, left: '30%', width: 120, height: 120, borderRadius: '50%', background: token.colorWhite, opacity: 0.05, pointerEvents: 'none' }} />
-            <div style={{ position: 'absolute', top: '50%', right: '15%', width: 80, height: 80, borderRadius: '50%', background: token.colorWhite, opacity: 0.06, pointerEvents: 'none' }} />
+            <div className={sx({ position: 'absolute', top: -60, right: -60, width: 200, height: 200, borderRadius: '50%', background: token.colorWhite, opacity: 0.08, pointerEvents: 'none' })} />
+            <div className={sx({ position: 'absolute', bottom: -40, left: '30%', width: 120, height: 120, borderRadius: '50%', background: token.colorWhite, opacity: 0.05, pointerEvents: 'none' })} />
+            <div className={sx({ position: 'absolute', top: '50%', right: '15%', width: 80, height: 80, borderRadius: '50%', background: token.colorWhite, opacity: 0.06, pointerEvents: 'none' })} />
 
-            <Row align="middle" justify="space-between" gutter={[16, 16]} style={{ position: 'relative', zIndex: 1 }}>
+            <Row align="middle" justify="space-between" gutter={[16, 16]} className="u-5dyu45">
               <Col xs={24} sm={12}>
                 <Space direction="vertical" size={4}>
-                  <Title level={isMobile ? 3 : 2} style={{ margin: 0, color: token.colorWhite, textShadow: `0 2px 4px ${token.colorBgMask}` }}>
+                  <Title level={isMobile ? 3 : 2} className={sx({ margin: 0, color: token.colorWhite, textShadow: `0 2px 4px ${token.colorBgMask}` })}>
                     AI API 设置
                   </Title>
-                  <Text style={{ fontSize: isMobile ? 12 : 14, color: token.colorTextLightSolid, marginLeft: isMobile ? 40 : 48, opacity: 0.85 }}>
+                  <Text className={sx({ fontSize: isMobile ? 12 : 14, color: token.colorTextLightSolid, marginLeft: isMobile ? 40 : 48, opacity: 0.85 })}>
                     配置AI接口参数，管理多个API配置预设
                   </Text>
                 </Space>
@@ -1608,12 +1611,12 @@ const reasoningError = validateReasoningSelection(values, presetForm);
           {/* 主内容卡片 */}
           <Card
             variant="borderless"
-            style={{
+            className={sx({
               background: token.colorBgContainer,
               borderRadius: isMobile ? 12 : 16,
               boxShadow: token.boxShadowSecondary,
               flex: 1,
-            }}
+            })}
             styles={{
               body: {
                 padding: isMobile ? '16px' : '24px'
@@ -1628,25 +1631,25 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                   key: 'current',
                   label: <Space size={6}><ThunderboltOutlined />文本模型配置</Space>,
                   children: (
-                    <Space direction="vertical" size={isMobile ? 'middle' : 'large'} style={{ width: '100%' }}>
+                    <Space direction="vertical" size={isMobile ? 'middle' : 'large'} className="u-1f3r3s">
 
                       {/* 默认配置提示 */}
                       {isDefaultSettings && (
                         <Alert
                           message="使用 .env 文件中的默认配置"
                           description={
-                            <div style={{ fontSize: isMobile ? '12px' : '14px' }}>
-                              <p style={{ margin: '8px 0' }}>
+                            <div className={sx({ fontSize: isMobile ? '12px' : '14px' })}>
+                              <p className="u-1tbffhw">
                                 当前显示的是从服务器 <code>.env</code> 文件读取的默认配置。
                               </p>
-                              <p style={{ margin: '8px 0 0 0' }}>
+                              <p className="u-5himsk">
                                 点击"保存设置"后，配置将保存到数据库并同步更新到 <code>.env</code> 文件。
                               </p>
                             </div>
                           }
                           type="info"
                           showIcon
-                          style={{ marginBottom: isMobile ? 12 : 16 }}
+                          className={sx({ marginBottom: isMobile ? 12 : 16 })}
                         />
                       )}
 
@@ -1656,7 +1659,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                           message="使用已保存的个人配置"
                           type="success"
                           showIcon
-                          style={{ marginBottom: isMobile ? 12 : 16 }}
+                          className={sx({ marginBottom: isMobile ? 12 : 16 })}
                         />
                       )}
 
@@ -1674,7 +1677,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                                 <span>API 提供商</span>
                                 <InfoCircleOutlined
                                   title="选择你的AI服务提供商"
-                                  style={{ color: token.colorTextSecondary, fontSize: isMobile ? '12px' : '14px' }}
+                                  className={sx({ color: token.colorTextSecondary, fontSize: isMobile ? '12px' : '14px' })}
                                 />
                               </Space>
                             }
@@ -1690,29 +1693,6 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                             </Select>
                           </Form.Item>
 
-                          {selectedProvider === 'mumu' && (
-                            <Alert
-                              type="info"
-                              showIcon
-                              message="MuMuのAPI 专属供应商"
-                              description={
-                                <Space direction="vertical" size={8} style={{ width: '100%' }}>
-                                  <Text>
-                                    已自动填入专属地址，API Key 保持留空。免费注册后即可获取可用 Key。
-                                  </Text>
-                                  <div>
-                                    <Button
-                                      type="primary"
-                                      onClick={() => window.open(mumuRegisterUrl, '_blank', 'noopener,noreferrer')}
-                                    >
-                                      打开 MuMuのAPI 站点免费注册
-                                    </Button>
-                                  </div>
-                                </Space>
-                              }
-                              style={{ marginBottom: 16 }}
-                            />
-                          )}
 
                           {selectedProvider === 'xiaomi_mimo' && (
                             <Alert
@@ -1720,7 +1700,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                               showIcon
                               message="Xiaomi MiMo 内置适配器"
                               description="使用 OpenAI 兼容格式与内置服务地址。真实 Key 仅由后端环境变量提供，前端和数据库不会保存该 Key。"
-                              style={{ marginBottom: 16 }}
+                              className="u-6srbul"
                             />
                           )}
 
@@ -1730,7 +1710,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                                 <span>API 密钥</span>
                                 <InfoCircleOutlined
                                   title="你的API密钥，将加密存储"
-                                  style={{ color: token.colorTextSecondary, fontSize: isMobile ? '12px' : '14px' }}
+                                  className={sx({ color: token.colorTextSecondary, fontSize: isMobile ? '12px' : '14px' })}
                                 />
                               </Space>
                             }
@@ -1751,7 +1731,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                                 <span>API 地址</span>
                                 <InfoCircleOutlined
                                   title="API的基础URL地址"
-                                  style={{ color: token.colorTextSecondary, fontSize: isMobile ? '12px' : '14px' }}
+                                  className={sx({ color: token.colorTextSecondary, fontSize: isMobile ? '12px' : '14px' })}
                                 />
                               </Space>
                             }
@@ -1773,7 +1753,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                                 <span>模型名称</span>
                                 <InfoCircleOutlined
                                   title="AI模型的名称，如 gpt-4, gpt-3.5-turbo"
-                                  style={{ color: token.colorTextSecondary, fontSize: isMobile ? '12px' : '14px' }}
+                                  className={sx({ color: token.colorTextSecondary, fontSize: isMobile ? '12px' : '14px' })}
                                 />
                               </Space>
                             }
@@ -1800,17 +1780,17 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                                 <>
                                   {menu}
                                   {fetchingModels && (
-                                    <div style={{ padding: '8px 12px', color: token.colorTextSecondary, textAlign: 'center', fontSize: isMobile ? '12px' : '14px' }}>
+                                    <div className={sx({ padding: '8px 12px', color: token.colorTextSecondary, textAlign: 'center', fontSize: isMobile ? '12px' : '14px' })}>
                                       <Spin size="small" /> 正在获取模型列表...
                                     </div>
                                   )}
                                   {!fetchingModels && modelOptions.length === 0 && modelsFetched && !modelSearchText && (
-                                    <div style={{ padding: '8px 12px', color: token.colorError, textAlign: 'center', fontSize: isMobile ? '12px' : '14px' }}>
+                                    <div className={sx({ padding: '8px 12px', color: token.colorError, textAlign: 'center', fontSize: isMobile ? '12px' : '14px' })}>
                                       未能获取到模型列表，可直接输入模型名称
                                     </div>
                                   )}
                                   {!fetchingModels && modelOptions.length === 0 && !modelsFetched && !modelSearchText && (
-                                    <div style={{ padding: '8px 12px', color: token.colorTextSecondary, textAlign: 'center', fontSize: isMobile ? '12px' : '14px' }}>
+                                    <div className={sx({ padding: '8px 12px', color: token.colorTextSecondary, textAlign: 'center', fontSize: isMobile ? '12px' : '14px' })}>
                                       点击输入框自动获取，或直接输入模型名称
                                     </div>
                                   )}
@@ -1818,7 +1798,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                               )}
                               notFoundContent={
                                 fetchingModels ? (
-                                  <div style={{ padding: '8px 12px', textAlign: 'center', fontSize: isMobile ? '12px' : '14px' }}>
+                                  <div className={sx({ padding: '8px 12px', textAlign: 'center', fontSize: isMobile ? '12px' : '14px' })}>
                                     <Spin size="small" /> 加载中...
                                   </div>
                                 ) : null
@@ -1833,14 +1813,14 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                                         handleFetchModels(false);
                                       }
                                     }}
-                                    style={{
+                                    className={sx({
                                       cursor: fetchingModels ? 'not-allowed' : 'pointer',
                                       display: 'flex',
                                       alignItems: 'center',
                                       padding: '0 4px',
                                       height: '100%',
                                       marginRight: -8
-                                    }}
+                                    })}
                                     title="重新获取模型列表"
                                   >
                                     <Button
@@ -1848,7 +1828,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                                       size="small"
                                       icon={<ReloadOutlined />}
                                       loading={fetchingModels}
-                                      style={{ pointerEvents: 'none' }}
+                                      className="u-1sh1fln"
                                     >
                                       刷新
                                     </Button>
@@ -1881,16 +1861,16 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                               })()}
                               optionRender={(option) => (
                                 <div>
-                                  <div style={{ fontWeight: 500, fontSize: isMobile ? '13px' : '14px' }}>
+                                  <div className={sx({ fontWeight: 500, fontSize: isMobile ? '13px' : '14px' })}>
                                     {option.data.description === '手动输入的模型名称' ? (
                                       <Space size={4}>
-                                        <EditOutlined style={{ color: token.colorPrimary }} />
+                                        <EditOutlined className={sx({ color: token.colorPrimary })} />
                                         <span>使用 "{option.data.label}"</span>
                                       </Space>
                                     ) : option.data.label}
                                   </div>
                                   {option.data.description && option.data.description !== '手动输入的模型名称' && (
-                                    <div style={{ fontSize: isMobile ? '11px' : '12px', color: token.colorTextTertiary, marginTop: '2px' }}>
+                                    <div className={sx({ fontSize: isMobile ? '11px' : '12px', color: token.colorTextTertiary, marginTop: '2px' })}>
                                       {option.data.description}
                                     </div>
                                   )}
@@ -1905,7 +1885,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                                 <span>温度参数</span>
                                 <InfoCircleOutlined
                                   title="控制输出的随机性，值越高越随机（0.0-2.0）"
-                                  style={{ color: token.colorTextSecondary, fontSize: isMobile ? '12px' : '14px' }}
+                                  className={sx({ color: token.colorTextSecondary, fontSize: isMobile ? '12px' : '14px' })}
                                 />
                               </Space>
                             }
@@ -1930,7 +1910,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                                 <span>最大 Token 数</span>
                                 <InfoCircleOutlined
                                   title="单次请求的最大token数量"
-                                  style={{ color: token.colorTextSecondary, fontSize: isMobile ? '12px' : '14px' }}
+                                  className={sx({ color: token.colorTextSecondary, fontSize: isMobile ? '12px' : '14px' })}
                                 />
                               </Space>
                             }
@@ -1942,7 +1922,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                           >
                             <InputNumber
                               size={isMobile ? 'middle' : 'large'}
-                              style={{ width: '100%' }}
+                              className="u-1f3r3s"
                               min={1}
                               placeholder="2000"
                             />
@@ -1954,7 +1934,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                                 <span>默认推理强度</span>
                                 <InfoCircleOutlined
                                   title="统一使用后端规范化枚举：auto / off / low / medium / high / maximum"
-                                  style={{ color: token.colorTextSecondary, fontSize: isMobile ? '12px' : '14px' }}
+                                  className={sx({ color: token.colorTextSecondary, fontSize: isMobile ? '12px' : '14px' })}
                                 />
                               </Space>
                             }
@@ -1987,7 +1967,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                                 <span>系统提示词</span>
                                 <InfoCircleOutlined
                                   title="设置全局系统提示词，每次AI调用时都会自动使用。可用于设定AI的角色、语言风格等"
-                                  style={{ color: token.colorTextSecondary, fontSize: isMobile ? '12px' : '14px' }}
+                                  className={sx({ color: token.colorTextSecondary, fontSize: isMobile ? '12px' : '14px' })}
                                 />
                               </Space>
                             }
@@ -1998,7 +1978,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                               placeholder="例如：你是一个专业的小说创作助手，请用生动、细腻的文字进行创作..."
                               maxLength={10000}
                               showCount
-                              style={{ fontSize: isMobile ? '13px' : '14px' }}
+                              className={sx({ fontSize: isMobile ? '13px' : '14px' })}
                             />
                           </Form.Item>
 
@@ -2007,7 +1987,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                             showIcon
                             message="高级实体生成覆盖"
                             description={ENTITY_GENERATION_WARNING_COPY}
-                            style={{ marginBottom: 16 }}
+                            className="u-6srbul"
                           />
 
                           <Form.Item
@@ -2026,73 +2006,73 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                               message={
                                 <Space>
                                   {testResult.success ? (
-                                    <CheckCircleOutlined style={{ color: token.colorSuccess, fontSize: isMobile ? '16px' : '18px' }} />
+                                    <CheckCircleOutlined className={sx({ color: token.colorSuccess, fontSize: isMobile ? '16px' : '18px' })} />
                                   ) : (
-                                    <CloseCircleOutlined style={{ color: token.colorError, fontSize: isMobile ? '16px' : '18px' }} />
+                                    <CloseCircleOutlined className={sx({ color: token.colorError, fontSize: isMobile ? '16px' : '18px' })} />
                                   )}
-                                  <span style={{ fontSize: isMobile ? '14px' : '16px', fontWeight: 500 }}>
+                                  <span className={sx({ fontSize: isMobile ? '14px' : '16px', fontWeight: 500 })}>
                                     {testResult.message}
                                   </span>
                                 </Space>
                               }
                               description={
-                                <div style={{ marginTop: 8 }}>
+                                <div className="u-u35y5u">
                                   {testResult.success ? (
-                                    <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                                    <Space direction="vertical" size="small" className="u-1f3r3s">
                                       {testResult.response_time_ms && (
-                                        <div style={{ fontSize: isMobile ? '12px' : '14px' }}>
+                                        <div className={sx({ fontSize: isMobile ? '12px' : '14px' })}>
                                           ⚡ 响应时间: <strong>{testResult.response_time_ms} ms</strong>
                                         </div>
                                       )}
                                       {testResult.response_preview && (
-                                        <div style={{
+                                        <div className={sx({
                                           fontSize: isMobile ? '12px' : '13px',
                                           padding: '8px 12px',
                                           background: token.colorSuccessBg,
                                           borderRadius: '4px',
                                           border: `1px solid ${token.colorSuccessBorder}`,
                                           marginTop: '8px'
-                                        }}>
-                                          <div style={{ marginBottom: '4px', fontWeight: 500 }}>AI 响应预览:</div>
-                                          <div style={{ color: token.colorTextSecondary }}>{testResult.response_preview}</div>
+                                        })}>
+                                          <div className="u-1m9w7ev">AI 响应预览:</div>
+                                          <div className={sx({ color: token.colorTextSecondary })}>{testResult.response_preview}</div>
                                         </div>
                                       )}
-                                      <div style={{ color: token.colorSuccess, fontSize: isMobile ? '12px' : '13px', marginTop: '4px' }}>
+                                      <div className={sx({ color: token.colorSuccess, fontSize: isMobile ? '12px' : '13px', marginTop: '4px' })}>
                                         ✓ API 配置正确，可以正常使用
                                       </div>
                                     </Space>
                                   ) : (
-                                    <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                                    <Space direction="vertical" size="small" className="u-1f3r3s">
                                       {testResult.error && (
-                                        <div style={{
+                                        <div className={sx({
                                           fontSize: isMobile ? '12px' : '13px',
                                           padding: '8px 12px',
                                           background: token.colorErrorBg,
                                           borderRadius: '4px',
                                           border: `1px solid ${token.colorErrorBorder}`,
                                           color: token.colorError
-                                        }}>
+                                        })}>
                                           <strong>错误信息:</strong> {testResult.error}
                                         </div>
                                       )}
                                       {testResult.error_type && (
-                                        <div style={{ fontSize: isMobile ? '11px' : '12px', color: token.colorTextSecondary }}>
+                                        <div className={sx({ fontSize: isMobile ? '11px' : '12px', color: token.colorTextSecondary })}>
                                           错误类型: {testResult.error_type}
                                         </div>
                                       )}
                                       {testResult.suggestions && testResult.suggestions.length > 0 && (
-                                        <div style={{ marginTop: '8px' }}>
-                                          <div style={{ fontSize: isMobile ? '12px' : '13px', fontWeight: 500, marginBottom: '4px' }}>
+                                        <div className="u-u35y5u">
+                                          <div className={sx({ fontSize: isMobile ? '12px' : '13px', fontWeight: 500, marginBottom: '4px' })}>
                                             💡 解决建议:
                                           </div>
-                                          <ul style={{
+                                          <ul className={sx({
                                             margin: 0,
                                             paddingLeft: isMobile ? '16px' : '20px',
                                             fontSize: isMobile ? '12px' : '13px',
                                             color: token.colorTextSecondary
-                                          }}>
+                                          })}>
                                             {testResult.suggestions.map((suggestion, index) => (
-                                              <li key={index} style={{ marginBottom: '4px' }}>{suggestion}</li>
+                                              <li key={index} className="u-ohn8hu">{suggestion}</li>
                                             ))}
                                           </ul>
                                         </div>
@@ -2104,15 +2084,15 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                               type={testResult.success ? 'success' : 'error'}
                               closable
                               onClose={() => setShowTestResult(false)}
-                              style={{ marginBottom: isMobile ? 16 : 24 }}
+                              className={sx({ marginBottom: isMobile ? 16 : 24 })}
                             />
                           )}
 
                           {/* 操作按钮 */}
-                          <Form.Item style={{ marginBottom: 0, marginTop: isMobile ? 24 : 32 }}>
+                          <Form.Item className={sx({ marginBottom: 0, marginTop: isMobile ? 24 : 32 })}>
                             {isMobile ? (
                               // 移动端：垂直堆叠布局
-                              <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                              <Space direction="vertical" size="middle" className="u-1f3r3s">
                                 <Button
                                   type="primary"
                                   size="large"
@@ -2120,11 +2100,11 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                                   htmlType="submit"
                                   loading={loading}
                                   block
-                                  style={{
+                                  className={sx({
                                     background: token.colorPrimary,
                                     border: 'none',
                                     height: '44px'
-                                  }}
+                                  })}
                                 >
                                   保存设置
                                 </Button>
@@ -2134,21 +2114,21 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                                   onClick={handleTestConnection}
                                   loading={testingApi}
                                   block
-                                  style={{
+                                  className={sx({
                                     borderColor: token.colorSuccess,
                                     color: token.colorSuccess,
                                     fontWeight: 500,
                                     height: '44px'
-                                  }}
+                                  })}
                                 >
                                   {testingApi ? '测试中...' : '测试连接'}
                                 </Button>
-                                <Space size="middle" style={{ width: '100%' }}>
+                                <Space size="middle" className="u-1f3r3s">
                                   <Button
                                     size="large"
                                     icon={<ReloadOutlined />}
                                     onClick={handleReset}
-                                    style={{ flex: 1, height: '44px' }}
+                                    className="u-w8fm9l"
                                   >
                                     重置
                                   </Button>
@@ -2159,7 +2139,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                                       icon={<DeleteOutlined />}
                                       onClick={handleDelete}
                                       loading={loading}
-                                      style={{ flex: 1, height: '44px' }}
+                                      className="u-w8fm9l"
                                     >
                                       删除
                                     </Button>
@@ -2168,13 +2148,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                               </Space>
                             ) : (
                               // 桌面端：删除在左边，测试、重置和保存在右边
-                              <div style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                gap: '16px',
-                                flexWrap: 'wrap'
-                              }}>
+                              <div className="u-zjldu0">
                                 {/* 左侧：删除按钮 */}
                                 {hasSettings ? (
                                   <Button
@@ -2183,9 +2157,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                                     icon={<DeleteOutlined />}
                                     onClick={handleDelete}
                                     loading={loading}
-                                    style={{
-                                      minWidth: '100px'
-                                    }}
+                                    className="u-1ml4rda"
                                   >
                                     删除配置
                                   </Button>
@@ -2200,12 +2172,12 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                                     icon={<ThunderboltOutlined />}
                                     onClick={handleTestConnection}
                                     loading={testingApi}
-                                    style={{
+                                    className={sx({
                                       borderColor: token.colorSuccess,
                                       color: token.colorSuccess,
                                       fontWeight: 500,
                                       minWidth: '100px'
-                                    }}
+                                    })}
                                   >
                                     {testingApi ? '测试中...' : '测试'}
                                   </Button>
@@ -2213,9 +2185,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                                     size="large"
                                     icon={<ReloadOutlined />}
                                     onClick={handleReset}
-                                    style={{
-                                      minWidth: '100px'
-                                    }}
+                                    className="u-1ml4rda"
                                   >
                                     重置
                                   </Button>
@@ -2225,12 +2195,12 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                                     icon={<SaveOutlined />}
                                     htmlType="submit"
                                     loading={loading}
-                                    style={{
+                                    className={sx({
                                       background: token.colorPrimary,
                                       border: 'none',
                                       minWidth: '120px',
                                       fontWeight: 500
-                                    }}
+                                    })}
                                   >
                                     保存
                                   </Button>
@@ -2250,7 +2220,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                     <Spin spinning={initialLoading}>
                       <Form form={form} layout="vertical" onFinish={handleSave} autoComplete="off">
 
-                        <Form.Item label="封面图片生成功能" name="cover_enabled" style={{ marginBottom: 16 }}>
+                        <Form.Item label="封面图片生成功能" name="cover_enabled" className="u-6srbul">
                           <Select
                             size={isMobile ? 'middle' : 'large'}
                             onChange={() => setCoverTestResult(null)}
@@ -2269,47 +2239,13 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                           </Select>
                         </Form.Item>
 
-                        {selectedCoverProvider === 'mumu' && (
-                          <Alert
-                            type="info"
-                            showIcon
-                            message="MuMuのAPI 专属适配器"
-                            description={
-                              <Space direction="vertical" size={8} style={{ width: '100%' }}>
-                                <Text>
-                                  已固定提供 MuMuのAPI 图片接口地址选项，切换地址时会自动带出推荐模型。API Key 需前往 MuMuのAPI 站点注册获取。
-                                </Text>
-                                <div>
-                                  <Button
-                                    type="primary"
-                                    onClick={() => window.open(mumuRegisterUrl, '_blank', 'noopener,noreferrer')}
-                                  >
-                                    打开 MuMuのAPI 站点免费注册
-                                  </Button>
-                                </div>
-                              </Space>
-                            }
-                            style={{ marginBottom: 16 }}
-                          />
-                        )}
 
                         <Form.Item label="封面图片 API Key" name="cover_api_key" rules={[{ required: true, message: '请输入封面图片 API Key' }]}>
-                          <Input.Password size={isMobile ? 'middle' : 'large'} placeholder={selectedCoverProvider === 'mumu' ? '请输入 MuMuのAPI Key' : '输入封面图片 API Key'} autoComplete="new-password" />
+                          <Input.Password size={isMobile ? 'middle' : 'large'} placeholder="输入封面图片 API Key" autoComplete="new-password" />
                         </Form.Item>
 
                         <Form.Item label="封面图片 API 地址" name="cover_api_base_url" rules={[{ type: 'url', message: '请输入有效的URL' }]}>
-                          {selectedCoverProvider === 'mumu' ? (
-                            <Select
-                              size={isMobile ? 'middle' : 'large'}
-                              onChange={handleMumuCoverBaseUrlChange}
-                              options={mumuCoverBaseUrlOptions.map(option => ({
-                                value: option.value,
-                                label: option.label,
-                              }))}
-                            />
-                          ) : (
-                            <Input size={isMobile ? 'middle' : 'large'} placeholder={getCoverApiBaseUrlPlaceholder(selectedCoverProvider)} />
-                          )}
+                          <Input size={isMobile ? 'middle' : 'large'} placeholder={getCoverApiBaseUrlPlaceholder(selectedCoverProvider)} />
                         </Form.Item>
 
                         <Form.Item label="封面图片模型" name="cover_image_model" rules={[{ required: true, message: '请输入封面图片模型名称' }]}>
@@ -2325,18 +2261,18 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                             showIcon
                             message={coverTestResult.message}
                             description={coverTestResult.success ? `Provider: ${coverTestResult.provider || '-'} / Model: ${coverTestResult.model || '-'}` : undefined}
-                            style={{ marginBottom: 16 }}
+                            className="u-6srbul"
                           />
                         )}
 
-                        <Form.Item style={{ marginBottom: 0, marginTop: 24 }}>
-                          <Space wrap style={{ width: '100%', justifyContent: 'space-between' }}>
+                        <Form.Item className="u-132be6k">
+                          <Space wrap className="u-1qos3j5">
                             <Space wrap>
                               <Button
                                 icon={<ThunderboltOutlined />}
                                 onClick={handleCoverTestConnection}
                                 loading={testingCoverApi}
-                                style={{ borderColor: token.colorSuccess, color: token.colorSuccess, fontWeight: 500 }}
+                                className={sx({ borderColor: token.colorSuccess, color: token.colorSuccess, fontWeight: 500 })}
                               >
                                 {testingCoverApi ? '测试中...' : '测试封面接口'}
                               </Button>
@@ -2390,7 +2326,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                     { required: true, message: '请输入预设名称' },
                     { max: 50, message: '名称不能超过50个字符' },
                   ]}
-                  style={{ marginBottom: 16 }}
+                  className="u-6srbul"
                 >
                   <Input placeholder="例如：工作账号-GPT4" />
                 </Form.Item>
@@ -2400,39 +2336,15 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                   name="api_provider"
                   label="API 提供商"
                   rules={[{ required: true, message: '请选择' }]}
-                  style={{ marginBottom: 16 }}
+                  className="u-6srbul"
                 >
                   <Select placeholder="选择提供商" onChange={handlePresetProviderChange}>
-                    <Select.Option value="mumu">MuMuのAPI</Select.Option>
                     <Select.Option value="xiaomi_mimo">Xiaomi MiMo（内置）</Select.Option>
                     <Select.Option value="openai">OpenAI</Select.Option>
                     <Select.Option value="gemini">Google Gemini</Select.Option>
                   </Select>
                 </Form.Item>
 
-                {selectedPresetProvider === 'mumu' && (
-                  <Alert
-                    type="info"
-                    showIcon
-                    message="MuMuのAPI 专属供应商"
-                    description={
-                      <Space direction="vertical" size={8} style={{ width: '100%' }}>
-                        <Text>
-                          已自动填入专属地址，API Key 保持留空。免费注册后即可获取可用 Key。
-                        </Text>
-                        <div>
-                          <Button
-                            type="primary"
-                            onClick={() => window.open(mumuRegisterUrl, '_blank', 'noopener,noreferrer')}
-                          >
-                            打开 MuMuのAPI 站点免费注册
-                          </Button>
-                        </div>
-                      </Space>
-                    }
-                    style={{ marginBottom: 16 }}
-                  />
-                )}
 
                 {selectedPresetProvider === 'xiaomi_mimo' && (
                   <Alert
@@ -2440,7 +2352,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                     showIcon
                     message="Xiaomi MiMo 内置适配器"
                     description="使用后端内置 Key 和 OpenAI 兼容接口地址，预设中不会保存真实 Key。"
-                    style={{ marginBottom: 16 }}
+                    className="u-6srbul"
                   />
                 )}
               </Col>
@@ -2450,7 +2362,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
               name="description"
               label="预设描述"
               rules={[{ max: 200, message: '描述不能超过200个字符' }]}
-              style={{ marginBottom: 16 }}
+              className="u-6srbul"
             >
               <Input placeholder="例如：用于日常写作任务（可选）" />
             </Form.Item>
@@ -2462,7 +2374,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                   name="api_key"
                   label="API Key"
                   rules={builtInKeyProviders.includes(selectedPresetProvider) ? [] : [{ required: true, message: '请输入API Key' }]}
-                  style={{ marginBottom: 16 }}
+                  className="u-6srbul"
                 >
                   <Input.Password
                     placeholder={builtInKeyProviders.includes(selectedPresetProvider) ? '使用后端内置密钥（不会暴露）' : 'sk-...'}
@@ -2474,7 +2386,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                 <Form.Item
                   name="api_base_url"
                   label="API Base URL"
-                  style={{ marginBottom: 16 }}
+                  className="u-6srbul"
                 >
                   <Input placeholder="https://api.openai.com/v1" />
                 </Form.Item>
@@ -2491,12 +2403,12 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                       <span>模型名称</span>
                       <InfoCircleOutlined
                         title="AI模型的名称，点击下拉框自动获取可用模型"
-                        style={{ color: token.colorTextSecondary, fontSize: '12px' }}
+                        className={sx({ color: token.colorTextSecondary, fontSize: '12px' })}
                       />
                     </Space>
                   }
                   rules={[{ required: true, message: '请选择或输入模型名称' }]}
-                  style={{ marginBottom: 16 }}
+                  className="u-6srbul"
                 >
                   <Select
                     showSearch
@@ -2517,17 +2429,17 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                       <>
                         {menu}
                         {fetchingPresetModels && (
-                          <div style={{ padding: '8px 12px', color: token.colorTextSecondary, textAlign: 'center', fontSize: '12px' }}>
+                          <div className={sx({ padding: '8px 12px', color: token.colorTextSecondary, textAlign: 'center', fontSize: '12px' })}>
                             <Spin size="small" /> 正在获取模型列表...
                           </div>
                         )}
                         {!fetchingPresetModels && presetModelOptions.length === 0 && presetModelsFetched && !presetModelSearchText && (
-                          <div style={{ padding: '8px 12px', color: token.colorError, textAlign: 'center', fontSize: '12px' }}>
+                          <div className={sx({ padding: '8px 12px', color: token.colorError, textAlign: 'center', fontSize: '12px' })}>
                             未能获取到模型列表，可直接输入模型名称
                           </div>
                         )}
                         {!fetchingPresetModels && presetModelOptions.length === 0 && !presetModelsFetched && !presetModelSearchText && (
-                          <div style={{ padding: '8px 12px', color: token.colorTextSecondary, textAlign: 'center', fontSize: '12px' }}>
+                          <div className={sx({ padding: '8px 12px', color: token.colorTextSecondary, textAlign: 'center', fontSize: '12px' })}>
                             点击输入框自动获取，或直接输入模型名称
                           </div>
                         )}
@@ -2535,7 +2447,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                     )}
                     notFoundContent={
                       fetchingPresetModels ? (
-                        <div style={{ padding: '8px 12px', textAlign: 'center', fontSize: '12px' }}>
+                        <div className="u-1gvs7wg">
                           <Spin size="small" /> 加载中...
                         </div>
                       ) : null
@@ -2549,14 +2461,14 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                             handleFetchPresetModels(false);
                           }
                         }}
-                        style={{
+                        className={sx({
                           cursor: fetchingPresetModels ? 'not-allowed' : 'pointer',
                           display: 'flex',
                           alignItems: 'center',
                           padding: '0 4px',
                           height: '100%',
                           marginRight: -8
-                        }}
+                        })}
                         title="获取模型列表"
                       >
                         <Button
@@ -2564,7 +2476,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                           size="small"
                           icon={<ReloadOutlined />}
                           loading={fetchingPresetModels}
-                          style={{ pointerEvents: 'none' }}
+                          className="u-1sh1fln"
                         >
                           获取
                         </Button>
@@ -2596,16 +2508,16 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                     })()}
                     optionRender={(option) => (
                       <div>
-                        <div style={{ fontWeight: 500, fontSize: '13px' }}>
+                        <div className="u-aeocbe">
                           {option.data.description === '手动输入的模型名称' ? (
                             <Space size={4}>
-                              <EditOutlined style={{ color: token.colorPrimary }} />
+                              <EditOutlined className={sx({ color: token.colorPrimary })} />
                               <span>使用 "{option.data.label}"</span>
                             </Space>
                           ) : option.data.label}
                         </div>
                         {option.data.description && option.data.description !== '手动输入的模型名称' && (
-                          <div style={{ fontSize: '11px', color: token.colorTextTertiary, marginTop: '2px' }}>
+                          <div className={sx({ fontSize: '11px', color: token.colorTextTertiary, marginTop: '2px' })}>
                             {option.data.description}
                           </div>
                         )}
@@ -2622,13 +2534,13 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                       <span>默认推理强度</span>
                       <InfoCircleOutlined
                         title="统一使用后端规范化枚举"
-                        style={{ color: token.colorTextSecondary, fontSize: '12px' }}
+                        className={sx({ color: token.colorTextSecondary, fontSize: '12px' })}
                       />
                     </Space>
                   }
                   initialValue={DEFAULT_REASONING_INTENSITY}
                   rules={[{ required: true, message: '请选择' }]}
-                  style={{ marginBottom: 16 }}
+                  className="u-6srbul"
                 >
                   <Select
                     options={renderReasoningSelectOptions(presetReasoningOptions)}
@@ -2645,13 +2557,13 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                   name="temperature"
                   label="温度"
                   rules={[{ required: true, message: '必填' }]}
-                  style={{ marginBottom: 16 }}
+                  className="u-6srbul"
                 >
                   <InputNumber
                     min={0}
                     max={2}
                     step={0.1}
-                    style={{ width: '100%' }}
+                    className="u-1f3r3s"
                     placeholder="0.7"
                   />
                 </Form.Item>
@@ -2661,12 +2573,12 @@ const reasoningError = validateReasoningSelection(values, presetForm);
                   name="max_tokens"
                   label="最大Tokens"
                   rules={[{ required: true, message: '必填' }]}
-                  style={{ marginBottom: 16 }}
+                  className="u-6srbul"
                 >
                   <InputNumber
                     min={1}
                     max={100000}
-                    style={{ width: '100%' }}
+                    className="u-1f3r3s"
                     placeholder="2000"
                   />
                 </Form.Item>
@@ -2683,7 +2595,7 @@ const reasoningError = validateReasoningSelection(values, presetForm);
             <Form.Item
               name="system_prompt"
               label="系统提示词"
-              style={{ marginBottom: 0 }}
+              className="u-1sezbee"
             >
               <TextArea
                 rows={isMobile ? 2 : 3}
@@ -2703,7 +2615,10 @@ const settingsTestUtils = {
   ENTITY_GENERATION_WARNING_COPY,
   findReasoningCapability,
   getCoverProviderUpdateValues,
-  getMumuCoverBaseUrlUpdateValues,
+  normalizeCoverApiProvider,
+  normalizeCoverSettingsFormValues,
+  normalizeProviderAlias,
+  normalizeSettingsProvider,
   getApiErrorMessage,
   getSanitizedApiErrorLogContext,
   getReasoningIntensityOptions,

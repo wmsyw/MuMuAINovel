@@ -270,7 +270,7 @@ const ChapterRegenerationModal: React.FC<ChapterRegenerationModalProps> = ({
           type="success"
           showIcon
           icon={<CheckCircleOutlined />}
-          style={{ marginBottom: 16 }}
+          className="u-6srbul"
         />
       )}
 
@@ -281,7 +281,7 @@ const ChapterRegenerationModal: React.FC<ChapterRegenerationModalProps> = ({
           type="error"
           showIcon
           icon={<CloseCircleOutlined />}
-          style={{ marginBottom: 16 }}
+          className="u-6srbul"
         />
       )}
 
@@ -311,8 +311,8 @@ const ChapterRegenerationModal: React.FC<ChapterRegenerationModalProps> = ({
         {hasAnalysis && suggestions.length > 0 && 
          (modificationSource === 'analysis_suggestions' || modificationSource === 'mixed') && (
           <Form.Item label={`选择分析建议 (${selectedSuggestions.length}/${suggestions.length})`}>
-            <Card size="small" style={{ maxHeight: 300, overflow: 'auto' }}>
-              <Space direction="vertical" style={{ width: '100%' }}>
+            <Card size="small" className="u-gg9kr6">
+              <Space direction="vertical" className="u-1f3r3s">
                 {suggestions.map((suggestion, index) => (
                   <Checkbox
                     key={index}
@@ -326,7 +326,7 @@ const ChapterRegenerationModal: React.FC<ChapterRegenerationModalProps> = ({
                       }>
                         {suggestion.category}
                       </Tag>
-                      <span style={{ fontSize: 13 }}>{suggestion.content}</span>
+                      <span className="u-sidwtb">{suggestion.content}</span>
                     </Space>
                   </Checkbox>
                 ))}
@@ -374,7 +374,7 @@ const ChapterRegenerationModal: React.FC<ChapterRegenerationModalProps> = ({
 
             {/* 保留元素 */}
             <Form.Item label="保留元素">
-              <Space direction="vertical" style={{ width: '100%' }}>
+              <Space direction="vertical" className="u-1f3r3s">
                 <Form.Item name="preserve_structure" valuePropName="checked" noStyle>
                   <Checkbox>保留整体结构和情节框架</Checkbox>
                 </Form.Item>
@@ -392,7 +392,7 @@ const ChapterRegenerationModal: React.FC<ChapterRegenerationModalProps> = ({
               label="目标字数"
               tooltip="生成内容的目标字数，实际字数可能有±20%的浮动"
             >
-              <InputNumber min={500} max={10000} step={500} style={{ width: '100%' }} />
+              <InputNumber min={500} max={10000} step={500} className="u-1f3r3s" />
             </Form.Item>
 
           </Panel>

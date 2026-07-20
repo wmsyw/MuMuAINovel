@@ -50,6 +50,13 @@ from app.services.ai_service import AIService
 from app.services.json_helper import loads_json
 from app.services.prompt_service import PromptService
 from app.utils.sse_response import SSEResponse, create_sse_response
+from app.services.world_setting_data_service import (
+    WorldSettingDataError,
+    dynamic_world_setting_context,
+    legacy_values_from_dynamic,
+    merge_project_world_setting_data,
+    normalize_world_setting_data,
+)
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/projects", tags=["项目管理"])
@@ -203,6 +210,9 @@ async def _project_optimize_generator(
             conversation_history=_json_for_optimize_prompt(data.conversation_history),
             current_draft=_json_for_optimize_prompt(data.current_draft),
         )
+        dynamic_context = dynamic_world_setting_context(project)
+        if dynamic_context:
+            prompt = f"{prompt}\n\n【动态世界设定】\n{dynamic_context}"
 
         yield await SSEResponse.send_progress("正在生成优化建议…", 60, "processing")
 
@@ -381,16 +391,46 @@ async def update_project(
             )
         )
         project = result.scalar_one_or_none()
-        
         if not project:
             logger.warning(f"项目不存在或无权访问: project_id={project_id}, user_id={user_id}")
             raise HTTPException(status_code=404, detail="项目不存在")
-        
+
         update_data = project_update.model_dump(exclude_unset=True)
         logger.debug(f"更新字段: {list(update_data.keys())}")
+        legacy_fields = {
+            field: update_data[field]
+            for field in ("world_time_period", "world_location", "world_atmosphere", "world_rules")
+            if field in update_data
+        }
+        if "world_setting_data" in update_data:
+            try:
+                normalized_data = normalize_world_setting_data(
+                    update_data["world_setting_data"],
+                    legacy_values={
+                        **{field: getattr(project, field, None) for field in ("world_time_period", "world_location", "world_atmosphere", "world_rules")},
+                        **legacy_fields,
+                    },
+                    default_template_name="基础世界设定",
+                    require_required=True,
+                )
+            except WorldSettingDataError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+            update_data["world_setting_data"] = normalized_data
+            # The typed dynamic document is canonical; keep the four legacy
+            # columns as its compatibility projection.
+            update_data.update(legacy_values_from_dynamic(normalized_data["values"]))
+        elif legacy_fields:
+            # Apply the legacy write first so the helper can retain custom
+            # fields while mirroring the updated compatibility keys.
+            for field, value in legacy_fields.items():
+                setattr(project, field, value)
+            merge_project_world_setting_data(project, legacy_updates=legacy_fields)
+            for field in legacy_fields:
+                update_data.pop(field, None)
+
         for field, value in update_data.items():
             setattr(project, field, value)
-        
+
         await db.commit()
         await db.refresh(project)
         logger.info(f"项目更新成功: {project.title}")

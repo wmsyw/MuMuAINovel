@@ -273,27 +273,27 @@ export default function Careers() {
                     <Button size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(career.id)} />
                 </Space>
             }
-            style={{ marginBottom: 16 }}
+            className="u-6srbul"
         >
             <Paragraph ellipsis={{ rows: 2 }}>{career.description || '暂无描述'}</Paragraph>
-            <Divider style={{ margin: '12px 0' }} />
+            <Divider className="u-1xk5sjz" />
             <Text strong>阶段体系（共{career.max_stage}个）：</Text>
-            <div style={{ maxHeight: 120, overflowY: 'auto', marginTop: 8 }}>
+            <div className="u-ih2t16">
                 {career.stages.slice(0, 5).map(stage => (
-                    <div key={stage.level} style={{ marginLeft: 16, marginBottom: 4 }}>
+                    <div key={stage.level} className="u-1roo04v">
                         <Text type="secondary">{stage.level}. {stage.name}</Text>
-                        {stage.description && <Text type="secondary" style={{ fontSize: 12 }}> - {stage.description}</Text>}
+                        {stage.description && <Text type="secondary" className="u-1pw6xki"> - {stage.description}</Text>}
                     </div>
                 ))}
                 {career.stages.length > 5 && (
-                    <Text type="secondary" style={{ marginLeft: 16 }}>...还有{career.stages.length - 5}个阶段</Text>
+                    <Text type="secondary" className="u-at9xwn">...还有{career.stages.length - 5}个阶段</Text>
                 )}
             </div>
             {career.special_abilities && (
                 <>
-                    <Divider style={{ margin: '12px 0' }} />
+                    <Divider className="u-1xk5sjz" />
                     <Text strong>特殊能力：</Text>
-                    <Paragraph ellipsis={{ rows: 2 }} style={{ marginTop: 4 }}>{career.special_abilities}</Paragraph>
+                    <Paragraph ellipsis={{ rows: 2 }} className="u-vataou">{career.special_abilities}</Paragraph>
                 </>
             )}
         </Card>
@@ -341,27 +341,12 @@ export default function Careers() {
     return (
         <>
             {contextHolder}
-            <div style={{
-            height: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden'
-        }}>
+            <div className="u-io72pt">
             {/* 固定头部 */}
-            <div style={{
-                padding: '16px 16px 0 16px',
-                flexShrink: 0
-            }}>
-                <div style={{
-                    marginBottom: 16,
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    flexWrap: 'wrap',
-                    gap: '12px'
-                }}>
-                    <Title level={3} style={{ margin: 0 }}>
-                        <TrophyOutlined style={{ marginRight: 8 }} />
+            <div className="u-1gtomd1">
+                <div className="u-1sx53aj">
+                    <Title level={3} className="u-avalr8">
+                        <TrophyOutlined className="u-1vcwmpp" />
                         职业管理
                     </Title>
                     <Space wrap>
@@ -392,17 +377,13 @@ export default function Careers() {
                         showIcon
                         message="职业默认从正文抽取"
                         description={ENTITY_GENERATION_POLICY_COPY}
-                        style={{ marginBottom: 16 }}
+                        className="u-6srbul"
                     />
                 )}
             </div>
 
             {/* 可滚动的内容区域 */}
-            <div style={{
-                flex: 1,
-                overflow: 'auto',
-                padding: '0 16px 16px 16px'
-            }}>
+            <div className="u-1w2tlv9">
                 <ExtractionCandidateReviewPanel
                     projectId={projectId}
                     entityLabel="职业"
@@ -479,7 +460,7 @@ export default function Careers() {
                     </Form.Item>
 
                     <Form.Item>
-                        <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+                        <Space className="u-1qyyh4r">
                             <Button onClick={() => setIsModalOpen(false)}>取消</Button>
                             <Button type="primary" htmlType="submit">
                                 {editingCareer ? '更新' : '创建'}
@@ -502,12 +483,12 @@ export default function Careers() {
                         <br />
                         💡 可以多次生成，逐步完善职业体系，不会替换已有职业。
                     </Paragraph>
-                    <Divider style={{ margin: '12px 0' }} />
+                    <Divider className="u-1xk5sjz" />
                     <Form.Item label="本次新增主职业数量" name="main_career_count" initialValue={3}>
-                        <InputNumber min={1} max={10} style={{ width: '100%' }} />
+                        <InputNumber min={1} max={10} className="u-1f3r3s" />
                     </Form.Item>
                     <Form.Item label="本次新增副职业数量" name="sub_career_count" initialValue={5}>
-                        <InputNumber min={0} max={15} style={{ width: '100%' }} />
+                        <InputNumber min={0} max={15} className="u-1f3r3s" />
                     </Form.Item>
                     <Form.Item
                         label="职业要求"
@@ -523,7 +504,7 @@ export default function Careers() {
                         />
                     </Form.Item>
                     <Form.Item>
-                        <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+                        <Space className="u-1qyyh4r">
                             <Button onClick={() => setIsAIModalOpen(false)}>取消</Button>
                             <Button type="primary" icon={<ThunderboltOutlined />} htmlType="submit">
                                 开始生成

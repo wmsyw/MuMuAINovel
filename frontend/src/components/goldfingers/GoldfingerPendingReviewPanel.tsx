@@ -10,6 +10,7 @@ import {
   getSyncCandidateDiff,
   type SyncReviewEntityType,
 } from './syncReviewUtils';
+import { sx } from '../../styles/sx';
 
 const { Paragraph, Text } = Typography;
 const EMPTY_CANDIDATES: SyncCandidate[] = [];
@@ -187,10 +188,10 @@ export default function GoldfingerPendingReviewPanel({
         showIcon
         message={meta.alertMessage}
         description={meta.alertDescription}
-        style={{ marginBottom: token.marginMD }}
+        className={sx({ marginBottom: token.marginMD })}
       />
       {loading ? (
-        <div style={{ padding: token.paddingXL, textAlign: 'center' }}><Spin tip="加载候选中..." /></div>
+        <div className={sx({ padding: token.paddingXL, textAlign: 'center' })}><Spin tip="加载候选中..." /></div>
       ) : candidates.length === 0 ? (
         <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={meta.emptyDescription} />
       ) : (
@@ -203,13 +204,13 @@ export default function GoldfingerPendingReviewPanel({
               <List.Item key={candidate.id}>
                 <Card
                   size="small"
-                  style={{
+                  className={sx({
                     borderColor: entityType === 'relationship' ? token.colorWarningBorder : token.colorBorderSecondary,
                     borderStyle: entityType === 'relationship' ? 'dashed' : 'solid',
                     borderRadius: token.borderRadiusLG,
-                  }}
+                  })}
                 >
-                  <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                  <Space direction="vertical" size="small" className="u-1f3r3s">
                     <Space wrap>
                       <Text strong>{getCandidateTitle(candidate, entityType)}</Text>
                       <Tag color="cyan">{formatChapter(candidate)}</Tag>
@@ -219,19 +220,19 @@ export default function GoldfingerPendingReviewPanel({
                     </Space>
                     <div>
                       <Text type="secondary">证据摘录</Text>
-                      <Paragraph style={{ margin: `${token.marginXXS}px 0 0`, padding: token.paddingSM, background: token.colorFillTertiary, borderRadius: token.borderRadius }}>
+                      <Paragraph className={sx({ margin: `${token.marginXXS}px 0 0`, padding: token.paddingSM, background: token.colorFillTertiary, borderRadius: token.borderRadius })}>
                         {candidate.evidence_text || '暂无证据片段'}
                       </Paragraph>
                     </div>
                     <div>
                       <Text type="secondary">拟应用变更 / Diff 明细</Text>
-                      <div style={{ marginTop: token.marginXS, display: 'grid', gap: token.marginXS }}>
+                      <div className={sx({ marginTop: token.marginXS, display: 'grid', gap: token.marginXS })}>
                         {diff.length === 0 ? (
                           <Text type="secondary">候选 payload 未提供可展示字段</Text>
                         ) : diff.map(item => (
-                          <div key={item.label} style={{ borderLeft: `3px solid ${entityType === 'relationship' ? token.colorWarning : token.colorPrimary}`, paddingLeft: token.paddingSM }}>
+                          <div key={item.label} className={sx({ borderLeft: `3px solid ${entityType === 'relationship' ? token.colorWarning : token.colorPrimary}`, paddingLeft: token.paddingSM })}>
                             <Text strong>{item.label}</Text>
-                            <pre style={{ margin: `${token.marginXXS}px 0 0`, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit' }}>
+                            <pre className={sx({ margin: `${token.marginXXS}px 0 0`, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit' })}>
                               {stringifyCandidateValue(item.value)}
                             </pre>
                           </div>
@@ -240,7 +241,7 @@ export default function GoldfingerPendingReviewPanel({
                     </div>
                     <div>
                       <Text type="secondary">审核原因</Text>
-                      <Paragraph style={{ marginBottom: 0 }}>
+                      <Paragraph className="u-1sezbee">
                         {formatReviewReason(candidate, meta.fallbackReason)}
                       </Paragraph>
                     </div>

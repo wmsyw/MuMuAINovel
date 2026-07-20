@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Modal, Input, Button, Space, Radio, InputNumber, Card, message, Alert, Spin, Typography, Divider, theme } from 'antd';
 import { ThunderboltOutlined, CheckOutlined, ReloadOutlined, EditOutlined, LoadingOutlined } from '@ant-design/icons';
 import { chapterApi } from '../../services/api';
+import { sx } from '../../styles/sx';
 
 const { TextArea } = Input;
 const { Text, Paragraph } = Typography;
@@ -180,7 +181,7 @@ export const PartialRegenerateModal: React.FC<PartialRegenerateModalProps> = ({
     <Modal
       title={
         <Space>
-          <EditOutlined style={{ color: token.colorPrimary }} />
+          <EditOutlined className={sx({ color: token.colorPrimary })} />
           <span>AI局部重写</span>
         </Space>
       }
@@ -192,7 +193,7 @@ export const PartialRegenerateModal: React.FC<PartialRegenerateModalProps> = ({
       closable={!isGenerating}
       keyboard={!isGenerating}
       footer={
-        <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+        <Space className="u-1qyyh4r">
           <Button onClick={handleCancel} disabled={isGenerating}>
             取消
           </Button>
@@ -203,11 +204,11 @@ export const PartialRegenerateModal: React.FC<PartialRegenerateModalProps> = ({
               onClick={handleGenerate}
               loading={isGenerating}
               disabled={!userInstructions.trim()}
-              style={{
+              className={sx({
                 background: `linear-gradient(135deg, ${token.colorPrimary} 0%, ${token.colorPrimaryHover} 100%)`,
                 border: 'none',
                 boxShadow: token.boxShadowSecondary,
-              }}
+              })}
             >
               {isGenerating ? '生成中...' : '开始重写'}
             </Button>
@@ -223,7 +224,7 @@ export const PartialRegenerateModal: React.FC<PartialRegenerateModalProps> = ({
                 type="primary"
                 icon={<CheckOutlined />}
                 onClick={handleAccept}
-                style={{ background: token.colorSuccess, borderColor: token.colorSuccess }}
+                className={sx({ background: token.colorSuccess, borderColor: token.colorSuccess })}
               >
                 接受并应用
               </Button>
@@ -247,7 +248,7 @@ export const PartialRegenerateModal: React.FC<PartialRegenerateModalProps> = ({
             <Text type="secondary">({selectedText.length}字)</Text>
           </Space>
         }
-        style={{ marginBottom: 16 }}
+        className="u-6srbul"
         styles={{
           body: {
             maxHeight: 150,
@@ -257,20 +258,20 @@ export const PartialRegenerateModal: React.FC<PartialRegenerateModalProps> = ({
         }}
       >
         <Paragraph
-          style={{
+          className={sx({
             margin: 0,
             whiteSpace: 'pre-wrap',
             color: token.colorText,
             lineHeight: 1.8,
-          }}
+          })}
         >
           {selectedText}
         </Paragraph>
       </Card>
 
       {/* 重写要求输入 */}
-      <div style={{ marginBottom: 16 }}>
-        <Text strong style={{ display: 'block', marginBottom: 8 }}>
+      <div className="u-6srbul">
+        <Text strong className="u-smjnfl">
           重写要求 <Text type="danger">*</Text>
         </Text>
         <TextArea
@@ -279,13 +280,13 @@ export const PartialRegenerateModal: React.FC<PartialRegenerateModalProps> = ({
           placeholder="请描述您希望如何重写这段内容，例如：&#10;- 让描写更加生动细腻&#10;- 增加环境氛围描写&#10;- 加强角色心理活动&#10;- 改变叙事节奏，更加紧凑&#10;- 添加对话内容"
           rows={4}
           disabled={isGenerating}
-          style={{ resize: 'none' }}
+          className="u-15r2skq"
         />
       </div>
 
       {/* 长度模式选择 */}
-      <div style={{ marginBottom: 16 }}>
-        <Text strong style={{ display: 'block', marginBottom: 8 }}>
+      <div className="u-6srbul">
+        <Text strong className="u-smjnfl">
           长度控制
         </Text>
         <Radio.Group
@@ -299,13 +300,13 @@ export const PartialRegenerateModal: React.FC<PartialRegenerateModalProps> = ({
           <Radio.Button value="condense">精简内容</Radio.Button>
           <Radio.Button value="custom">自定义</Radio.Button>
         </Radio.Group>
-        <div style={{ marginTop: 8 }}>
-          <Text type="secondary" style={{ fontSize: 12 }}>
+        <div className="u-u35y5u">
+          <Text type="secondary" className="u-1pw6xki">
             {getLengthModeDescription(lengthMode)}
           </Text>
         </div>
         {lengthMode === 'custom' && (
-          <div style={{ marginTop: 12 }}>
+          <div className="u-nj5fkd">
             <Space>
               <Text>目标字数：</Text>
               <InputNumber
@@ -316,24 +317,19 @@ export const PartialRegenerateModal: React.FC<PartialRegenerateModalProps> = ({
                 step={50}
                 disabled={isGenerating}
                 addonAfter="字"
-                style={{ width: 150 }}
+                className="u-1pdpmi2"
               />
             </Space>
           </div>
         )}
       </div>
 
-      <Divider style={{ margin: '16px 0' }} />
+      <Divider className="u-1ys5lhf" />
 
       {/* 生成结果展示 */}
       {(isGenerating || hasGenerated) && (
         <div>
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
-            marginBottom: 8 
-          }}>
+          <div className="u-a33iiz">
             <Space>
               <Text strong>重写结果</Text>
               {generatedText && (
@@ -342,7 +338,7 @@ export const PartialRegenerateModal: React.FC<PartialRegenerateModalProps> = ({
             </Space>
             {isGenerating && (
               <Space>
-                <Spin indicator={<LoadingOutlined style={{ fontSize: 14 }} spin />} />
+                <Spin indicator={<LoadingOutlined className="u-17mbhes" spin />} />
                 <Text type="secondary">{progressMessage || '生成中...'}</Text>
               </Space>
             )}
@@ -350,23 +346,23 @@ export const PartialRegenerateModal: React.FC<PartialRegenerateModalProps> = ({
 
           {/* 进度条 */}
           {isGenerating && (
-            <div style={{ marginBottom: 12 }}>
+            <div className="u-1qz2mrl">
               <div
-                style={{
+                className={sx({
                   height: 4,
                   background: token.colorFillTertiary,
                   borderRadius: 2,
                   overflow: 'hidden',
-                }}
+                })}
               >
                 <div
-                  style={{
+                  className={sx({
                     height: '100%',
                     background: `linear-gradient(90deg, ${token.colorPrimary} 0%, ${token.colorPrimaryHover} 100%)`,
                     width: `${progress}%`,
                     transition: 'width 0.3s ease',
                     borderRadius: 2,
-                  }}
+                  })}
                 />
               </div>
             </div>
@@ -375,10 +371,10 @@ export const PartialRegenerateModal: React.FC<PartialRegenerateModalProps> = ({
           <Card
             size="small"
             ref={generatedTextRef}
-            style={{
+            className={sx({
               background: generatedText ? token.colorSuccessBg : token.colorFillAlter,
               border: generatedText ? `1px solid ${token.colorSuccessBorder}` : `1px solid ${token.colorBorder}`,
-            }}
+            })}
             styles={{
               body: {
                 maxHeight: 250,
@@ -389,28 +385,24 @@ export const PartialRegenerateModal: React.FC<PartialRegenerateModalProps> = ({
           >
             {generatedText ? (
               <Paragraph
-                style={{
-                  margin: 0,
-                  whiteSpace: 'pre-wrap',
-                  lineHeight: 1.8,
-                }}
+                className="u-nplhtl"
               >
                 {generatedText}
                 {isGenerating && (
                   <span
-                    style={{
+                    className={sx({
                       display: 'inline-block',
                       width: 8,
                       height: 16,
                       background: token.colorPrimary,
                       marginLeft: 2,
                       animation: 'blink 1s infinite',
-                    }}
+                    })}
                   />
                 )}
               </Paragraph>
             ) : (
-              <div style={{ textAlign: 'center', padding: 20, color: token.colorTextTertiary }}>
+              <div className={sx({ textAlign: 'center', padding: 20, color: token.colorTextTertiary })}>
                 {isGenerating ? '正在生成内容...' : '等待生成...'}
               </div>
             )}
@@ -432,7 +424,7 @@ export const PartialRegenerateModal: React.FC<PartialRegenerateModalProps> = ({
               }
               type="success"
               showIcon
-              style={{ marginTop: 12 }}
+              className="u-nj5fkd"
             />
           )}
         </div>

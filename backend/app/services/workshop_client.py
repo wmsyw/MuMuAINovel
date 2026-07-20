@@ -20,7 +20,7 @@ class WorkshopClient:
     """云端 API 客户端"""
     
     def __init__(self):
-        self.base_url = settings.WORKSHOP_CLOUD_URL
+        self.base_url = settings.WORKSHOP_CLOUD_URL.rstrip("/") if settings.WORKSHOP_CLOUD_URL else None
         self.timeout = settings.WORKSHOP_API_TIMEOUT
     
     async def _request(
@@ -32,6 +32,8 @@ class WorkshopClient:
         user_identifier: Optional[str] = None
     ) -> Dict[str, Any]:
         """发送请求到云端"""
+        if not self.base_url:
+            raise WorkshopClientError("未配置远程工坊地址，请设置 WORKSHOP_CLOUD_URL")
         headers = {
             "X-Instance-ID": INSTANCE_ID,
             "Content-Type": "application/json"

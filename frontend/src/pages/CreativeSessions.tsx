@@ -32,6 +32,7 @@ import type {
   CreativeSessionSearchResult,
   QuickReply,
 } from '../types';
+import { sx } from '../styles/sx';
 
 const { Text, Title, Paragraph } = Typography;
 const { TextArea } = Input;
@@ -251,16 +252,16 @@ export default function CreativeSessions() {
   };
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <Space direction="vertical" size="middle" style={{ width: '100%', height: '100%' }}>
+    <div className="u-io72pt">
+      <Space direction="vertical" size="middle" className="u-1ddf7dt">
         <Card>
-          <Space align="start" style={{ width: '100%', justifyContent: 'space-between' }} wrap>
+          <Space align="start" className="u-1qos3j5" wrap>
             <Space direction="vertical" size={4}>
               <Space>
-                <MessageOutlined style={{ color: token.colorPrimary, fontSize: 24 }} />
-                <Title level={3} style={{ margin: 0 }}>创作会话</Title>
+                <MessageOutlined className={sx({ color: token.colorPrimary, fontSize: 24 })} />
+                <Title level={3} className="u-avalr8">创作会话</Title>
               </Space>
-              <Paragraph type="secondary" style={{ marginBottom: 0 }}>
+              <Paragraph type="secondary" className="u-1sezbee">
                 按项目保存临时灵感、片段试写与讨论笔记；这里只沉淀工作台记录，不自动写入章节、记忆或世界观。
               </Paragraph>
             </Space>
@@ -271,17 +272,17 @@ export default function CreativeSessions() {
         {error && <Alert type="warning" showIcon message={error} />}
 
         <div
-          style={{
+          className={sx({
             flex: 1,
             minHeight: 0,
             display: 'grid',
             gridTemplateColumns: 'minmax(260px, 320px) minmax(0, 1fr)',
             gap: token.paddingMD,
-          }}
+          })}
         >
-          <Space direction="vertical" size="middle" style={{ minHeight: 0, overflow: 'hidden' }}>
+          <Space direction="vertical" size="middle" className="u-17jj7fk">
             <Card size="small" title="新建会话">
-              <Space.Compact style={{ width: '100%' }}>
+              <Space.Compact className="u-1f3r3s">
                 <Input
                   aria-label="会话标题"
                   value={sessionTitle}
@@ -299,7 +300,7 @@ export default function CreativeSessions() {
             <Card
               size="small"
               title="会话列表"
-              style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}
+              className="u-1tqrzca"
               bodyStyle={{ height: 'calc(100% - 38px)', overflowY: 'auto', padding: token.paddingSM }}
             >
               <Spin spinning={loadingSessions}>
@@ -312,12 +313,12 @@ export default function CreativeSessions() {
                       <List.Item
                         key={item.id}
                         onClick={() => openSession(item.id)}
-                        style={{
+                        className={sx({
                           cursor: 'pointer',
                           borderRadius: token.borderRadius,
                           padding: token.paddingSM,
                           background: selectedSession?.id === item.id ? alphaColor(token.colorPrimary, 0.1) : undefined,
-                        }}
+                        })}
                       >
                         <List.Item.Meta
                           title={<Text strong>{item.title}</Text>}
@@ -331,11 +332,11 @@ export default function CreativeSessions() {
             </Card>
           </Space>
 
-          <Space direction="vertical" size="middle" style={{ minHeight: 0, overflow: 'hidden' }}>
+          <Space direction="vertical" size="middle" className="u-17jj7fk">
             <Card
               size="small"
               title={selectedSession ? `会话记录：${selectedSession.title}` : '会话记录'}
-              style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}
+              className="u-1tqrzca"
               bodyStyle={{ height: 'calc(100% - 38px)', overflowY: 'auto' }}
             >
               <Spin spinning={loadingDetail}>
@@ -344,12 +345,12 @@ export default function CreativeSessions() {
                 ) : messages.length === 0 ? (
                   <Empty description="这个会话还没有记录，写下第一条创作笔记吧" image={Empty.PRESENTED_IMAGE_SIMPLE} />
                 ) : (
-                  <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                  <Space direction="vertical" size="middle" className="u-1f3r3s">
                     {messages.map(item => (
                       <Card
                         key={item.id}
                         size="small"
-                        style={{ borderColor: token.colorBorderSecondary }}
+                        className={sx({ borderColor: token.colorBorderSecondary })}
                         title={
                           <Space>
                             <Tag color={ROLE_COLORS[item.role] || 'default'}>{ROLE_LABELS[item.role] || item.role}</Tag>
@@ -358,7 +359,7 @@ export default function CreativeSessions() {
                         }
                         extra={<Text type="secondary">{formatDate(item.created_at)}</Text>}
                       >
-                        <Paragraph style={{ whiteSpace: 'pre-wrap', marginBottom: 0 }}>{item.content}</Paragraph>
+                        <Paragraph className="u-8lck0q">{item.content}</Paragraph>
                       </Card>
                     ))}
                   </Space>
@@ -367,8 +368,8 @@ export default function CreativeSessions() {
             </Card>
 
             <Card size="small" title="追加记录">
-              <Space direction="vertical" style={{ width: '100%' }}>
-                <Space.Compact style={{ width: '100%' }}>
+              <Space direction="vertical" className="u-1f3r3s">
+                <Space.Compact className="u-1f3r3s">
                   <Select
                     aria-label="记录类型"
                     value={draftRole}
@@ -378,7 +379,7 @@ export default function CreativeSessions() {
                       { value: 'user', label: '创作想法' },
                       { value: 'assistant', label: '整理回应' },
                     ]}
-                    style={{ width: 130 }}
+                    className="u-1tmu4p8"
                   />
                   <Button
                     type="primary"
@@ -402,8 +403,8 @@ export default function CreativeSessions() {
             </Card>
 
             <Card size="small" title={<Space><SnippetsOutlined />快捷片段</Space>}>
-              <Space direction="vertical" style={{ width: '100%' }}>
-                <Paragraph type="secondary" style={{ marginBottom: 0 }}>
+              <Space direction="vertical" className="u-1f3r3s">
+                <Paragraph type="secondary" className="u-1sezbee">
                   仅将已启用的 safe_snippet 写入当前会话备注；不会执行脚本或暗改提示词。
                 </Paragraph>
                 <Space wrap>
@@ -430,8 +431,8 @@ export default function CreativeSessions() {
               title={<Space><FileSearchOutlined />会话检索</Space>}
               data-testid="creative-session-search-results"
             >
-              <Space direction="vertical" style={{ width: '100%' }}>
-                <Space.Compact style={{ width: '100%' }}>
+              <Space direction="vertical" className="u-1f3r3s">
+                <Space.Compact className="u-1f3r3s">
                   <Input
                     aria-label="检索关键词"
                     value={searchQuery}

@@ -13,19 +13,19 @@ export const VERSION_INFO = {
   buildTime: import.meta.env.VITE_BUILD_TIME || new Date().toISOString().split('T')[0],
   
   // 项目信息
-  projectName: 'MuMuAINovel',
-  projectFullName: 'MuMu AI 小说创作助手',
+  projectName: 'AI Novel Studio',
+  projectFullName: 'AI 辅助小说创作平台',
   
   // 链接信息
-  githubUrl: 'https://github.com/xiamuceer-j/MuMuAINovel',
-  linuxDoUrl: 'https://linux.do/t/topic/1106333',
+  githubUrl: import.meta.env.VITE_REPOSITORY_URL || '',
+  linuxDoUrl: import.meta.env.VITE_COMMUNITY_URL || '',
   
   // 许可证
   license: 'GPL v3.0',
   licenseUrl: 'https://www.gnu.org/licenses/gpl-3.0.html',
   
   // 作者信息
-  author: 'xiamuceer-j',
+  author: import.meta.env.VITE_PROJECT_AUTHOR || '',
 };
 
 /**

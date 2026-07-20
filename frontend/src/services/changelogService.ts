@@ -1,7 +1,8 @@
 /**
- * GitHub 提交日志获取服务
- * 用于从 GitHub API 获取项目的提交历史并转换为更新日志
+ * 更新日志服务
+ * 通过应用后端 API 获取配置的仓库提交历史并转换为更新日志
  */
+import api from './api';
 
 export interface GitHubCommit {
   sha: string;
@@ -35,10 +36,18 @@ export interface ChangelogEntry {
   scope?: string;
 }
 
-const GITHUB_API_BASE = 'https://api.github.com';
-const REPO_OWNER = 'xiamuceer-j';
-const REPO_NAME = 'MuMuAINovel';
+const REPOSITORY_SLUG = (import.meta.env.VITE_REPOSITORY_SLUG || '').trim();
+const [REPO_OWNER = '', REPO_NAME = '', ...REPOSITORY_EXTRA_PARTS] = REPOSITORY_SLUG.split('/');
 
+export const isChangelogConfigured = (): boolean => Boolean(
+  REPO_OWNER && REPO_NAME && REPOSITORY_EXTRA_PARTS.length === 0,
+);
+
+interface ChangelogApiResponse {
+  commits: GitHubCommit[];
+  cached: boolean;
+  cache_time?: string | null;
+}
 /**
  * 提交类型映射表
  * 统一不同别名到标准类型
@@ -148,27 +157,19 @@ function parseCommitType(message: string): { type: ChangelogEntry['type']; scope
 }
 
 /**
- * 获取GitHub提交历史
+ * 通过应用后端获取配置仓库的提交历史
  */
 export async function fetchGitHubCommits(page: number = 1, perPage: number = 30): Promise<GitHubCommit[]> {
   try {
-    const url = `${GITHUB_API_BASE}/repos/${REPO_OWNER}/${REPO_NAME}/commits?author=${REPO_OWNER}&page=${page}&per_page=${perPage}`;
-    
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/vnd.github.v3+json',
-      },
-      cache: 'no-cache',
+    const response = await api.get<unknown, ChangelogApiResponse>('/changelog', {
+      params: { page, per_page: perPage },
     });
-
-    if (!response.ok) {
-      throw new Error(`GitHub API 请求失败: ${response.status} ${response.statusText}`);
+    if (!response || !Array.isArray(response.commits)) {
+      throw new Error('更新日志响应格式无效');
     }
-
-    return await response.json();
+    return response.commits;
   } catch (error) {
-    console.error('获取 GitHub 提交历史失败:', error);
+    console.error('获取更新日志失败:', error);
     throw error;
   }
 }

@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Card, Input, Button, Tag, List, Typography, Space, Spin, message, Tooltip, Tabs, theme } from 'antd';
 import { SendOutlined, RobotOutlined, UserOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import axios from 'axios';
+import { sx } from '../styles/sx';
 // 使用简单的文本渲染替代 react-markdown
 const MarkdownRender: React.FC<{ content: string }> = ({ content }) => {
-  return <div style={{ whiteSpace: 'pre-wrap' }}>{content}</div>;
+  return <div className="u-f7yezs">{content}</div>;
 };
 
 const { TextArea } = Input;
@@ -170,30 +171,25 @@ const SkillChat: React.FC = () => {
   const currentSkills = currentCategory ? groupedSkills[currentCategory] : [];
 
   const categoryColors: Record<string, string> = {
-    'Skill·长篇': '#1890ff',
-    'Skill·短篇': '#52c41a',
-    'Skill·润色': '#faad14',
-    'Skill·工具': '#722ed1',
+    'Skill·长篇': token.colorPrimary,
+    'Skill·短篇': token.colorSuccess,
+    'Skill·润色': token.colorWarning,
+    'Skill·工具': token.colorInfo,
   };
 
   if (selectedSkill) {
     return (
-      <div style={{ height: 'calc(100vh - 120px)', display: 'flex', flexDirection: 'column', padding: '0 16px', minWidth: 0, overflow: 'hidden' }}>
+      <div className="u-94b7qf">
         {/* 顶部栏 */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid #f0f0f0' }}>
+        <div className="u-1ahdsyw">
           <Button size="small" onClick={() => { setSelectedSkill(null); setMessages([]); }}>← 返回</Button>
-          <ThunderboltOutlined style={{ color: '#1890ff' }} />
+          <ThunderboltOutlined className="u-rvm8v6" />
           <Text strong>{selectedSkill.template_name}</Text>
-          <Tag color={categoryColors[selectedSkill.category] || '#default'} style={{ marginLeft: 4 }}>{selectedSkill.category}</Tag>
+          <Tag color={categoryColors[selectedSkill.category] || 'default'} className="u-54p264">{selectedSkill.category}</Tag>
           <Tooltip title={selectedSkill.description} placement="bottom">
             <Text
               type="secondary"
-              style={{
-                fontSize: 12,
-                flex: 1,
-                minWidth: 0,
-                maxWidth: 420,
-              }}
+              className="u-2wro1e"
               ellipsis
             >
               {selectedSkill.description}
@@ -202,49 +198,50 @@ const SkillChat: React.FC = () => {
         </div>
 
         {/* 消息区域 */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 0' }}>
+        <div className="u-1j1a641">
           {messages.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '60px 20px', color: '#999' }}>
-              <RobotOutlined style={{ fontSize: 48, marginBottom: 16 }} />
-              <div style={{ fontSize: 16, marginBottom: 8 }}>{'已选择「'}{selectedSkill.template_name}{'」'}</div>
+            <div className="u-4damkg">
+              <RobotOutlined className="u-snh6ye" />
+              <div className="u-1mpy5og">{'已选择「'}{selectedSkill.template_name}{'」'}</div>
               <div>输入你的需求开始对话，或直接使用触发词：{selectedSkill.triggers.join('、')}</div>
             </div>
           )}
           {messages.map((msg, idx) => (
-            <div key={idx} style={{
+            <div key={idx} className={sx({
               display: 'flex', gap: 12, marginBottom: 16,
               flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
-            }}>
-              <div style={{
+            })}>
+              <div className={sx({
                 width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: msg.role === 'user' ? '#1890ff' : '#f0f0f0', color: msg.role === 'user' ? '#fff' : '#333',
+                background: msg.role === 'user' ? token.colorPrimary : token.colorFillSecondary,
+                color: msg.role === 'user' ? token.colorWhite : token.colorText,
                 flexShrink: 0,
-              }}>
+              })}>
                 {msg.role === 'user' ? <UserOutlined /> : <RobotOutlined />}
               </div>
-              <div style={{
+              <div className={sx({
                 maxWidth: '75%', padding: '10px 16px', borderRadius: 12,
-                background: msg.role === 'user' ? '#1890ff' : '#f5f5f5',
-                color: msg.role === 'user' ? '#fff' : '#333',
-              }}>
+                background: msg.role === 'user' ? token.colorPrimary : token.colorFillTertiary,
+                color: msg.role === 'user' ? token.colorWhite : token.colorText,
+              })}>
                 {msg.role === 'assistant' ? (
-                  <div className="markdown-body" style={{ fontSize: 14, lineHeight: 1.7 }}>
+                  <div  className={sx("markdown-body", 'u-im08ra')}>
                     <MarkdownRender content={msg.content || '...'} />
                   </div>
                 ) : (
-                  <div style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+                  <div className="u-k2miy8">{msg.content}</div>
                 )}
               </div>
             </div>
           ))}
           {loading && messages[messages.length - 1]?.content === '' && (
-            <div style={{ textAlign: 'center', color: '#999', padding: 8 }}><Spin size="small" /> 思考中...</div>
+            <div className="u-n916u2"><Spin size="small" /> 思考中...</div>
           )}
           <div ref={messagesEndRef} />
         </div>
 
         {/* 输入区域 */}
-        <div style={{ padding: '12px 0', borderTop: '1px solid #f0f0f0', display: 'flex', gap: 8 }}>
+        <div className="u-1eoh3pc">
           <TextArea
             value={inputValue}
             onChange={e => setInputValue(e.target.value)}
@@ -264,12 +261,12 @@ const SkillChat: React.FC = () => {
       grid={{ gutter: 16, xs: 1, sm: 2, md: 3, lg: 4, xl: 4, xxl: 4 }}
       dataSource={items}
       renderItem={(skill) => (
-        <List.Item style={{ marginBottom: 16 }}>
+        <List.Item className="u-6srbul">
           <Card
             hoverable
             onClick={() => handleSkillSelect(skill)}
             styles={{ body: { height: '100%', padding: 16 } }}
-            style={{
+            className={sx({
               cursor: 'pointer',
               height: '100%',
               aspectRatio: '4 / 3',
@@ -279,12 +276,12 @@ const SkillChat: React.FC = () => {
               overflow: 'hidden',
               border: `1px solid ${token.colorBorderSecondary}`,
               boxShadow: token.boxShadowTertiary,
-            }}
+            })}
           >
-            <div style={{ height: '100%', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 12, minWidth: 0 }}>
+            <div className="u-1c8mex0">
+              <div className="u-8a87fq">
                 <div
-                  style={{
+                  className={sx({
                     width: 40,
                     height: 40,
                     borderRadius: 12,
@@ -295,29 +292,22 @@ const SkillChat: React.FC = () => {
                     color: '#fff',
                     background: `linear-gradient(135deg, ${categoryColors[skill.category] || '#1890ff'}, #8ec5ff)`,
                     boxShadow: '0 6px 14px rgba(24, 144, 255, 0.22)',
-                  }}
+                  })}
                 >
                   <ThunderboltOutlined />
                 </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="u-niv4z9">
                   <Tooltip title={skill.template_name}>
                     <Text
                       strong
-                      style={{
-                        display: 'block',
-                        marginBottom: 6,
-                        fontSize: 15,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
+                      className="u-1v16fyq"
                     >
                       {skill.template_name}
                     </Text>
                   </Tooltip>
                   <Tag
                     color={categoryColors[skill.category] || '#default'}
-                    style={{ maxWidth: '100%', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                    className="u-153shb9"
                   >
                     {skill.category}
                   </Tag>
@@ -328,38 +318,25 @@ const SkillChat: React.FC = () => {
                 <Paragraph
                   type="secondary"
                   ellipsis={{ rows: 3 }}
-                  style={{
-                    flex: 1,
-                    minHeight: 66,
-                    marginBottom: 12,
-                    fontSize: 13,
-                    lineHeight: 1.65,
-                  }}
+                  className="u-f9on9i"
                 >
                   {skill.description}
                 </Paragraph>
               </Tooltip>
 
               <div
-                style={{
+                className={sx({
                   minHeight: 30,
                   paddingTop: 10,
                   borderTop: `1px solid ${token.colorBorderSecondary}`,
                   overflow: 'hidden',
-                }}
+                })}
               >
                 <Space size={[4, 4]} wrap>
                   {skill.triggers.slice(0, 3).map(t => (
                     <Tooltip key={t} title={t}>
                       <Tag
-                        style={{
-                          fontSize: 11,
-                          maxWidth: 92,
-                          marginInlineEnd: 0,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
+                        className="u-1fqqxbd"
                       >
                         {t}
                       </Tag>
@@ -367,7 +344,7 @@ const SkillChat: React.FC = () => {
                   ))}
                   {skill.triggers.length > 3 && (
                     <Tooltip title={skill.triggers.slice(3).join('、')}>
-                      <Tag style={{ fontSize: 11, marginInlineEnd: 0 }}>+{skill.triggers.length - 3}</Tag>
+                      <Tag className="u-1kcop03">+{skill.triggers.length - 3}</Tag>
                     </Tooltip>
                   )}
                 </Space>
@@ -381,14 +358,14 @@ const SkillChat: React.FC = () => {
 
   // Skill 选择页
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', minWidth: 0 }}>
-      <div style={{ flexShrink: 0, minWidth: 0, padding: '16px 0', borderBottom: '1px solid #f0f0f0' }}>
-        <Title level={4} style={{ marginBottom: 8 }}><ThunderboltOutlined /> Skill 工具箱</Title>
-        <Paragraph type="secondary" style={{ marginBottom: 0 }}>选择一个 Skill 开始创作对话。每个 Skill 都有专业的写作工作流和知识库。</Paragraph>
+    <div className="u-1u82j5m">
+      <div className="u-1sxdsld">
+        <Title level={4} className="u-1jeouum"><ThunderboltOutlined /> Skill 工具箱</Title>
+        <Paragraph type="secondary" className="u-1sezbee">选择一个 Skill 开始创作对话。每个 Skill 都有专业的写作工作流和知识库。</Paragraph>
       </div>
 
       {skillsLoading ? (
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="u-128xsrr">
           <Spin />
         </div>
       ) : (
@@ -405,19 +382,12 @@ const SkillChat: React.FC = () => {
                 </span>
               ),
             }))}
-            style={{ flexShrink: 0, minWidth: 0, maxWidth: '100%' }}
+            className="u-gbeb7n"
             tabBarStyle={{ marginBottom: 16 }}
           />
 
           <div
-            style={{
-              flex: 1,
-              minHeight: 0,
-              minWidth: 0,
-              overflowY: 'auto',
-              overflowX: 'hidden',
-              padding: '0 8px',
-            }}
+            className="u-182b3xy"
           >
             {renderSkillList(currentSkills)}
           </div>

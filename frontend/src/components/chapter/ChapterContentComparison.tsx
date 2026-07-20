@@ -3,6 +3,7 @@ import { Modal, Button, Card, Statistic, Row, Col, message, theme } from 'antd';
 import { CheckOutlined, CloseOutlined, SwapOutlined } from '@ant-design/icons';
 import ReactDiffViewer from 'react-diff-viewer-continued';
 import { useThemeMode } from '../../theme/useThemeMode';
+import { sx } from '../../styles/sx';
 
 interface ChapterContentComparisonProps {
   visible: boolean;
@@ -162,7 +163,7 @@ const ChapterContentComparison: React.FC<ChapterContentComparisonProps> = ({
       onCancel={onClose}
       width="95%"
       centered
-      style={{ maxWidth: 1600 }}
+      className="u-1yxxhrg"
       footer={[
         <Button
           key="discard"
@@ -191,7 +192,7 @@ const ChapterContentComparison: React.FC<ChapterContentComparisonProps> = ({
       ]}
     >
       {/* 统计信息 */}
-      <Card size="small" style={{ marginBottom: 16 }}>
+      <Card size="small" className="u-6srbul">
         <Row gutter={16}>
           <Col span={6}>
             <Statistic
@@ -229,13 +230,13 @@ const ChapterContentComparison: React.FC<ChapterContentComparisonProps> = ({
       </Card>
 
       {/* 内容对比 */}
-      <div style={{
+      <div className={sx({
         maxHeight: 'calc(90vh - 300px)',
         overflow: 'auto',
         border: `1px solid ${token.colorBorder}`,
         borderRadius: 8,
         background: token.colorBgContainer
-      }}>
+      })}>
         <ReactDiffViewer
           oldValue={originalContent}
           newValue={newContent}

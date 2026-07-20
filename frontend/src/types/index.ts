@@ -189,6 +189,48 @@ export interface AuthUrlResponse {
   state: string;
 }
 
+export interface WorldSettingFieldDefinition {
+  label: string;
+  type: 'text' | 'textarea' | 'list';
+  required: boolean;
+}
+
+export interface ProjectWorldSettingData {
+  template_id?: string | null;
+  template_name?: string | null;
+  fields: Record<string, WorldSettingFieldDefinition>;
+  values: Record<string, string | string[] | null>;
+}
+
+export interface WorldSettingTemplate {
+  id: string;
+  name: string;
+  category: string;
+  fields: Record<string, WorldSettingFieldDefinition>;
+  example_data: Record<string, string | string[] | null>;
+  is_system: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface WorldSettingTemplateListResponse {
+  total: number;
+  items: WorldSettingTemplate[];
+}
+
+export interface WorldSettingApplyTemplateRequest {
+  project_id: string;
+  template_id: string;
+  values?: Record<string, string | string[] | null>;
+  custom_fields?: Record<string, WorldSettingFieldDefinition>;
+}
+
+export interface WorldSettingApplyTemplateResponse {
+  project_id: string;
+  template: WorldSettingTemplate;
+  world_setting_data: ProjectWorldSettingData;
+}
+
 // 项目类型定义
 export interface Project {
   id: string;  // UUID字符串
@@ -206,6 +248,7 @@ export interface Project {
   world_location?: string;
   world_atmosphere?: string;
   world_rules?: string;
+  world_setting_data?: ProjectWorldSettingData;
   chapter_count?: number;
   narrative_perspective?: string;
   character_count?: number;
@@ -231,6 +274,7 @@ export interface ProjectCreate {
   world_location?: string;
   world_atmosphere?: string;
   world_rules?: string;
+  world_setting_data?: ProjectWorldSettingData;
 }
 
 export interface ProjectUpdate {
@@ -244,6 +288,7 @@ export interface ProjectUpdate {
   world_location?: string;
   world_atmosphere?: string;
   world_rules?: string;
+  world_setting_data?: ProjectWorldSettingData;
   chapter_count?: number;
   narrative_perspective?: string;
   character_count?: number;
@@ -730,6 +775,37 @@ export interface InspirationGenerateCardsResponse {
   cards: InspirationDirectionCard[];
   warnings: string[];
   error?: string;
+}
+
+export type InspirationPlatform = 'qidian' | 'jjwxc' | 'ao3' | 'wattpad';
+
+export interface InspirationBatchRequest {
+  base_idea: string;
+  platform?: InspirationPlatform;
+  channel?: string;
+  genre_tags?: string[];
+  plot_keywords?: string[];
+  character_traits?: string[];
+  count?: number;
+  extra_requirement?: string;
+  previous_cards?: InspirationDirectionCard[];
+}
+
+export interface InspirationBatchResponse {
+  ideas: InspirationDirectionCard[];
+  generation_meta: {
+    count: number;
+    requested_count: number;
+    platform?: InspirationPlatform | null;
+    channel?: string | null;
+    extra_requirement?: string | null;
+    filters: {
+      genre_tags: string[];
+      plot_keywords: string[];
+      character_traits: string[];
+    };
+    warnings: string[];
+  };
 }
 
 export interface InspirationMergeCardsRequest {
@@ -1523,6 +1599,12 @@ export interface CandidateReviewResponse {
   changed: boolean;
   reason?: string | null;
   candidate: ExtractionCandidate;
+}
+
+export interface CandidateBatchReviewResponse {
+  changed: number;
+  failures: Array<{ candidate_id: string; reason: string }>;
+  candidates: ExtractionCandidate[];
 }
 
 export interface ManualReextractResponse {

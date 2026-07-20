@@ -9,6 +9,8 @@ import TimelineReviewPanel from '../components/common/TimelineReviewPanel';
 import { characterApi, organizationApi } from '../services/api';
 import type { Character, ExtractionCandidateType, Organization, OrganizationMember, OrganizationMemberPayload } from '../types';
 import { isOrganizationEntity } from '../utils/entityCompatibility';
+import { useIsMobile } from '../hooks/useMediaQuery';
+import { sx } from '../styles/sx';
 
 const ORGANIZATION_REVIEW_TYPES: ExtractionCandidateType[] = ['organization', 'organization_affiliation'];
 const ENTITY_GENERATION_POLICY_COPY = ExtractionCandidateReviewPanel.__testUtils.AI_ENTITY_GENERATION_POLICY_COPY;
@@ -29,19 +31,11 @@ export default function Organizations() {
   const [form] = Form.useForm();
   const [editMemberForm] = Form.useForm();
   const [editOrgForm] = Form.useForm();
-  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const isMobile = useIsMobile();
   const [modal, contextHolder] = Modal.useModal();
   const [orgListVisible, setOrgListVisible] = useState(false);
   const { token } = theme.useToken();
 
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth <= 768);
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   const loadOrganizations = useCallback(async () => {
     if (!projectId) return;
@@ -217,7 +211,7 @@ export default function Organizations() {
       dataIndex: 'loyalty',
       key: 'loyalty',
       render: (loyalty: number) => (
-        <span style={{ color: loyalty >= 70 ? 'green' : loyalty >= 40 ? 'orange' : 'red' }}>
+        <span className={sx({ color: loyalty >= 70 ? 'green' : loyalty >= 40 ? 'orange' : 'red' })}>
           {loyalty}%
         </span>
       ),
@@ -256,7 +250,7 @@ export default function Organizations() {
             size="small"
             icon={<EditOutlined />}
             onClick={() => handleEditMember(record)}
-            style={isMobile ? { padding: '4px' } : undefined}
+            className={sx(isMobile ? { padding: '4px' } : undefined)}
           >
             {isMobile ? '' : '编辑'}
           </Button>
@@ -266,7 +260,7 @@ export default function Organizations() {
             size="small"
             icon={<DeleteOutlined />}
             onClick={() => handleRemoveMember(record.id)}
-            style={isMobile ? { padding: '4px' } : undefined}
+            className={sx(isMobile ? { padding: '4px' } : undefined)}
           >
             {isMobile ? '' : '移除'}
           </Button>
@@ -283,18 +277,18 @@ export default function Organizations() {
   );
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div className="u-14esoxf">
       {contextHolder}
       
       {/* 页面标题 - 仅桌面端显示 */}
       {!isMobile && (
-        <div style={{
+        <div className={sx({
           padding: '16px 0',
           marginBottom: 16,
           borderBottom: `1px solid ${token.colorBorderSecondary}`
-        }}>
-          <h2 style={{ margin: 0, fontSize: 24 }}>
-            <BankOutlined style={{ marginRight: 8 }} />
+        })}>
+          <h2 className="u-axo8j1">
+            <BankOutlined className="u-1vcwmpp" />
             组织管理
           </h2>
         </div>
@@ -305,7 +299,7 @@ export default function Organizations() {
         showIcon
         message="组织默认从正文抽取"
         description={ENTITY_GENERATION_POLICY_COPY}
-        style={{ marginBottom: isMobile ? 8 : 16 }}
+        className={sx({ marginBottom: isMobile ? 8 : 16 })}
       />
        
       <ExtractionCandidateReviewPanel
@@ -343,43 +337,43 @@ export default function Organizations() {
         ]}
         canonicalChildren={(
           <>
-      <div style={{
+      <div className={sx({
         flex: 1,
         display: 'flex',
         gap: isMobile ? 0 : 16,
         flexDirection: isMobile ? 'column' : 'row',
         overflow: 'hidden'
-      }}>
+      })}>
         {/* 左侧组织列表 - 桌面端 */}
         {!isMobile && (
         <Card
           title={`组织列表 (${organizations.length})`}
-          style={{ width: 300, height: '100%', overflow: 'hidden' }}
+          className="u-s6husi"
           styles={{ body: { padding: 0, height: 'calc(100% - 57px)', overflow: 'auto' } }}
           loading={loading}
         >
           {organizations.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '40px 20px', color: token.colorTextTertiary }}>
+            <div className={sx({ textAlign: 'center', padding: '40px 20px', color: token.colorTextTertiary })}>
               暂无组织
             </div>
           ) : (
-            <Space direction="vertical" style={{ width: '100%', padding: '12px' }}>
+            <Space direction="vertical" className="u-x9k63i">
               {organizations.map(org => (
                 <Card
                   key={org.id}
                   size="small"
                   hoverable
-                  style={{
+                  className={sx({
                     cursor: 'pointer',
                     border: selectedOrg?.id === org.id ? `2px solid ${token.colorPrimary}` : `1px solid ${token.colorBorder}`,
                     background: selectedOrg?.id === org.id ? token.colorPrimaryBg : 'transparent'
-                  }}
+                  })}
                   onClick={() => handleSelectOrganization(org)}
                 >
-                  <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                    <strong style={{ fontSize: 14 }}>{org.name}</strong>
+                  <Space direction="vertical" size="small" className="u-1f3r3s">
+                    <strong className="u-17mbhes">{org.name}</strong>
                     <Tag color="blue">{org.type}</Tag>
-                    <div style={{ fontSize: '12px', color: token.colorTextSecondary }}>
+                    <div className={sx({ fontSize: '12px', color: token.colorTextSecondary })}>
                       成员: {org.member_count} | 势力: {org.power_level}
                     </div>
                   </Space>
@@ -401,30 +395,30 @@ export default function Organizations() {
           styles={{ body: { padding: 0 } }}
         >
           {organizations.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '40px 20px', color: token.colorTextTertiary }}>
+            <div className={sx({ textAlign: 'center', padding: '40px 20px', color: token.colorTextTertiary })}>
               暂无组织
             </div>
           ) : (
-            <Space direction="vertical" style={{ width: '100%', padding: '12px' }}>
+            <Space direction="vertical" className="u-x9k63i">
               {organizations.map(org => (
                 <Card
                   key={org.id}
                   size="small"
                   hoverable
-                  style={{
+                  className={sx({
                     cursor: 'pointer',
                     border: selectedOrg?.id === org.id ? `2px solid ${token.colorPrimary}` : `1px solid ${token.colorBorder}`,
                     background: selectedOrg?.id === org.id ? token.colorPrimaryBg : 'transparent'
-                  }}
+                  })}
                   onClick={() => {
                     handleSelectOrganization(org);
                     setOrgListVisible(false);
                   }}
                 >
-                  <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                    <strong style={{ fontSize: 14 }}>{org.name}</strong>
+                  <Space direction="vertical" size="small" className="u-1f3r3s">
+                    <strong className="u-17mbhes">{org.name}</strong>
                     <Tag color="blue">{org.type}</Tag>
-                    <div style={{ fontSize: '12px', color: token.colorTextSecondary }}>
+                    <div className={sx({ fontSize: '12px', color: token.colorTextSecondary })}>
                       成员: {org.member_count} | 势力: {org.power_level}
                     </div>
                   </Space>
@@ -436,16 +430,16 @@ export default function Organizations() {
         )}
 
         {/* 右侧内容区域 */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+        <div className="u-1ie7e29">
         {!selectedOrg ? (
-          <Card style={{ height: '100%' }}>
-            <div style={{ textAlign: 'center', padding: '100px 20px', color: token.colorTextTertiary }}>
+          <Card className="u-j7izwl">
+            <div className={sx({ textAlign: 'center', padding: '100px 20px', color: token.colorTextTertiary })}>
               {isMobile && organizations.length > 0 && (
                 <Button
                   type="primary"
                   icon={<UnorderedListOutlined />}
                   onClick={() => setOrgListVisible(true)}
-                  style={{ marginBottom: 20 }}
+                  className="u-1ccse9a"
                 >
                   选择组织
                 </Button>
@@ -457,11 +451,11 @@ export default function Organizations() {
           <>
             {/* 工具栏 - 移动端显示项目标题和组织列表按钮 */}
             {isMobile && (
-              <Card size="small" style={{ marginBottom: 8 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Card size="small" className="u-1jeouum">
+                <div className="u-9n1gl3">
                   <Space>
                     <BankOutlined />
-                    <span style={{ fontSize: 14, fontWeight: 600 }}>
+                    <span className="u-1kdoq56">
                       组织管理
                     </span>
                     <Tag color="blue">{currentProject?.title}</Tag>
@@ -478,17 +472,17 @@ export default function Organizations() {
             )}
 
             {/* 内容区域 */}
-            <div style={{
+            <div className={sx({
               flex: 1,
               display: 'flex',
               gap: isMobile ? 0 : 16,
               overflow: 'hidden'
-            }}>
+            })}>
               <Card
-                style={{ flex: 1, overflow: 'auto' }}
+                className="u-1hzrp41"
                 styles={{ body: { padding: isMobile ? '12px' : '24px' } }}
               >
-                <Space direction="vertical" style={{ width: '100%' }} size={isMobile ? 'middle' : 'large'}>
+                <Space direction="vertical" className="u-1f3r3s" size={isMobile ? 'middle' : 'large'}>
                 <Card
                   title="组织详情"
                   size="small"
@@ -601,7 +595,7 @@ export default function Organizations() {
         footer={null}
         centered={!isMobile}
         width={isMobile ? '100%' : 500}
-        style={isMobile ? { top: 0, paddingBottom: 0, maxWidth: '100vw' } : undefined}
+        className={sx(isMobile ? { top: 0, paddingBottom: 0, maxWidth: '100vw' } : undefined)}
         styles={isMobile ? { body: { maxHeight: 'calc(100vh - 110px)', overflowY: 'auto' } } : undefined}
       >
         <Form
@@ -641,7 +635,7 @@ export default function Organizations() {
             initialValue={5}
             tooltip="数字越大等级越高"
           >
-            <InputNumber min={0} max={10} style={{ width: '100%' }} />
+            <InputNumber min={0} max={10} className="u-1f3r3s" />
           </Form.Item>
 
           <Form.Item
@@ -649,7 +643,7 @@ export default function Organizations() {
             label="初始忠诚度"
             initialValue={50}
           >
-            <InputNumber min={0} max={100} style={{ width: '100%' }} suffix="%" />
+            <InputNumber min={0} max={100} className="u-1f3r3s" suffix="%" />
           </Form.Item>
 
           <Form.Item
@@ -672,7 +666,7 @@ export default function Organizations() {
           </Form.Item>
 
           <Form.Item>
-            <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+            <Space className="u-1qyyh4r">
               <Button onClick={() => setIsAddMemberModalOpen(false)}>取消</Button>
               <Button type="primary" htmlType="submit">
                 添加
@@ -694,10 +688,10 @@ export default function Organizations() {
         footer={null}
         centered={true}
         width={isMobile ? '90%' : 500}
-        style={isMobile ? {
+        className={sx(isMobile ? {
           maxWidth: '90vw',
           margin: '0 auto'
-        } : undefined}
+        } : undefined)}
         styles={isMobile ? {
           body: {
             maxHeight: 'calc(80vh - 110px)',
@@ -724,21 +718,21 @@ export default function Organizations() {
             label="职位等级"
             tooltip="数字越大等级越高"
           >
-            <InputNumber min={0} max={10} style={{ width: '100%' }} />
+            <InputNumber min={0} max={10} className="u-1f3r3s" />
           </Form.Item>
 
           <Form.Item
             name="loyalty"
             label="忠诚度"
           >
-            <InputNumber min={0} max={100} style={{ width: '100%' }} suffix="%" />
+            <InputNumber min={0} max={100} className="u-1f3r3s" suffix="%" />
           </Form.Item>
 
           <Form.Item
             name="contribution"
             label="贡献度"
           >
-            <InputNumber min={0} max={100} style={{ width: '100%' }} suffix="%" />
+            <InputNumber min={0} max={100} className="u-1f3r3s" suffix="%" />
           </Form.Item>
 
           <Form.Item
@@ -768,7 +762,7 @@ export default function Organizations() {
           </Form.Item>
 
           <Form.Item>
-            <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+            <Space className="u-1qyyh4r">
               <Button onClick={() => {
                 setIsEditMemberModalOpen(false);
                 editMemberForm.resetFields();
@@ -795,7 +789,7 @@ export default function Organizations() {
         footer={null}
         centered={!isMobile}
         width={isMobile ? '100%' : 500}
-        style={isMobile ? { top: 0, paddingBottom: 0, maxWidth: '100vw' } : undefined}
+        className={sx(isMobile ? { top: 0, paddingBottom: 0, maxWidth: '100vw' } : undefined)}
         styles={isMobile ? { body: { maxHeight: 'calc(100vh - 110px)', overflowY: 'auto' } } : undefined}
       >
         <Form
@@ -833,7 +827,7 @@ export default function Organizations() {
             rules={[{ required: true, message: '请输入势力等级' }]}
             tooltip="0-100的数值，表示组织的影响力"
           >
-            <InputNumber min={0} max={100} style={{ width: '100%' }} />
+            <InputNumber min={0} max={100} className="u-1f3r3s" />
           </Form.Item>
 
           <Form.Item
@@ -858,7 +852,7 @@ export default function Organizations() {
           </Form.Item>
 
           <Form.Item>
-            <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+            <Space className="u-1qyyh4r">
               <Button onClick={() => setIsEditOrgModalOpen(false)}>取消</Button>
               <Button type="primary" htmlType="submit">
                 保存

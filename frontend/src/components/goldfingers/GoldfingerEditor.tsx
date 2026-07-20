@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Alert, Col, Form, Input, InputNumber, Modal, Row, Select, Typography, theme } from 'antd';
 import type { Character, Goldfinger, GoldfingerCreate, GoldfingerStatus, GoldfingerUpdate } from '../../types';
 import { goldfingerJsonFieldLabels, goldfingerStatusOptions, toEditorText } from './constants';
+import { sx } from '../../styles/sx';
 
 const { TextArea } = Input;
 const { Text } = Typography;
@@ -143,7 +144,7 @@ export default function GoldfingerEditor({
         showIcon
         message="字段支持 JSON 或多行文本"
         description="规则、任务、奖励、限制等字段会优先按 JSON 解析；不是合法 JSON 时，多行文本会保存为列表，单行文本会保存为字符串。"
-        style={{ marginBottom: token.marginMD }}
+        className={sx({ marginBottom: token.marginMD })}
       />
       <Form form={form} layout="vertical" onFinish={handleFinish} initialValues={{ status: 'unknown' }}>
         <Row gutter={16}>
@@ -190,7 +191,7 @@ export default function GoldfingerEditor({
         <Row gutter={16}>
           <Col xs={24} md={12}>
             <Form.Item label="置信度" name="confidence" tooltip="手动维护可留空；正文同步候选会写入置信度">
-              <InputNumber min={0} max={1} step={0.01} style={{ width: '100%' }} placeholder="0.00 - 1.00" />
+              <InputNumber min={0} max={1} step={0.01} className="u-1f3r3s" placeholder="0.00 - 1.00" />
             </Form.Item>
           </Col>
           <Col xs={24} md={12}>

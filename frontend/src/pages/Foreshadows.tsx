@@ -18,6 +18,7 @@ import type {
   ForeshadowStatus, ForeshadowCategory, Chapter, Character
 } from '../types';
 import { isOrganizationEntity } from '../utils/entityCompatibility';
+import { sx } from '../styles/sx';
 
 const { TextArea } = Input;
 const { Option } = Select;
@@ -378,7 +379,7 @@ export default function Foreshadows() {
           <Space>
             <a onClick={() => openDetailModal(record)}>{title}</a>
             {record.is_long_term && (
-              <Tag color="purple" style={{ marginLeft: 4 }}>长线</Tag>
+              <Tag color="purple" className="u-54p264">长线</Tag>
             )}
           </Space>
           {getUrgencyBadge(record)}
@@ -499,10 +500,10 @@ export default function Foreshadows() {
   ];
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div className="u-io72pt">
       {/* 统计卡片 */}
       {stats && (
-        <Row gutter={16} style={{ marginBottom: 16 }}>
+        <Row gutter={16} className="u-6srbul">
           <Col span={3}>
             <Card size="small">
               <Statistic title="总计" value={stats.total} />
@@ -548,7 +549,7 @@ export default function Foreshadows() {
           description="请尽快在后续章节中回收这些伏笔，或调整计划回收章节"
           type="warning"
           showIcon
-          style={{ marginBottom: 16 }}
+          className="u-6srbul"
         />
       )}
 
@@ -562,17 +563,17 @@ export default function Foreshadows() {
         }
         type="info"
         showIcon={false}
-        style={{ marginBottom: 16 }}
+        className="u-6srbul"
         closable
       />
 
       {/* 工具栏 */}
-      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="u-1ckhnkw">
         <Space>
           <Select
             placeholder="状态筛选"
             allowClear
-            style={{ width: 120 }}
+            className="u-1bsbdaj"
             value={statusFilter}
             onChange={setStatusFilter}
           >
@@ -583,7 +584,7 @@ export default function Foreshadows() {
           <Select
             placeholder="分类筛选"
             allowClear
-            style={{ width: 100 }}
+            className="u-kcmr91"
             value={categoryFilter}
             onChange={setCategoryFilter}
           >
@@ -594,7 +595,7 @@ export default function Foreshadows() {
           <Select
             placeholder="来源筛选"
             allowClear
-            style={{ width: 100 }}
+            className="u-kcmr91"
             value={sourceFilter}
             onChange={setSourceFilter}
           >
@@ -637,13 +638,7 @@ export default function Foreshadows() {
       {/* 伏笔列表 - 表格内容可滚动，表头固定 */}
       <div
         ref={tableContainerRef}
-        style={{
-          flex: 1,
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          minHeight: 0, // 重要：让 flex 子元素可以收缩
-        }}
+        className="u-1j0pb9c"
       >
         <Table
           dataSource={foreshadows}
@@ -659,7 +654,7 @@ export default function Foreshadows() {
       </div>
 
       {/* 分页器 - 固定在底部居中 */}
-      <div style={{
+      <div className={sx({
         padding: '12px 0',
         borderTop: `1px solid ${token.colorBorderSecondary}`,
         display: 'flex',
@@ -667,7 +662,7 @@ export default function Foreshadows() {
         alignItems: 'center',
         flexShrink: 0,
         background: token.colorBgContainer,
-      }}>
+      })}>
         <Pagination
           current={currentPage}
           pageSize={pageSize}
@@ -736,12 +731,12 @@ export default function Foreshadows() {
           <Row gutter={16}>
             <Col span={6}>
               <Form.Item name="plant_chapter_number" label="计划埋入">
-                <InputNumber min={1} placeholder="章节号" style={{ width: '100%' }} />
+                <InputNumber min={1} placeholder="章节号" className="u-1f3r3s" />
               </Form.Item>
             </Col>
             <Col span={6}>
               <Form.Item name="target_resolve_chapter_number" label="计划回收">
-                <InputNumber min={1} placeholder="章节号" style={{ width: '100%' }} />
+                <InputNumber min={1} placeholder="章节号" className="u-1f3r3s" />
               </Form.Item>
             </Col>
             <Col span={12}>
@@ -767,17 +762,17 @@ export default function Foreshadows() {
           <Row gutter={16}>
             <Col span={6}>
               <Form.Item name="importance" label="重要性 (0-1)">
-                <InputNumber min={0} max={1} step={0.1} style={{ width: '100%' }} />
+                <InputNumber min={0} max={1} step={0.1} className="u-1f3r3s" />
               </Form.Item>
             </Col>
             <Col span={6}>
               <Form.Item name="strength" label="强度 (1-10)">
-                <InputNumber min={1} max={10} style={{ width: '100%' }} />
+                <InputNumber min={1} max={10} className="u-1f3r3s" />
               </Form.Item>
             </Col>
             <Col span={6}>
               <Form.Item name="subtlety" label="隐藏度 (1-10)">
-                <InputNumber min={1} max={10} style={{ width: '100%' }} />
+                <InputNumber min={1} max={10} className="u-1f3r3s" />
               </Form.Item>
             </Col>
             <Col span={6}>
@@ -800,22 +795,22 @@ export default function Foreshadows() {
             </Col>
           </Row>
           
-          <Divider style={{ margin: '12px 0' }}>AI辅助设置</Divider>
+          <Divider className="u-1xk5sjz">AI辅助设置</Divider>
           
           <Row gutter={16}>
             <Col span={8}>
-              <Form.Item name="auto_remind" label="自动提醒" valuePropName="checked" style={{ marginBottom: 0 }}>
+              <Form.Item name="auto_remind" label="自动提醒" valuePropName="checked" className="u-1sezbee">
                 <Switch checkedChildren="开" unCheckedChildren="关" />
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item name="include_in_context" label="包含在生成上下文" valuePropName="checked" style={{ marginBottom: 0 }}>
+              <Form.Item name="include_in_context" label="包含在生成上下文" valuePropName="checked" className="u-1sezbee">
                 <Switch checkedChildren="是" unCheckedChildren="否" />
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item name="remind_before_chapters" label="提前几章提醒" style={{ marginBottom: 0 }}>
-                <InputNumber min={1} max={20} style={{ width: '100%' }} />
+              <Form.Item name="remind_before_chapters" label="提前几章提醒" className="u-1sezbee">
+                <InputNumber min={1} max={20} className="u-1f3r3s" />
               </Form.Item>
             </Col>
           </Row>
@@ -864,13 +859,13 @@ export default function Foreshadows() {
               
               <Col span={24}>
                 <strong>伏笔内容：</strong>
-                <p style={{ marginTop: 8, whiteSpace: 'pre-wrap' }}>{currentForeshadow.content}</p>
+                <p className="u-10zil4y">{currentForeshadow.content}</p>
               </Col>
               
               {currentForeshadow.hint_text && (
                 <Col span={24}>
                   <strong>暗示文本：</strong>
-                  <p style={{ marginTop: 8, whiteSpace: 'pre-wrap', color: token.colorTextSecondary }}>
+                  <p className={sx({ marginTop: 8, whiteSpace: 'pre-wrap', color: token.colorTextSecondary })}>
                     {currentForeshadow.hint_text}
                   </p>
                 </Col>
@@ -879,7 +874,7 @@ export default function Foreshadows() {
               {currentForeshadow.resolution_text && (
                 <Col span={24}>
                   <strong>揭示文本：</strong>
-                  <p style={{ marginTop: 8, whiteSpace: 'pre-wrap', color: token.colorTextSecondary }}>
+                  <p className={sx({ marginTop: 8, whiteSpace: 'pre-wrap', color: token.colorTextSecondary })}>
                     {currentForeshadow.resolution_text}
                   </p>
                 </Col>
@@ -911,7 +906,7 @@ export default function Foreshadows() {
               {currentForeshadow.related_characters && currentForeshadow.related_characters.length > 0 && (
                 <Col span={24}>
                   <strong>关联角色：</strong>
-                  <div style={{ marginTop: 4 }}>
+                  <div className="u-vataou">
                     {currentForeshadow.related_characters.map((name, idx) => (
                       <Tag key={idx}>{name}</Tag>
                     ))}
@@ -922,7 +917,7 @@ export default function Foreshadows() {
               {currentForeshadow.notes && (
                 <Col span={24}>
                   <strong>备注：</strong>
-                  <p style={{ marginTop: 8, color: token.colorTextSecondary }}>{currentForeshadow.notes}</p>
+                  <p className={sx({ marginTop: 8, color: token.colorTextSecondary })}>{currentForeshadow.notes}</p>
                 </Col>
               )}
               
@@ -1010,7 +1005,7 @@ export default function Foreshadows() {
           description="通常情况下，章节分析完成后伏笔会自动同步到伏笔管理中。此功能用于手动补充同步可能遗漏的伏笔。"
           type="info"
           showIcon
-          style={{ marginBottom: 16 }}
+          className="u-6srbul"
         />
         <p>此操作将从已完成的章节分析结果中提取伏笔信息，同步到伏笔管理表。</p>
         <ul>

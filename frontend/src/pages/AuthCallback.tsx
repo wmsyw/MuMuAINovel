@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Spin, Result, Button, Modal, Input, message, theme } from 'antd';
 import { authApi } from '../services/api';
 import AnnouncementModal from '../components/modal/AnnouncementModal';
+import { sx } from '../styles/sx';
 
 export default function AuthCallback() {
   const navigate = useNavigate();
@@ -89,16 +90,16 @@ export default function AuthCallback() {
 
   if (status === 'loading') {
     return (
-      <div style={{
+      <div className={sx({
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
         minHeight: '100vh',
         background: `linear-gradient(135deg, ${token.colorPrimary} 0%, ${token.colorPrimaryHover} 100%)`,
-      }}>
-        <div style={{ textAlign: 'center' }}>
+      })}>
+        <div className="u-1jt8mdo">
           <Spin size="large" />
-          <div style={{ marginTop: 20, color: token.colorWhite, fontSize: 16 }}>
+          <div className={sx({ marginTop: 20, color: token.colorWhite, fontSize: 16 })}>
             正在处理登录...
           </div>
         </div>
@@ -108,13 +109,13 @@ export default function AuthCallback() {
 
   if (status === 'error') {
     return (
-      <div style={{
+      <div className={sx({
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
         minHeight: '100vh',
         background: `linear-gradient(135deg, ${token.colorPrimary} 0%, ${token.colorPrimaryHover} 100%)`,
-      }}>
+      })}>
         <Result
           status="error"
           title="登录失败"
@@ -124,7 +125,7 @@ export default function AuthCallback() {
               返回登录
             </Button>
           }
-          style={{ background: token.colorBgContainer, padding: 40, borderRadius: 8 }}
+          className={sx({ background: token.colorBgContainer, padding: 40, borderRadius: 8 })}
         />
       </div>
     );
@@ -254,36 +255,36 @@ export default function AuthCallback() {
         cancelText="暂不设置"
         width={500}
       >
-        <div style={{ marginBottom: 20 }}>
+        <div className="u-1ccse9a">
           <p>您已成功通过 Linux DO 授权登录！</p>
           <p>系统已为您自动生成默认密码，您可以选择设置自定义密码或继续使用默认密码。</p>
           {passwordStatus?.default_password && (
-            <div style={{
+            <div className={sx({
               background: token.colorFillTertiary,
               padding: 12,
               borderRadius: 4,
               marginTop: 12
-            }}>
+            })}>
               <strong>账号：</strong>{passwordStatus.username}<br />
-              <strong>默认密码：</strong><code style={{
+              <strong>默认密码：</strong><code className={sx({
                 background: token.colorBgContainer,
                 padding: '2px 8px',
                 borderRadius: 3,
                 color: token.colorPrimary,
                 fontSize: 14
-              }}>{passwordStatus.default_password}</code>
+              })}>{passwordStatus.default_password}</code>
             </div>
           )}
         </div>
 
-        <div style={{ marginTop: 20 }}>
-          <div style={{ marginBottom: 12 }}>
+        <div className="u-oxf0ga">
+          <div className="u-1qz2mrl">
             <label>新密码（至少6个字符）：</label>
             <Input.Password
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               placeholder="请输入新密码"
-              style={{ marginTop: 4 }}
+              className="u-vataou"
             />
           </div>
           <div>
@@ -292,24 +293,24 @@ export default function AuthCallback() {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="请再次输入密码"
-              style={{ marginTop: 4 }}
+              className="u-vataou"
             />
           </div>
         </div>
       </Modal>
 
-      <div style={{
+      <div className={sx({
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
         minHeight: '100vh',
         background: `linear-gradient(135deg, ${token.colorPrimary} 0%, ${token.colorPrimaryHover} 100%)`,
-      }}>
+      })}>
         <Result
           status="success"
           title="登录成功"
           subTitle={showPasswordModal ? "请设置账号密码..." : (showAnnouncement ? "欢迎使用..." : "正在跳转...")}
-          style={{ background: alphaColor(token.colorBgContainer, 0.96), padding: 40, borderRadius: 8 }}
+          className={sx({ background: alphaColor(token.colorBgContainer, 0.96), padding: 40, borderRadius: 8 })}
         />
       </div>
     </>

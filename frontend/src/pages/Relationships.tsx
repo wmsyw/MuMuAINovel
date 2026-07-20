@@ -7,6 +7,8 @@ import { isOrganizationEntity, type LegacyOrganizationCharacterFields } from '..
 import GoldfingerPendingReviewPanel from '../components/goldfingers/GoldfingerPendingReviewPanel';
 import { characterApi, relationshipApi } from '../services/api';
 import type { Character as CharacterContract, Relationship, RelationshipHistoryEvent, RelationshipProvenance, RelationshipType } from '../types';
+import { useIsMobile } from '../hooks/useMediaQuery';
+import { sx } from '../styles/sx';
 
 const { TextArea } = Input;
 const { Paragraph, Text } = Typography;
@@ -52,18 +54,10 @@ export default function Relationships() {
   const [form] = Form.useForm();
   const [modal, contextHolder] = Modal.useModal();
   const { token } = theme.useToken();
-  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const isMobile = useIsMobile();
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
 
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth <= 768);
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   useEffect(() => {
     if (projectId) {
@@ -187,14 +181,14 @@ export default function Relationships() {
   };
 
   const renderEvidenceExcerpt = (evidence?: string | null, rows = 2) => (
-    <Paragraph style={{ marginBottom: 0 }} ellipsis={evidence ? { rows, tooltip: evidence } : false}>
+    <Paragraph className="u-1sezbee" ellipsis={evidence ? { rows, tooltip: evidence } : false}>
       {evidence || '暂无证据摘录'}
     </Paragraph>
   );
 
   const renderProvenanceCard = (item: RelationshipProvenance) => (
-    <Card key={item.id} size="small" style={{ borderColor: token.colorBorderSecondary }}>
-      <Space direction="vertical" size="small" style={{ width: '100%' }}>
+    <Card key={item.id} size="small" className={sx({ borderColor: token.colorBorderSecondary })}>
+      <Space direction="vertical" size="small" className="u-1f3r3s">
         <Space wrap>
           <Tag color="geekblue">{item.source_type}</Tag>
           {item.claim_type && <Tag>{item.claim_type}</Tag>}
@@ -202,7 +196,7 @@ export default function Relationships() {
           <Text type="secondary">置信度：{formatConfidence(item.confidence)}</Text>
           <Text type="secondary">{formatDateTime(item.created_at)}</Text>
         </Space>
-        <Paragraph style={{ marginBottom: 0, whiteSpace: 'pre-wrap' }}>
+        <Paragraph className="u-19o9sm6">
           {item.evidence_text || '暂无证据原文'}
         </Paragraph>
       </Space>
@@ -210,8 +204,8 @@ export default function Relationships() {
   );
 
   const renderHistoryCard = (item: RelationshipHistoryEvent) => (
-    <Card key={item.id} size="small" style={{ borderColor: token.colorBorderSecondary }}>
-      <Space direction="vertical" size="small" style={{ width: '100%' }}>
+    <Card key={item.id} size="small" className={sx({ borderColor: token.colorBorderSecondary })}>
+      <Space direction="vertical" size="small" className="u-1f3r3s">
         <Space wrap>
           <Tag color={item.event_status === 'active' ? 'success' : item.event_status === 'ended' ? 'default' : 'processing'}>
             {item.event_status}
@@ -222,7 +216,7 @@ export default function Relationships() {
           {item.supersedes_event_id && <Tag color="orange">替换 {item.supersedes_event_id}</Tag>}
         </Space>
         {item.story_time_label && <Text type="secondary">故事时间：{item.story_time_label}</Text>}
-        <Paragraph style={{ marginBottom: 0, whiteSpace: 'pre-wrap' }}>
+        <Paragraph className="u-19o9sm6">
           {item.evidence_text || '暂无证据原文'}
         </Paragraph>
       </Space>
@@ -284,7 +278,7 @@ export default function Relationships() {
             <Text strong>{name || '未知关系'}</Text>
             {Boolean(record.pending_candidate_count) && <Tag color="orange">待审 {record.pending_candidate_count}</Tag>}
           </Space>
-          {record.description && <Text type="secondary" ellipsis style={{ maxWidth: 180 }}>{record.description}</Text>}
+          {record.description && <Text type="secondary" ellipsis className="u-1eqblnk">{record.description}</Text>}
         </Space>
       ),
       width: 180,
@@ -325,7 +319,7 @@ export default function Relationships() {
       render: (source: string, record: Relationship) => (
         <Space direction="vertical" size={2}>
           <Tag>{source === 'ai' ? 'AI生成' : source === 'manual' ? '手动创建' : source || '未知'}</Tag>
-          <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>{formatSourceChapter(record)}</Text>
+          <Text type="secondary" className={sx({ fontSize: token.fontSizeSM })}>{formatSourceChapter(record)}</Text>
         </Space>
       ),
       width: 150,
@@ -334,7 +328,7 @@ export default function Relationships() {
       title: '证据 / 置信度',
       key: 'provenance',
       render: (_: unknown, record: Relationship) => (
-        <Space direction="vertical" size={4} style={{ width: '100%' }}>
+        <Space direction="vertical" size={4} className="u-1f3r3s">
           <Space wrap size={6}>
             <Tag color={record.evidence_text ? 'cyan' : 'default'}>证据 {record.evidence_text ? '已记录' : '未记录'}</Tag>
             <Text type="secondary">{formatConfidence(record.confidence)}</Text>
@@ -407,7 +401,7 @@ export default function Relationships() {
         title={
           <Space wrap>
             <ApartmentOutlined />
-            <span style={{ fontSize: isMobile ? 14 : 16 }}>关系管理</span>
+            <span className={sx({ fontSize: isMobile ? 14 : 16 })}>关系管理</span>
             {!isMobile && <Tag color="blue">{currentProject?.title}</Tag>}
           </Space>
         }
@@ -485,13 +479,13 @@ export default function Relationships() {
               key: 'types',
               label: `关系类型 (${relationshipTypes.length})`,
               children: (
-                <div style={{
+                <div className={sx({
                   display: 'grid',
                   gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(200px, 1fr))',
                   gap: isMobile ? '12px' : '16px',
                   maxHeight: isMobile ? 'calc(100vh - 400px)' : 'calc(100vh - 350px)',
                   overflow: 'auto'
-                }}>
+                })}>
                   {Object.entries(groupedTypes).map(([category, types]) => (
                     <Card
                       key={category}
@@ -499,7 +493,7 @@ export default function Relationships() {
                       title={categoryLabels[category] || category}
                       headStyle={{ backgroundColor: token.colorFillAlter }}
                     >
-                      <Space direction="vertical" style={{ width: '100%' }}>
+                      <Space direction="vertical" className="u-1f3r3s">
                         {types.map(type => (
                           <Tag key={type.id} color={getCategoryColor(category)}>
                             {type.icon} {type.name}
@@ -528,7 +522,7 @@ export default function Relationships() {
         footer={null}
         centered={!isMobile}
         width={isMobile ? '100%' : 600}
-        style={isMobile ? { top: 0, paddingBottom: 0, maxWidth: '100vw' } : undefined}
+        className={sx(isMobile ? { top: 0, paddingBottom: 0, maxWidth: '100vw' } : undefined)}
         styles={isMobile ? { body: { maxHeight: 'calc(100vh - 110px)', overflowY: 'auto' } } : undefined}
       >
         <Form
@@ -625,7 +619,7 @@ export default function Relationships() {
           </Form.Item>
 
           <Form.Item>
-            <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+            <Space className="u-1qyyh4r">
               <Button onClick={() => {
                 setIsModalOpen(false);
                 setIsEditMode(false);
@@ -647,7 +641,7 @@ export default function Relationships() {
         onClose={() => setEvidenceOpen(false)}
       >
         {evidenceRelationship ? (
-          <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <Space direction="vertical" size="middle" className="u-1f3r3s">
             {Boolean(evidenceRelationship.pending_candidate_count) && (
               <Alert
                 type="warning"
@@ -678,7 +672,7 @@ export default function Relationships() {
 
             <Card size="small" title={<Space><HistoryOutlined />合并 / 历史事件</Space>}>
               {evidenceRelationship.history && evidenceRelationship.history.length > 0 ? (
-                <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                <Space direction="vertical" size="small" className="u-1f3r3s">
                   {evidenceRelationship.history.map(renderHistoryCard)}
                 </Space>
               ) : (
@@ -688,7 +682,7 @@ export default function Relationships() {
 
             <Card size="small" title="来源 / Provenance">
               {evidenceRelationship.provenance && evidenceRelationship.provenance.length > 0 ? (
-                <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                <Space direction="vertical" size="small" className="u-1f3r3s">
                   {evidenceRelationship.provenance.map(renderProvenanceCard)}
                 </Space>
               ) : (

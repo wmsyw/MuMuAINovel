@@ -9,13 +9,19 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
+from collections.abc import Mapping
+from copy import deepcopy
 import uuid
-
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.project import Project
 from app.models.relationship import WorldSettingResult
+from app.services.world_setting_data_service import (
+    merge_project_world_setting_data,
+    project_world_setting_data,
+)
+
 
 
 WORLD_RESULT_SOURCE_AI = "ai"
@@ -113,6 +119,7 @@ class WorldSettingResultService:
                 world_atmosphere=world_atmosphere,
                 world_rules=world_rules,
                 raw_payload=raw_payload,
+                world_setting_data_before=project_world_setting_data(project),
                 prompt_version=prompt_version,
                 template_version=template_version,
                 actor_user_id=actor_user_id,
@@ -140,7 +147,9 @@ class WorldSettingResultService:
         if result.status == "rejected":
             return WorldSettingOperationResult(result=result, changed=False, reason=f"result is {result.status}")
 
+        self._capture_dynamic_before(result, project_world_setting_data(project))
         changed = self._apply_snapshot(project, result)
+        self._capture_dynamic_after(result, project_world_setting_data(project))
         audit_changed = False
         if result.accepted_at is None:
             result.accepted_at = self._now()
@@ -206,7 +215,8 @@ class WorldSettingResultService:
             return WorldSettingOperationResult(result=current, changed=False, reason="no previous accepted result")
 
         project = self._require_project(current.project_id)
-        changed = self._apply_snapshot(project, previous)
+        restore_data = self._rollback_dynamic_data(current, previous)
+        changed = self._apply_snapshot(project, previous, dynamic_data=restore_data)
         previous_status_changed = previous.status != "accepted"
         previous.status = "accepted"
         if previous.accepted_at is None:
@@ -272,18 +282,101 @@ class WorldSettingResultService:
             query.order_by(WorldSettingResult.accepted_at.desc(), WorldSettingResult.created_at.desc(), WorldSettingResult.id.desc())
         ).scalars().first()
 
-    def _apply_snapshot(self, project: Project, result: WorldSettingResult) -> bool:
+    @staticmethod
+    def _raw_mapping(result: WorldSettingResult) -> dict[str, Any]:
+        raw = result.raw_result
+        return dict(raw) if isinstance(raw, Mapping) else {}
+
+    def _capture_dynamic_before(self, result: WorldSettingResult, data: Mapping[str, Any]) -> None:
+        raw = self._raw_mapping(result)
+        if result.status != "accepted" or "world_setting_data_before" not in raw:
+            raw["world_setting_data_before"] = deepcopy(dict(data))
+            result.raw_result = raw
+
+    def _capture_dynamic_after(self, result: WorldSettingResult, data: Mapping[str, Any]) -> None:
+        raw = self._raw_mapping(result)
+        raw["world_setting_data_after"] = deepcopy(dict(data))
+        result.raw_result = raw
+
+    def _candidate_dynamic_data(self, result: WorldSettingResult) -> Mapping[str, Any] | None:
+        raw = self._raw_mapping(result)
+        for key in ("world_setting_data", "dynamic_world_setting_data", "dynamic_values", "values"):
+            candidate = raw.get(key)
+            if not isinstance(candidate, Mapping):
+                continue
+            if key in {"dynamic_values", "values"}:
+                return {"values": dict(candidate)}
+            return candidate
+        return None
+
+    def _rollback_dynamic_data(
+        self,
+        current: WorldSettingResult,
+        previous: WorldSettingResult,
+    ) -> Mapping[str, Any] | None:
+        current_raw = self._raw_mapping(current)
+        before = current_raw.get("world_setting_data_before")
+        if isinstance(before, Mapping):
+            return before
+        previous_raw = self._raw_mapping(previous)
+        after = previous_raw.get("world_setting_data_after")
+        if isinstance(after, Mapping):
+            return after
+        return self._candidate_dynamic_data(previous)
+
+    def _apply_snapshot(
+        self,
+        project: Project,
+        result: WorldSettingResult,
+        *,
+        dynamic_data: Mapping[str, Any] | None = None,
+    ) -> bool:
         changed = False
+        before_data = project_world_setting_data(project)
         fields = {
             "world_time_period": result.world_time_period,
             "world_location": result.world_location,
             "world_atmosphere": result.world_atmosphere,
             "world_rules": result.world_rules,
         }
+        normalized_fields: dict[str, str | None] = {}
         for field_name, value in fields.items():
-            if getattr(project, field_name) != value:
-                setattr(project, field_name, value)
+            normalized = value.strip() if isinstance(value, str) and value.strip() else None
+            normalized_fields[field_name] = normalized
+            if getattr(project, field_name) != normalized:
+                setattr(project, field_name, normalized)
                 changed = True
+
+        candidate = dynamic_data if dynamic_data is not None else self._candidate_dynamic_data(result)
+        replace_data = None
+        dynamic_updates: Mapping[str, Any] | None = None
+        if isinstance(candidate, Mapping):
+            if "fields" in candidate or "template_id" in candidate or "template_name" in candidate:
+                current_data = project_world_setting_data(project)
+                candidate_fields = candidate.get("fields")
+                candidate_values = candidate.get("values")
+                merged_fields = dict(current_data.get("fields", {}))
+                if isinstance(candidate_fields, Mapping):
+                    merged_fields.update(candidate_fields)
+                merged_values = dict(current_data.get("values", {}))
+                if isinstance(candidate_values, Mapping):
+                    merged_values.update(candidate_values)
+                replace_data = {
+                    "template_id": candidate.get("template_id", current_data.get("template_id")),
+                    "template_name": candidate.get("template_name", current_data.get("template_name")),
+                    "fields": merged_fields,
+                    "values": merged_values,
+                }
+            else:
+                dynamic_updates = candidate.get("values") if isinstance(candidate.get("values"), Mapping) else candidate
+        merged = merge_project_world_setting_data(
+            project,
+            legacy_updates=normalized_fields,
+            dynamic_updates=dynamic_updates,
+            replace_data=replace_data,
+        )
+        if merged != before_data:
+            changed = True
         return changed
 
     def _raw_result_payload(
@@ -294,6 +387,7 @@ class WorldSettingResultService:
         world_atmosphere: str | None,
         world_rules: str | None,
         raw_payload: dict[str, Any] | None,
+        world_setting_data_before: Mapping[str, Any] | None,
         prompt_version: str | None,
         template_version: str | None,
         actor_user_id: str | None,
@@ -308,6 +402,8 @@ class WorldSettingResultService:
                 "world_rules": world_rules,
             },
         )
+        if world_setting_data_before is not None:
+            payload.setdefault("world_setting_data_before", deepcopy(dict(world_setting_data_before)))
         if prompt_version is not None:
             payload.setdefault("prompt_version", prompt_version)
         if template_version is not None:

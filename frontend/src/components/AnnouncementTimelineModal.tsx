@@ -12,6 +12,7 @@ import {
 } from '@ant-design/icons';
 import type { Announcement, AnnouncementLevel } from '../types';
 import MarkdownRenderer from './MarkdownRenderer';
+import { sx } from '../styles/sx';
 
 const { Paragraph, Text, Title } = Typography;
 
@@ -100,7 +101,7 @@ export default function AnnouncementTimelineModal({
         `}
       </style>
       {loading && announcements.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '40px 0' }}>
+        <div className="u-xyu2f7">
           <Spin size="large" tip="加载公告中..." />
         </div>
       ) : announcements.length === 0 ? (
@@ -113,7 +114,7 @@ export default function AnnouncementTimelineModal({
               <Timeline.Item
                 key={item.id}
                 dot={
-                  <div style={{
+                  <div className={sx({
                     width: 26,
                     height: 26,
                     borderRadius: '50%',
@@ -123,27 +124,27 @@ export default function AnnouncementTimelineModal({
                     alignItems: 'center',
                     justifyContent: 'center',
                     color: token.colorPrimary,
-                  }}>
+                  })}>
                     {item.pinned ? <PushpinFilled /> : <ExclamationCircleOutlined />}
                   </div>
                 }
               >
-                <div style={{ marginLeft: 10, paddingBottom: 18 }}>
-                  <Space size="small" wrap style={{ marginBottom: 8 }}>
+                <div className="u-o20d87">
+                  <Space size="small" wrap className="u-1jeouum">
                     <Tag color={config.color} icon={config.icon}>{config.label}</Tag>
                     {item.pinned && <Tag color="gold" icon={<PushpinFilled />}>置顶</Tag>}
-                    <Text type="secondary" style={{ fontSize: 12 }}>
-                      <ClockCircleOutlined style={{ marginRight: 4 }} />
+                    <Text type="secondary" className="u-1pw6xki">
+                      <ClockCircleOutlined className="u-1ubukwp" />
                       {formatDateTime(item.publish_at || item.created_at)}
                     </Text>
                   </Space>
 
-                  <Title level={5} style={{ margin: '0 0 8px' }}>
+                  <Title level={5} className="u-1rmzh5o">
                     {item.title}
                   </Title>
 
                   {item.summary && (
-                    <Paragraph type="secondary" style={{ marginBottom: 8 }}>
+                    <Paragraph type="secondary" className="u-1jeouum">
                       {item.summary}
                     </Paragraph>
                   )}
@@ -151,7 +152,7 @@ export default function AnnouncementTimelineModal({
                   <MarkdownRenderer content={item.content} compact />
 
                   {item.author_name && (
-                    <Text type="secondary" style={{ fontSize: 12 }}>
+                    <Text type="secondary" className="u-1pw6xki">
                       发布者：{item.author_name}
                     </Text>
                   )}

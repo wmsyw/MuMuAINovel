@@ -205,6 +205,7 @@ from app.api import (
     voice_personas,
     wizard_stream,
     world_setting_results,
+    world_setting_templates,
     writing_styles,
 )
 
@@ -233,6 +234,7 @@ app.include_router(extraction.router, prefix="/api")  # 抽取候选评审API
 app.include_router(sync.router, prefix="/api")  # 章节事实同步API
 app.include_router(timeline.router, prefix="/api")  # 时间线查询API
 app.include_router(world_setting_results.router, prefix="/api")  # 世界观结果评审API
+app.include_router(world_setting_templates.router, prefix="/api")  # 世界设定模板API
 app.include_router(writing_styles.router, prefix="/api")
 app.include_router(memories.router)  # 记忆管理API (已包含/api前缀)
 app.include_router(foreshadows.router)  # 伏笔管理API (已包含/api前缀)
@@ -295,7 +297,7 @@ else:
     @app.get("/")
     async def root():
         return {
-            "message": "欢迎使用MuMuAINovel",
+            "message": f"欢迎使用{config_settings.app_name}",
             "version": config_settings.app_version,
             "docs": "/docs",
             "notice": "请先构建前端: cd frontend && npm run build"

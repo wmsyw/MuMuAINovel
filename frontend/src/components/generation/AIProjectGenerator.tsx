@@ -5,6 +5,7 @@ import { CheckCircleOutlined, LoadingOutlined } from '@ant-design/icons';
 import { wizardStreamApi } from '../../services/api';
 import type { ApiError } from '../../types';
 import type { GenerationConfig } from './types';
+import { sx } from '../../styles/sx';
 
 const { Title, Paragraph, Text } = Typography;
 
@@ -12,6 +13,7 @@ interface AIProjectGeneratorProps {
   config: GenerationConfig;
   storagePrefix: 'wizard' | 'inspiration';
   onComplete: (projectId: string) => void;
+  onProjectCreated?: (projectId: string) => void;
   onBack?: () => void;
   isMobile?: boolean;
   resumeProjectId?: string;
@@ -89,15 +91,45 @@ function buildOutlineRequest(data: GenerationConfig, projectId: string) {
     ...buildInspirationContextRequestPart(data),
   };
 }
+function restorePersistedInspirationContext(
+  data: GenerationConfig,
+  projectIdParam: string,
+  storageKeys: { projectId: string; generationData: string },
+  storage: Storage = localStorage,
+): GenerationConfig {
+  try {
+    if (storage.getItem(storageKeys.projectId) !== projectIdParam) {
+      return data;
+    }
+
+    const raw = storage.getItem(storageKeys.generationData);
+    if (!raw) return data;
+
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null) {
+      return data;
+    }
+
+    const persisted = parsed as Partial<GenerationConfig>;
+    const inspirationContext = persisted.inspiration_context;
+    return inspirationContext && typeof inspirationContext === 'object'
+      ? { ...data, inspiration_context: inspirationContext }
+      : data;
+  } catch (error) {
+    console.warn('恢复生成上下文失败:', error);
+    return data;
+  }
+}
 
 function buildProjectEntryPath(projectId: string): string {
-  return `/project/${projectId}/sponsor`;
+  return `/project/${projectId}/world-setting`;
 }
 
 export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
   config,
   storagePrefix,
   onComplete,
+  onProjectCreated,
   isMobile = false,
   resumeProjectId
 }) => {
@@ -207,9 +239,9 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
       setProgress(0);
       setProgressMessage('检查项目状态...');
       setErrorDetails('');
-      setGenerationData(data);
+      const resumeData = restorePersistedInspirationContext(data, projectIdParam, storageKeys);
+      setGenerationData(resumeData);
       setProjectId(projectIdParam);
-
       // 获取项目信息,判断当前完成到哪一步
       const response = await fetch(`/api/projects/${projectIdParam}`, {
         credentials: 'include'
@@ -235,28 +267,28 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
         // 从世界观开始
         message.info('从世界观步骤开始生成...');
         setGenerationSteps({ worldBuilding: 'processing', careers: 'pending', characters: 'pending', outline: 'pending' });
-        await resumeFromWorldBuilding(data);
+        await resumeFromWorldBuilding(resumeData);
       } else if (wizardStep === 1) {
         // 世界观已完成，从职业体系开始
-        const shouldRunCareers = shouldGenerateCareerSystem(data.genre);
+        const shouldRunCareers = shouldGenerateCareerSystem(resumeData.genre);
         message.info(shouldRunCareers ? '世界观已完成，从职业体系步骤继续...' : '世界观已完成，当前题材跳过职业体系并继续生成角色...');
         setGenerationSteps({ worldBuilding: 'completed', careers: shouldRunCareers ? 'processing' : 'completed', characters: 'pending', outline: 'pending' });
         setWorldBuildingResult(worldResult);
         setProgress(20);
-        await resumeFromCareers(data, worldResult);
+        await resumeFromCareers(resumeData, worldResult);
       } else if (wizardStep === 2) {
         // 职业体系已完成，从角色开始
         message.info('职业体系已完成，从角色步骤继续...');
         setGenerationSteps({ worldBuilding: 'completed', careers: 'completed', characters: 'processing', outline: 'pending' });
         setWorldBuildingResult(worldResult);
         setProgress(40);
-        await resumeFromCharacters(data, worldResult);
+        await resumeFromCharacters(resumeData, worldResult);
       } else if (wizardStep === 3) {
         // 角色已完成，从大纲开始
         message.info('角色已完成，从大纲步骤继续...');
         setGenerationSteps({ worldBuilding: 'completed', careers: 'completed', characters: 'completed', outline: 'processing' });
         setProgress(70);
-        await resumeFromOutline(data, projectIdParam);
+        await resumeFromOutline(resumeData, projectIdParam);
       } else {
         // 已全部完成
         message.success('项目已完成,正在跳转...');
@@ -303,6 +335,9 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
       }
     );
 
+    if (worldResult?.project_id) {
+      onProjectCreated?.(worldResult.project_id);
+    }
     await resumeFromCareers(data, worldResult);
   };
 
@@ -448,6 +483,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
       }
 
       const createdProjectId = worldResult.project_id;
+      onProjectCreated?.(createdProjectId);
       setProjectId(createdProjectId);
       setWorldBuildingResult(worldResult);
       saveProgress(createdProjectId, data, 'generating');
@@ -614,6 +650,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
       throw new Error('项目创建失败：未获取到项目ID');
     }
 
+    onProjectCreated?.(worldResult.project_id);
     await continueFromCareers(worldResult);
   };
 
@@ -929,7 +966,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
   // 渲染生成进度页面
   const renderGenerating = () => (
     <div
-      style={{
+      className={sx({
         padding: isMobile ? '4px 0 8px' : '8px 0 12px',
         maxWidth: 920,
         margin: '0 auto',
@@ -938,10 +975,10 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
         display: 'flex',
         flexDirection: 'column',
         justifyContent: hasError ? 'flex-start' : 'center',
-      }}
+      })}
     >
       <div
-        style={{
+        className={sx({
           marginBottom: 14,
           padding: isMobile ? '18px 16px' : '24px 24px 20px',
           borderRadius: 18,
@@ -949,23 +986,23 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
           background: `linear-gradient(135deg, ${alphaColor(token.colorPrimary, 0.12)} 0%, ${token.colorBgContainer} 48%, ${alphaColor(hasError ? token.colorError : token.colorSuccess, hasError ? 0.08 : 0.04)} 100%)`,
           boxShadow: `0 12px 28px ${alphaColor(token.colorText, 0.06)}`,
           textAlign: 'center',
-        }}
+        })}
       >
         <Title
           level={isMobile ? 4 : 3}
-          style={{
+          className={sx({
             marginBottom: 8,
             color: token.colorTextHeading,
             wordBreak: 'break-word',
             whiteSpace: 'normal',
             overflowWrap: 'break-word',
-          }}
+          })}
         >
           正在为《{config.title}》生成内容
         </Title>
 
         <Paragraph
-          style={{
+          className={sx({
             maxWidth: 620,
             margin: '0 auto',
             color: token.colorTextSecondary,
@@ -974,7 +1011,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
             wordBreak: 'break-word',
             whiteSpace: 'normal',
             overflowWrap: 'break-word',
-          }}
+          })}
         >
           {hasError
             ? '生成流程中断，已保留当前进度与上下文信息，可从失败步骤继续重试。'
@@ -983,13 +1020,13 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
       </div>
 
       <Card
-        style={{
+        className={sx({
           marginBottom: 12,
           borderRadius: 18,
           border: `1px solid ${alphaColor(token.colorText, 0.08)}`,
           background: `linear-gradient(180deg, ${alphaColor(token.colorBgContainer, 0.97)} 0%, ${alphaColor(token.colorPrimary, 0.03)} 100%)`,
           boxShadow: `0 10px 24px ${alphaColor(token.colorText, 0.06)}`,
-        }}
+        })}
         styles={{
           body: {
             padding: isMobile ? 14 : 20,
@@ -997,38 +1034,38 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
         }}
       >
         <div
-          style={{
+          className={sx({
             padding: isMobile ? '14px 14px 16px' : '16px 18px 18px',
             marginBottom: 16,
             borderRadius: 14,
             background: token.colorFillQuaternary,
             border: `1px solid ${alphaColor(progressAccentColor, 0.18)}`,
-          }}
+          })}
         >
           <div
-            style={{
+            className={sx({
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: isMobile ? 'flex-start' : 'center',
               flexDirection: isMobile ? 'column' : 'row',
               gap: 10,
               marginBottom: 10,
-            }}
+            })}
           >
-            <div style={{ flex: 1, textAlign: 'left' }}>
+            <div className="u-h40xmy">
               <Text
-                style={{
+                className={sx({
                   display: 'block',
                   marginBottom: 6,
                   color: token.colorTextTertiary,
                   fontSize: 12,
                   letterSpacing: 0.4,
-                }}
+                })}
               >
                 当前进度
               </Text>
               <Paragraph
-                style={{
+                className={sx({
                   margin: 0,
                   color: hasError ? token.colorError : token.colorText,
                   fontSize: isMobile ? 13 : 15,
@@ -1036,25 +1073,25 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
                   wordBreak: 'break-word',
                   whiteSpace: 'normal',
                   overflowWrap: 'break-word',
-                }}
+                })}
               >
                 {progressMessage || '准备生成...'}
               </Paragraph>
             </div>
 
             <div
-              style={{
+              className={sx({
                 minWidth: isMobile ? 'auto' : 96,
                 textAlign: isMobile ? 'left' : 'right',
-              }}
+              })}
             >
               <Text
-                style={{
+                className={sx({
                   fontSize: isMobile ? 24 : 32,
                   lineHeight: 1,
                   fontWeight: 700,
                   color: progressAccentColor,
-                }}
+                })}
               >
                 {progress}%
               </Text>
@@ -1076,13 +1113,13 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
               }}
             trailColor={token.colorFillTertiary}
             strokeLinecap="round"
-            style={{ marginBottom: 0 }}
+            className="u-1sezbee"
           />
         </div>
 
         {errorDetails && (
           <div
-            style={{
+            className={sx({
               marginBottom: 16,
               padding: isMobile ? '12px 14px' : '14px 16px',
               borderRadius: 14,
@@ -1090,13 +1127,13 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
               border: `1px solid ${alphaColor(token.colorError, 0.24)}`,
               textAlign: 'left',
               overflow: 'hidden',
-            }}
+            })}
           >
-            <Text strong style={{ color: token.colorError, display: 'block', marginBottom: 8 }}>
+            <Text strong className={sx({ color: token.colorError, display: 'block', marginBottom: 8 })}>
               错误详情
             </Text>
             <Text
-              style={{
+              className={sx({
                 color: token.colorTextSecondary,
                 fontSize: 14,
                 lineHeight: 1.7,
@@ -1104,7 +1141,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
                 whiteSpace: 'normal',
                 overflowWrap: 'break-word',
                 display: 'block',
-              }}
+              })}
             >
               {errorDetails}
             </Text>
@@ -1112,17 +1149,14 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
         )}
 
         <div
-          style={{
-            display: 'grid',
-            gap: 10,
-          }}
+          className="u-1tlo4ox"
         >
           {stepItems.map(({ key, label, step }) => {
             const status = getStepStatus(step);
             return (
               <div
                 key={key}
-                style={{
+                className={sx({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
@@ -1133,19 +1167,13 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
                   gap: 12,
                   maxWidth: '100%',
                   overflow: 'hidden',
-                }}
+                })}
               >
                 <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 12,
-                    flex: 1,
-                    minWidth: 0,
-                  }}
+                  className="u-12y3hcg"
                 >
                   <span
-                    style={{
+                    className={sx({
                       width: 30,
                       height: 30,
                       borderRadius: '50%',
@@ -1156,20 +1184,16 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
                       background: alphaColor(status.color, 0.12),
                       fontSize: 18,
                       flexShrink: 0,
-                    }}
+                    })}
                   >
                     {status.icon}
                   </span>
 
                   <div
-                    style={{
-                      minWidth: 0,
-                      flex: 1,
-                      textAlign: 'left',
-                    }}
+                    className="u-g399zz"
                   >
                     <Text
-                      style={{
+                      className={sx({
                         display: 'block',
                         fontSize: isMobile ? 13 : 14,
                         fontWeight: step === 'processing' ? 600 : 500,
@@ -1177,15 +1201,15 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
                         wordBreak: 'break-word',
                         whiteSpace: 'normal',
                         overflowWrap: 'break-word',
-                      }}
+                      })}
                     >
                       {label}
                     </Text>
                     <Text
-                      style={{
+                      className={sx({
                         fontSize: 12,
                         color: step === 'pending' ? token.colorTextTertiary : status.color,
-                      }}
+                      })}
                     >
                       {status.text}
                     </Text>
@@ -1193,7 +1217,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
                 </div>
 
                 <Text
-                  style={{
+                  className={sx({
                     fontSize: 12,
                     fontWeight: 600,
                     color: status.color,
@@ -1202,7 +1226,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
                     background: alphaColor(status.color, 0.1),
                     whiteSpace: 'nowrap',
                     flexShrink: 0,
-                  }}
+                  })}
                 >
                   {status.text}
                 </Text>
@@ -1214,7 +1238,7 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
 
       <Paragraph
         type="secondary"
-        style={{
+        className={sx({
           marginBottom: hasError ? 14 : 0,
           color: token.colorTextSecondary,
           opacity: 0.92,
@@ -1223,25 +1247,25 @@ export const AIProjectGenerator: React.FC<AIProjectGeneratorProps> = ({
           whiteSpace: 'normal',
           overflowWrap: 'break-word',
           fontSize: isMobile ? 13 : 14,
-        }}
+        })}
       >
         {hasError ? '可点击下方智能重试，从失败节点继续生成，避免重复执行已完成步骤。' : '请勿关闭页面，生成完成后将自动进入项目详情页。'}
       </Paragraph>
 
       {hasError && (
-        <Space style={{ width: '100%', justifyContent: 'center' }}>
+        <Space className="u-orjfrl">
           <Button
             type="primary"
             size="large"
             onClick={handleSmartRetry}
             loading={loading}
             disabled={loading}
-            style={{
+            className={sx({
               minWidth: isMobile ? '100%' : 160,
               height: 44,
               borderRadius: 12,
               boxShadow: `0 10px 24px ${alphaColor(token.colorPrimary, 0.22)}`,
-            }}
+            })}
           >
             智能重试
           </Button>

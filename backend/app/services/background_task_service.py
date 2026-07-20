@@ -104,14 +104,22 @@ class TaskProgressTracker:
             progress_details={"stage": "saving", "message": msg}
         )
 
-    async def complete(self, message: str = None):
+    async def complete(self, message: str = None, result: Dict[str, Any] | None = None):
         self.current_progress = 100
         msg = message or f"{self.task_name}生成完成!"
-        await self._update_task(
-            status="completed", progress=100, status_message=msg,
-            completed_at=datetime.now(),
-            progress_details={"stage": "complete", "message": msg}
-        )
+        completion_fields: Dict[str, Any] = {
+            "status": "completed",
+            "progress": 100,
+            "status_message": msg,
+            "completed_at": datetime.now(),
+            "progress_details": {"stage": "complete", "message": msg},
+        }
+        # ``None`` means that this completion path has no new result. Do not
+        # erase a payload written by an earlier stage or retry.
+        if result is not None:
+            completion_fields["task_result"] = result
+        await self._update_task(**completion_fields)
+
 
     async def error(self, error_message: str):
         await self._update_task(
@@ -146,11 +154,14 @@ class TaskProgressTracker:
             )
             async with AsyncSessionLocal() as session:
                 result = await session.execute(
-                    select(BackgroundTask.cancel_requested)
+                    select(BackgroundTask.status, BackgroundTask.cancel_requested)
                     .where(BackgroundTask.id == self.task_id)
                 )
-                cancelled = result.scalar_one_or_none()
-                return bool(cancelled)
+                row = result.first()
+                if not row:
+                    return False
+                status, cancel_requested = row
+                return status == "cancelled" or bool(cancel_requested)
         except Exception:
             return False
 
@@ -255,10 +266,17 @@ class BackgroundTaskService:
         project_id: str,
         task_type: str,
         task_input: Dict[str, Any] = None,
-        db: AsyncSession = None
+        db: AsyncSession = None,
+        task_id: str | None = None,
     ) -> BackgroundTask:
-        """创建后台任务记录"""
+        """创建后台任务记录。
+
+        ``task_id`` is optional so callers with a deterministic idempotency
+        key can make concurrent task creation safe without changing existing
+        callers.
+        """
         task = BackgroundTask(
+            id=task_id,
             user_id=user_id,
             project_id=project_id,
             task_type=task_type,

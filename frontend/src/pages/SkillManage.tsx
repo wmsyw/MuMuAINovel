@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button, Table, Modal, Form, Input, Tag, Space, message, Popconfirm, Card, theme, Empty, Badge, Tooltip, Select } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, ReloadOutlined, ThunderboltOutlined, FileTextOutlined } from '@ant-design/icons';
+import { sx } from '../styles/sx';
 
 const { TextArea } = Input;
 
@@ -263,12 +264,12 @@ export default function SkillManage() {
       width: 220,
       ellipsis: true,
       render: (text: string, record: SkillItem) => (
-        <div style={{ minWidth: 0 }}>
+        <div className="u-q920pn">
           <Tooltip title={text}>
-            <strong style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{text}</strong>
+            <strong className="u-1gb2hhf">{text}</strong>
           </Tooltip>
           <Tooltip title={record.name || record.template_key}>
-            <span style={{ display: 'block', marginTop: 2, color: token.colorTextTertiary, fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <span className={sx({ display: 'block', marginTop: 2, color: token.colorTextTertiary, fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' })}>
               {record.name || record.template_key}
             </span>
           </Tooltip>
@@ -300,7 +301,7 @@ export default function SkillManage() {
       render: (text: string) => (
         <Tooltip title={text}>
           <span
-            style={{
+            className={sx({
               display: 'block',
               maxWidth: 240,
               overflow: 'hidden',
@@ -308,7 +309,7 @@ export default function SkillManage() {
               whiteSpace: 'nowrap',
               color: token.colorTextSecondary,
               fontSize: 13,
-            }}
+            })}
           >
             {text}
           </span>
@@ -323,7 +324,7 @@ export default function SkillManage() {
       render: (triggers: string[]) => (
         <Space wrap size={4}>
           {triggers.slice(0, 3).map((t, i) => (
-            <Tag key={i} style={{ fontSize: 11 }}>{t}</Tag>
+            <Tag key={i} className="u-ts7gql">{t}</Tag>
           ))}
           {triggers.length > 3 && <Tag>+{triggers.length - 3}</Tag>}
         </Space>
@@ -369,23 +370,16 @@ export default function SkillManage() {
   ];
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div className="u-1swjp6l">
       {/* 顶部标题栏 */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 16,
-        flexWrap: 'wrap',
-        gap: 12,
-      }}>
+      <div className="u-143atc1">
         <div>
-          <h2 style={{ margin: 0, fontSize: 20 }}>
-            <ThunderboltOutlined style={{ marginRight: 8, color: token.colorPrimary }} />
+          <h2 className="u-1451gdt">
+            <ThunderboltOutlined className={sx({ marginRight: 8, color: token.colorPrimary })} />
             Skill 管理
-            <Badge count={skills.length} style={{ marginLeft: 8, backgroundColor: token.colorPrimary }} />
+            <Badge count={skills.length} className={sx({ marginLeft: 8, backgroundColor: token.colorPrimary })} />
           </h2>
-          <div style={{ fontSize: 12, color: token.colorTextSecondary, marginTop: 4 }}>
+          <div className={sx({ fontSize: 12, color: token.colorTextSecondary, marginTop: 4 })}>
             在线管理 Skill 工作流，添加、编辑或删除
           </div>
         </div>
@@ -420,7 +414,7 @@ export default function SkillManage() {
           </Empty>
         </Card>
       ) : (
-        <div style={{ flex: 1, overflowY: 'auto' }}>
+        <div className="u-250t5n">
           <Table
             dataSource={skills}
             columns={columns}
@@ -428,7 +422,7 @@ export default function SkillManage() {
             loading={loading}
             pagination={false}
             size="middle"
-            style={{ background: token.colorBgContainer }}
+            className={sx({ background: token.colorBgContainer })}
           />
         </div>
       )}
@@ -442,7 +436,7 @@ export default function SkillManage() {
         footer={<Button onClick={() => setViewModalVisible(false)}>关闭</Button>}
         styles={{ body: { maxHeight: '60vh', overflowY: 'auto' } }}
       >
-        <pre style={{
+        <pre className={sx({
           whiteSpace: 'pre-wrap',
           wordBreak: 'break-word',
           fontSize: 13,
@@ -450,7 +444,7 @@ export default function SkillManage() {
           background: token.colorFillQuaternary,
           padding: 16,
           borderRadius: 8,
-        }}>
+        })}>
           {viewingContent}
         </pre>
       </Modal>
@@ -499,11 +493,11 @@ export default function SkillManage() {
           </Form.Item>
           <Form.Item label="工作流指令" name="body" rules={[{ required: true, message: '请输入工作流指令' }]}
             tooltip="SKILL.md 中 YAML frontmatter 之后的 Markdown 正文">
-            <TextArea rows={15} placeholder="输入 Skill 的完整工作流指令..." style={{ fontFamily: 'monospace', fontSize: 13 }} />
+            <TextArea rows={15} placeholder="输入 Skill 的完整工作流指令..." className="u-1vsi3qm" />
           </Form.Item>
           <Form.Item label="参考资料 (JSON)" name="references"
             tooltip='格式：{"文件名": "内容"}。留空则保留原有参考资料'>
-            <TextArea rows={8} placeholder='{"anti-ai-tips": "去AI味的技巧...", "quality-check": "质量检查清单..."}' style={{ fontFamily: 'monospace', fontSize: 12 }} />
+            <TextArea rows={8} placeholder='{"anti-ai-tips": "去AI味的技巧...", "quality-check": "质量检查清单..."}' className="u-imgskb" />
           </Form.Item>
         </Form>
       </Modal>
@@ -553,11 +547,11 @@ export default function SkillManage() {
           </Form.Item>
           <Form.Item label="工作流指令" name="body" rules={[{ required: true, message: '请输入工作流指令' }]}
             tooltip="Skill 的核心 Markdown 内容">
-            <TextArea rows={15} placeholder={"# my-new-skill：Skill 标题\n\n你是 xxx 专家。你的任务是帮用户完成 xxx。\n\n## 核心原则\n\n- 原则1...\n\n## 工作流程\n\n### Phase 1：需求确认\n..."} style={{ fontFamily: 'monospace', fontSize: 13 }} />
+            <TextArea rows={15} placeholder={"# my-new-skill：Skill 标题\n\n你是 xxx 专家。你的任务是帮用户完成 xxx。\n\n## 核心原则\n\n- 原则1...\n\n## 工作流程\n\n### Phase 1：需求确认\n..."} className="u-1vsi3qm" />
           </Form.Item>
           <Form.Item label="参考资料 (JSON，可选)" name="references"
             tooltip='格式：{"文件名": "内容"}'>
-            <TextArea rows={8} placeholder='{"tips": "参考技巧...", "examples": "示例..."}' style={{ fontFamily: 'monospace', fontSize: 12 }} />
+            <TextArea rows={8} placeholder='{"tips": "参考技巧...", "examples": "示例..."}' className="u-imgskb" />
           </Form.Item>
         </Form>
       </Modal>

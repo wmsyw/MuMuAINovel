@@ -16,7 +16,7 @@ from typing import Any, Callable, Protocol, TypeAlias, cast
 import uuid
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import Session
 
 from app.config import settings as app_settings
@@ -32,6 +32,13 @@ logger = get_logger(__name__)
 EXTRACTION_PIPELINE_VERSION = "extraction-core-v1"
 EXTRACTION_SCHEMA_VERSION = "novel-extraction-schema-v1"
 EXTRACTION_PROMPT_VERSION = "novel-extraction-prompt-v1"
+CHAPTER_COMPLETION_VERSION = "chapter-completion-v1"
+
+
+def hash_chapter_content(content: str | None) -> str:
+    """Return the stable hash carried by chapter-completion tasks."""
+
+    return hashlib.sha256((content or "").encode("utf-8")).hexdigest()
 
 SUPPORTED_CANDIDATE_TYPES = {
     "character",
@@ -221,6 +228,12 @@ class ExtractionService:
         chapter = self._get_chapter(project_id, chapter_id)
         content = chapter.content or ""
         content_hash = self._hash_text(content)
+        resolved_provider = str(provider or app_settings.default_ai_provider or "unknown")
+        resolved_model = str(model or app_settings.default_model or "unknown")
+        resolved_reasoning_intensity = str(
+            reasoning_intensity or app_settings.default_reasoning_intensity or "auto"
+        )
+        resolved_source_metadata = dict(source_metadata or {})
         prompt = build_extraction_prompt(project, chapter)
         prompt_hash = self._hash_text(f"{EXTRACTION_PROMPT_VERSION}\n{prompt}")
 
@@ -244,9 +257,9 @@ class ExtractionService:
             prompt_hash=prompt_hash,
             content_hash=content_hash,
             status="running",
-            provider=provider,
-            model=model,
-            reasoning_intensity=reasoning_intensity,
+            provider=resolved_provider,
+            model=resolved_model,
+            reasoning_intensity=resolved_reasoning_intensity,
             run_metadata={
                 "prompt_version": EXTRACTION_PROMPT_VERSION,
                 "schema_version": EXTRACTION_SCHEMA_VERSION,
@@ -255,7 +268,14 @@ class ExtractionService:
                 "chapter_number": chapter.chapter_number,
                 "chapter_title": chapter.title,
                 "content_length": len(content),
-                "source_metadata": source_metadata or {},
+                "source_metadata": resolved_source_metadata,
+                "accepted_content_hash": resolved_source_metadata.get("accepted_content_hash"),
+                "accepted_content_version": resolved_source_metadata.get("accepted_content_version"),
+                "audit": {
+                    "provider": resolved_provider,
+                    "model": resolved_model,
+                    "reasoning_intensity": resolved_reasoning_intensity,
+                },
             },
             started_at=datetime.now(UTC).replace(tzinfo=None),
         )
@@ -272,7 +292,7 @@ class ExtractionService:
             chapter_number=int(chapter.chapter_number),
             chapter_order=int(chapter.sub_index or 1),
             trigger_source=trigger_source,
-            metadata=source_metadata or {},
+            metadata=resolved_source_metadata,
         )
 
         try:
@@ -291,9 +311,9 @@ class ExtractionService:
                 user_id=user_id,
                 trigger_source=trigger_source,
                 source_hash=content_hash,
-                provider=provider,
-                model=model,
-                reasoning_intensity=reasoning_intensity,
+                provider=resolved_provider,
+                model=resolved_model,
+                reasoning_intensity=resolved_reasoning_intensity,
             )
         except Exception as exc:
             return self._fail_run(run, raw_response=locals().get("raw_output"), error_message=str(exc))
@@ -637,6 +657,9 @@ class ExtractionTriggerService:
         enabled: bool = True,
         supersede_prior: bool = True,
         source_metadata: dict[str, Any] | None = None,
+        provider: str | None = None,
+        model: str | None = None,
+        reasoning_intensity: str | None = None,
     ) -> ExtractionTriggerResult | None:
         """Run extraction for a persisted chapter if the trigger is enabled."""
 
@@ -652,6 +675,9 @@ class ExtractionTriggerService:
             force=force,
             trigger_source=trigger_source,
             source_metadata=source_metadata,
+            provider=provider,
+            model=model,
+            reasoning_intensity=reasoning_intensity,
         )
         reused_existing_run = run.id in previous_run_ids
         if supersede_prior and not reused_existing_run and run.status == "completed":
@@ -800,6 +826,9 @@ async def run_extraction_trigger_after_commit(
     enabled: bool | None = None,
     supersede_prior: bool = True,
     source_metadata: dict[str, Any] | None = None,
+    provider: str | None = None,
+    model: str | None = None,
+    reasoning_intensity: str | None = None,
 ) -> ExtractionTriggerResult | None:
     """Best-effort async entrypoint used by route/import persistence flows.
 
@@ -820,10 +849,10 @@ async def run_extraction_trigger_after_commit(
                 user_id=user_id,
                 trigger_source=trigger_source,
                 force=force,
-                extractor=extractor,
-                enabled=True,
-                supersede_prior=supersede_prior,
                 source_metadata=source_metadata,
+                provider=provider,
+                model=model,
+                reasoning_intensity=reasoning_intensity,
             )
         )
         await db.commit()
@@ -832,6 +861,222 @@ async def run_extraction_trigger_after_commit(
         await db.rollback()
         logger.warning("正文抽取触发失败，已保留已落库正文: %s", exc, exc_info=True)
         return None
+
+async def run_automatic_chapter_extraction_task(
+    task_id: str,
+    user_id: str,
+    project_id: str,
+    chapter_id: str,
+    accepted_content_hash: str | None = None,
+    accepted_content_version: str | None = None,
+) -> None:
+    """Extract one accepted chapter only while its accepted snapshot is current."""
+
+    if not app_settings.EXTRACTION_PIPELINE_ENABLED:
+        logger.info("实体提取管线已禁用，跳过任务 %s", task_id[:8])
+        return
+
+    from app.api.settings import get_user_ai_service_from_db
+    from app.database import get_engine
+    from app.models.background_task import BackgroundTask
+    from app.services.background_task_service import TaskProgressTracker
+    from app.services.candidate_merge_service import CandidateMergeService
+    from app.services.json_helper import clean_json_response
+
+    tracker = TaskProgressTracker(task_id, user_id, "章节实体提取")
+    engine = await get_engine(user_id)
+    session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    async def is_cancelled() -> bool:
+        check = getattr(tracker, "check_cancelled", None)
+        if check is None:
+            return False
+        return bool(await check())
+
+    async def accepted_state_matches(db: AsyncSession, expected_hash: str, expected_version: str) -> bool:
+        result = await db.execute(
+            select(Chapter)
+            .where(Chapter.id == chapter_id, Chapter.project_id == project_id)
+            .execution_options(populate_existing=True)
+        )
+        current = result.scalar_one_or_none()
+        return bool(
+            current is not None
+            and str(current.status or "").lower() == "completed"
+            and expected_version == CHAPTER_COMPLETION_VERSION
+            and hash_chapter_content(current.content) == expected_hash
+        )
+
+    async def abort(db: AsyncSession, message: str) -> None:
+        await db.rollback()
+        if not await is_cancelled():
+            await tracker.error(message)
+
+    try:
+        await tracker.start("正在准备章节实体提取...")
+        async with session_factory() as db:
+            task = await db.get(BackgroundTask, task_id)
+            task_input = task.task_input if task is not None and isinstance(task.task_input, dict) else {}
+            expected_hash = str(
+                accepted_content_hash
+                or task_input.get("accepted_content_hash")
+                or task_input.get("content_hash")
+                or ""
+            )
+            expected_version = str(
+                accepted_content_version
+                or task_input.get("accepted_content_version")
+                or task_input.get("content_version")
+                or CHAPTER_COMPLETION_VERSION
+            )
+
+            chapter = await db.get(Chapter, chapter_id)
+            project = await db.get(Project, project_id)
+            if chapter is None or chapter.project_id != project_id or project is None:
+                raise ValueError("章节不存在或不属于当前项目")
+            if not expected_hash:
+                expected_hash = hash_chapter_content(chapter.content)
+            if not await accepted_state_matches(db, expected_hash, expected_version):
+                await abort(db, "章节已变更或未验收，跳过过期实体提取任务")
+                return
+            if await is_cancelled():
+                await abort(db, "实体提取任务已取消")
+                return
+            if not (chapter.content or "").strip():
+                raise ValueError("章节正文为空，无法提取实体")
+
+            await tracker.loading(f"正在读取《{chapter.title}》正文...")
+            prompt = build_extraction_prompt(project, chapter)
+            ai_service = await get_user_ai_service_from_db(user_id, db)
+            resolved_provider = str(
+                getattr(ai_service, "api_provider", None)
+                or app_settings.default_ai_provider
+                or "unknown"
+            )
+            resolved_model = str(
+                getattr(ai_service, "default_model", None)
+                or app_settings.default_model
+                or "unknown"
+            )
+            resolved_reasoning = str(
+                getattr(ai_service, "default_reasoning_intensity", None)
+                or app_settings.default_reasoning_intensity
+                or "auto"
+            )
+            resolver = getattr(ai_service, "_select_reasoning_intensity", None)
+            if callable(resolver):
+                try:
+                    resolved_reasoning = str(
+                        resolver(provider=resolved_provider, model=resolved_model)
+                        or resolved_reasoning
+                    )
+                except Exception:
+                    logger.debug("无法解析实体提取推理强度，使用服务默认值", exc_info=True)
+
+            await tracker.generating(message="AI 正在识别角色、组织、职业与关系...")
+            response = await ai_service.generate_text(
+                prompt=prompt,
+                temperature=0.1,
+                max_tokens=6000,
+                system_prompt="你是严谨的小说实体抽取器，只输出符合请求结构的JSON。",
+                auto_mcp=False,
+                handle_tool_calls=False,
+                provider=resolved_provider,
+                model=resolved_model,
+                reasoning_intensity=resolved_reasoning,
+            )
+            if await is_cancelled():
+                await abort(db, "实体提取任务在AI生成后被取消")
+                return
+            if not await accepted_state_matches(db, expected_hash, expected_version):
+                await abort(db, "章节在AI生成期间发生变更，丢弃过期实体提取结果")
+                return
+
+            response_content = response.get("content") if isinstance(response, dict) else response
+            raw_output = clean_json_response(str(response_content or ""))
+            await tracker.parsing("正在校验实体证据与章节偏移...")
+
+            trigger_result = await db.run_sync(
+                lambda session: ExtractionTriggerService(session).trigger_chapter(
+                    project_id=project_id,
+                    chapter_id=chapter_id,
+                    user_id=user_id,
+                    trigger_source="chapter_acceptance",
+                    force=False,
+                    extractor=lambda **_: raw_output,
+                    enabled=True,
+                    supersede_prior=True,
+                    provider=resolved_provider,
+                    model=resolved_model,
+                    reasoning_intensity=resolved_reasoning,
+                    source_metadata={
+                        "operation": "chapter_acceptance",
+                        "task_id": task_id,
+                        "accepted_content_hash": expected_hash,
+                        "accepted_content_version": expected_version,
+                    },
+                )
+            )
+            if trigger_result is None or trigger_result.status != "completed":
+                raise RuntimeError("实体提取结果校验失败")
+
+            # Candidate merge and its canonical relationship writes remain in
+            # this transaction. Cancellation/staleness is checked before and
+            # after the merge so rollback leaves no partial canonical state.
+            if await is_cancelled():
+                await abort(db, "实体提取任务在合并前被取消")
+                return
+            if not await accepted_state_matches(db, expected_hash, expected_version):
+                await abort(db, "章节在合并前发生变更，丢弃过期实体提取结果")
+                return
+
+            await tracker.saving("正在匹配已有实体并建立高置信关系...")
+
+            def post_process(session: Session) -> dict[str, Any]:
+                merge_service = CandidateMergeService(session)
+                similarity = merge_service.stage_similar_pending(run_id=trigger_result.run_id)
+                accepted_relationships = merge_service.auto_accept_safe_relationships(run_id=trigger_result.run_id)
+                candidates = session.execute(
+                    select(ExtractionCandidate).where(ExtractionCandidate.run_id == trigger_result.run_id)
+                ).scalars().all()
+                counts: dict[str, int] = {}
+                pending_count = 0
+                for candidate in candidates:
+                    counts[candidate.candidate_type] = counts.get(candidate.candidate_type, 0) + 1
+                    if candidate.status == "pending":
+                        pending_count += 1
+                session.flush()
+                return {
+                    "candidate_count": len(candidates),
+                    "pending_count": pending_count,
+                    "counts": counts,
+                    "similarity": similarity,
+                    "accepted_relationships": accepted_relationships,
+                }
+
+            summary = await db.run_sync(post_process)
+            if await is_cancelled():
+                await abort(db, "实体提取任务在提交前被取消")
+                return
+            if not await accepted_state_matches(db, expected_hash, expected_version):
+                await abort(db, "章节在提交前发生变更，丢弃过期实体提取结果")
+                return
+            await db.commit()
+            task_result = {
+                "project_id": project_id,
+                "chapter_id": chapter_id,
+                "chapter_title": chapter.title,
+                "run_id": trigger_result.run_id,
+                **summary,
+            }
+            await tracker.complete(
+                f"《{chapter.title}》实体提取完成：发现 {summary['candidate_count']} 条候选，{summary['pending_count']} 条待审核",
+                result=task_result,
+            )
+    except Exception as exc:
+        logger.error("章节验收实体提取失败: %s", exc, exc_info=True)
+        await tracker.error(str(exc))
+        raise
 
 
 async def run_project_extraction_trigger_after_commit(

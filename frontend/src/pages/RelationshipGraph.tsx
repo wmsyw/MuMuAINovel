@@ -24,6 +24,7 @@ import '@xyflow/react/dist/style.css';
 import { getOrganizationPurpose, getOrganizationType, isOrganizationEntity, type LegacyOrganizationCharacterFields } from '../utils/entityCompatibility';
 import { careerApi, characterApi, relationshipApi, syncApi } from '../services/api';
 import type { RelationshipGraphData as GraphData, RelationshipGraphLink as GraphLink, RelationshipType, SyncCandidate } from '../types';
+import { sx } from '../styles/sx';
 
 const { Text } = Typography;
 
@@ -567,19 +568,12 @@ const InfoField = ({
 
   return (
     <div
-      style={{
-        marginBottom: 12,
-        padding: '12px 14px',
-        borderRadius: 12,
-        background: 'var(--ant-color-fill-quaternary)',
-        border: '1px solid var(--ant-color-border-secondary)',
-        boxShadow: '0 2px 4px color-mix(in srgb, var(--ant-color-text) 6%, transparent)',
-      }}
+      className="u-17zfu1n"
     >
-      <Text strong style={{ fontSize: 14, color: 'var(--ant-color-text)' }}>
+      <Text strong className="u-gcvwqo">
         {label}
       </Text>
-      <div style={clampTextStyle(rows)}>{value}</div>
+      <div className={sx(clampTextStyle(rows))}>{value}</div>
     </div>
   );
 };
@@ -808,22 +802,22 @@ export default function RelationshipGraph() {
         const baseColor = roleColorMap[roleType] || token.colorInfo;
 
         const labelContent = node.type === 'organization' ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
-            <ApartmentOutlined style={{ fontSize: 24, color: token.colorSuccess, marginBottom: 4 }} />
-            <div style={{ fontWeight: 600, fontSize: 14, color: token.colorText, maxWidth: '90%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.name}</div>
-            <div style={{ fontSize: 11, color: token.colorTextSecondary, marginTop: 2 }}>{getOrganizationType(detail) || '组织'}</div>
+          <div className="u-upa4tn">
+            <ApartmentOutlined className={sx({ fontSize: 24, color: token.colorSuccess, marginBottom: 4 })} />
+            <div className={sx({ fontWeight: 600, fontSize: 14, color: token.colorText, maxWidth: '90%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' })}>{node.name}</div>
+            <div className={sx({ fontSize: 11, color: token.colorTextSecondary, marginTop: 2 })}>{getOrganizationType(detail) || '组织'}</div>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+          <div className="u-upa4tn">
             {detail?.avatar_url ? (
-               <img src={detail.avatar_url} alt={node.name} style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: `2px solid ${token.colorBgContainer}`, boxShadow: `0 2px 6px ${alphaColor(token.colorTextBase, 0.18)}`, marginBottom: 6 }} />
+               <img src={detail.avatar_url} alt={node.name} className={sx({ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: `2px solid ${token.colorBgContainer}`, boxShadow: `0 2px 6px ${alphaColor(token.colorTextBase, 0.18)}`, marginBottom: 6 })} />
             ) : (
-               <div style={{ width: 56, height: 56, borderRadius: '50%', backgroundColor: token.colorFillSecondary, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${token.colorBgContainer}`, boxShadow: `0 2px 6px ${alphaColor(token.colorTextBase, 0.18)}`, marginBottom: 6 }}>
-                 <UserOutlined style={{ fontSize: 28, color: baseColor }} />
+               <div className={sx({ width: 56, height: 56, borderRadius: '50%', backgroundColor: token.colorFillSecondary, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${token.colorBgContainer}`, boxShadow: `0 2px 6px ${alphaColor(token.colorTextBase, 0.18)}`, marginBottom: 6 })}>
+                 <UserOutlined className={sx({ fontSize: 28, color: baseColor })} />
                </div>
             )}
-            <div style={{ fontWeight: 600, fontSize: 13, color: token.colorText, maxWidth: '90%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.name}</div>
-            <div style={{ fontSize: 11, color: baseColor, marginTop: 2, transform: 'scale(0.9)' }}>
+            <div className={sx({ fontWeight: 600, fontSize: 13, color: token.colorText, maxWidth: '90%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' })}>{node.name}</div>
+            <div className={sx({ fontSize: 11, color: baseColor, marginTop: 2, transform: 'scale(0.9)' })}>
               {roleType === 'protagonist' ? '主角' : roleType === 'antagonist' ? '反派' : '配角'}
             </div>
           </div>
@@ -848,9 +842,9 @@ export default function RelationshipGraph() {
         position: { x: 0, y: 0 },
         data: {
           label: (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{ fontSize: 11, color: token.colorWarning, marginBottom: 2 }}>主职业</div>
-              <div style={{ fontWeight: 600, fontSize: 13, color: token.colorText }}>{career.name}</div>
+            <div className="u-1cynhhu">
+              <div className={sx({ fontSize: 11, color: token.colorWarning, marginBottom: 2 })}>主职业</div>
+              <div className={sx({ fontWeight: 600, fontSize: 13, color: token.colorText })}>{career.name}</div>
             </div>
           ),
           type: 'career_main',
@@ -864,9 +858,9 @@ export default function RelationshipGraph() {
         position: { x: 0, y: 0 },
         data: {
           label: (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{ fontSize: 11, color: token.colorInfo, marginBottom: 2 }}>副职业</div>
-              <div style={{ fontWeight: 600, fontSize: 13, color: token.colorText }}>{career.name}</div>
+            <div className="u-1cynhhu">
+              <div className={sx({ fontSize: 11, color: token.colorInfo, marginBottom: 2 })}>副职业</div>
+              <div className={sx({ fontWeight: 600, fontSize: 13, color: token.colorText })}>{career.name}</div>
             </div>
           ),
           type: 'career_sub',
@@ -1173,50 +1167,50 @@ export default function RelationshipGraph() {
 
     return (
       <div
-        style={{
+        className={sx({
           marginBottom: 12,
           padding: '12px 14px',
           borderRadius: 12,
           background: token.colorFillQuaternary,
           border: `1px solid ${token.colorBorderSecondary}`,
           boxShadow: `0 2px 4px ${alphaColor(token.colorTextBase, 0.06)}`,
-        }}
+        })}
       >
-        <Text strong style={{ fontSize: 14, color: token.colorText }}>
+        <Text strong className={sx({ fontSize: 14, color: token.colorText })}>
           职业体系
         </Text>
-        <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div className="u-1twpha1">
           {nodeDetail.main_career_id ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Tag color="gold" style={{ margin: 0, borderRadius: 12, padding: '0 10px', fontWeight: 500 }}>主职业</Tag>
-              <span style={{ fontSize: 14, color: token.colorText }}>
+            <div className="u-18xktuc">
+              <Tag color="gold" className="u-11sjdox">主职业</Tag>
+              <span className={sx({ fontSize: 14, color: token.colorText })}>
                 {careerNameMap[nodeDetail.main_career_id]?.name || nodeDetail.main_career_id}
-                {nodeDetail.main_career_stage ? <span style={{ color: token.colorTextTertiary, marginLeft: 4 }}>第{nodeDetail.main_career_stage}阶</span> : ''}
+                {nodeDetail.main_career_stage ? <span className={sx({ color: token.colorTextTertiary, marginLeft: 4 })}>第{nodeDetail.main_career_stage}阶</span> : ''}
               </span>
             </div>
           ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Tag style={{ margin: 0, borderRadius: 12, padding: '0 10px' }}>主职业</Tag>
-              <span style={{ fontSize: 14, color: token.colorTextTertiary }}>未设置</span>
+            <div className="u-18xktuc">
+              <Tag className="u-yhu828">主职业</Tag>
+              <span className={sx({ fontSize: 14, color: token.colorTextTertiary })}>未设置</span>
             </div>
           )}
 
           {subCareerData.length > 0 ? (
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-               <Tag color="cyan" style={{ margin: 0, borderRadius: 12, padding: '0 10px', fontWeight: 500 }}>副职业</Tag>
-               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, flex: 1 }}>
+            <div className="u-rxk7rz">
+               <Tag color="cyan" className="u-11sjdox">副职业</Tag>
+               <div className="u-1uqyaef">
                 {subCareerData.map((sub, index) => (
-                  <span key={`${sub.career_id}-${index}`} style={{ fontSize: 14, color: token.colorText, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: token.borderRadiusSM, padding: '0 6px' }}>
+                  <span key={`${sub.career_id}-${index}`} className={sx({ fontSize: 14, color: token.colorText, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: token.borderRadiusSM, padding: '0 6px' })}>
                     {careerNameMap[sub.career_id]?.name || sub.career_id}
-                    {sub.stage ? <span style={{ color: token.colorTextTertiary, marginLeft: 4 }}>阶{sub.stage}</span> : ''}
+                    {sub.stage ? <span className={sx({ color: token.colorTextTertiary, marginLeft: 4 })}>阶{sub.stage}</span> : ''}
                   </span>
                 ))}
                </div>
             </div>
           ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Tag style={{ margin: 0, borderRadius: 12, padding: '0 10px' }}>副职业</Tag>
-              <span style={{ fontSize: 14, color: token.colorTextTertiary }}>未设置</span>
+            <div className="u-18xktuc">
+              <Tag className="u-yhu828">副职业</Tag>
+              <span className={sx({ fontSize: 14, color: token.colorTextTertiary })}>未设置</span>
             </div>
           )}
         </div>
@@ -1238,23 +1232,18 @@ export default function RelationshipGraph() {
 
   return (
     <div
-      style={{
+      className={sx({
         height: '100%',
         minHeight: 0,
         display: 'flex',
         flexDirection: 'column',
         backgroundColor: token.colorBgLayout,
         overflow: 'hidden',
-      }}
+      })}
     >
       <Card
         size="small"
-        style={{
-          flex: 1,
-          minHeight: 0,
-          display: 'flex',
-          flexDirection: 'column',
-        }}
+        className="u-129qq6q"
         styles={{
           body: {
             flex: 1,
@@ -1271,7 +1260,7 @@ export default function RelationshipGraph() {
               返回
             </Button>
             <span>关系图谱</span>
-            <Tag color="processing" style={{ marginInlineStart: 4 }}>
+            <Tag color="processing" className="u-1r6ez0z">
               {graphData?.nodes?.length || 0} 节点 / {graphData?.links?.length || 0} 关系
             </Tag>
             {pendingRelationshipCandidates.length > 0 && (
@@ -1280,50 +1269,50 @@ export default function RelationshipGraph() {
           </Space>
         }
         extra={
-          <Space direction="vertical" size={6} style={{ alignItems: 'flex-end' }}>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 14, fontSize: 12, flexWrap: 'wrap' }}>
+          <Space direction="vertical" size={6} className="u-1awwldn">
+            <div className="u-6j9i4">
               {/* 节点图例 */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ color: token.colorInfo, fontWeight: 'bold' }}>●</span>
+              <div className="u-1wk0l48">
+                <span className={sx({ color: token.colorInfo, fontWeight: 'bold' })}>●</span>
                 <span>角色（圆形）</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ color: token.colorSuccess, fontWeight: 'bold' }}>■</span>
+              <div className="u-1wk0l48">
+                <span className={sx({ color: token.colorSuccess, fontWeight: 'bold' })}>■</span>
                 <span>组织（方形）</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ color: token.colorWarning, fontWeight: 'bold' }}>▭</span>
+              <div className="u-1wk0l48">
+                <span className={sx({ color: token.colorWarning, fontWeight: 'bold' })}>▭</span>
                 <span>主职业</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ color: token.colorInfo, fontWeight: 'bold' }}>▭</span>
+              <div className="u-1wk0l48">
+                <span className={sx({ color: token.colorInfo, fontWeight: 'bold' })}>▭</span>
                 <span>副职业</span>
               </div>
 
-              <span style={{ color: token.colorBorder }}>|</span>
+              <span className={sx({ color: token.colorBorder })}>|</span>
 
               {/* 连线图例 */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ color: token.colorPrimary, fontWeight: 'bold' }}>- -</span>
+              <div className="u-1wk0l48">
+                <span className={sx({ color: token.colorPrimary, fontWeight: 'bold' })}>- -</span>
                 <span>组织成员</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ color: token.colorWarning, fontWeight: 'bold' }}>—</span>
+              <div className="u-1wk0l48">
+                <span className={sx({ color: token.colorWarning, fontWeight: 'bold' })}>—</span>
                 <span>主职业关联</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ color: token.colorInfo, fontWeight: 'bold' }}>- -</span>
+              <div className="u-1wk0l48">
+                <span className={sx({ color: token.colorInfo, fontWeight: 'bold' })}>- -</span>
                 <span>副职业关联</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ color: token.colorWarning, fontWeight: 'bold' }}>- -</span>
+              <div className="u-1wk0l48">
+                <span className={sx({ color: token.colorWarning, fontWeight: 'bold' })}>- -</span>
                 <span>待审关系</span>
               </div>
             </div>
 
             {edgeCategoryOptions.length > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <Text type="secondary" style={{ fontSize: 12 }}>
+              <div className="u-1ofnzo1">
+                <Text type="secondary" className="u-1pw6xki">
                   连线显示：
                 </Text>
                 {edgeCategoryOptions.map((option) => {
@@ -1334,11 +1323,9 @@ export default function RelationshipGraph() {
                       size="small"
                       type={isVisible ? 'primary' : 'default'}
                       onClick={() => toggleEdgeCategoryVisibility(option.category)}
-                      style={
-                        isVisible
+                      className={sx(isVisible
                           ? { backgroundColor: option.color, borderColor: option.color, color: token.colorWhite }
-                          : { color: token.colorTextSecondary }
-                      }
+                          : { color: token.colorTextSecondary })}
                     >
                       {option.label}（{option.count}）
                     </Button>
@@ -1349,7 +1336,7 @@ export default function RelationshipGraph() {
           </Space>
         }
       >
-        <div style={{ flex: 1, minHeight: 0 }} className="relationship-graph-flow">
+        <div className={sx("relationship-graph-flow", 'u-15gdg2w')} >
           <style>
             {`
               .relationship-graph-flow .react-flow__handle {
@@ -1431,14 +1418,7 @@ export default function RelationshipGraph() {
 
       {selectedEdge && selectedEdgeData && (
         <div
-          style={{
-            position: 'fixed',
-            right: 24,
-            top: 80,
-            width: 420,
-            maxHeight: 'calc(100vh - 100px)',
-            zIndex: 1000,
-          }}
+          className="u-1imuq7b"
         >
           <Card
             size="small"
@@ -1450,20 +1430,20 @@ export default function RelationshipGraph() {
               </Space>
             }
             extra={<Button type="text" size="small" icon={<CloseOutlined />} onClick={closeEdgeDetail} />}
-            style={{
+            className={sx({
               borderRadius: 16,
               borderColor: selectedEdgeData.pendingCandidate ? token.colorWarningBorder : token.colorBorderSecondary,
               borderStyle: selectedEdgeData.pendingCandidate ? 'dashed' : 'solid',
               boxShadow: `0 12px 32px ${alphaColor(token.colorTextBase, 0.22)}`,
-            }}
+            })}
           >
-            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+            <Space direction="vertical" size="middle" className="u-1f3r3s">
               <Space wrap>
                 <Tag color="blue">{selectedEdgeSourceName}</Tag>
                 <Text strong>{selectedEdgeRelationship}</Text>
                 <Tag color="purple">{selectedEdgeTargetName}</Tag>
               </Space>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+              <div className="u-12zroou">
                 <div>
                   <Text type="secondary">来源章节</Text>
                   <div><Text>{formatGraphSourceChapter(selectedEdgeData)}</Text></div>
@@ -1499,7 +1479,7 @@ export default function RelationshipGraph() {
               )}
               <div>
                 <Text type="secondary">证据摘录</Text>
-                <p style={{ ...clampTextStyle(4), marginTop: 4 }}>
+                <p className={sx({ ...clampTextStyle(4), marginTop: 4 })}>
                   {getStringValue(selectedEdgeData.evidence_text) || '暂无证据摘录'}
                 </p>
               </div>
@@ -1511,21 +1491,11 @@ export default function RelationshipGraph() {
       {/* 节点详情 */}
 {selectedNodeId && nodeDetail && (
 <div
-  style={{
-    position: 'fixed',
-    right: 24,
-    top: 80,
-    width: 400,
-    height: 'calc(100vh - 100px)',
-    maxHeight: 700,
-    zIndex: 1000,
-    display: 'flex',
-    flexDirection: 'column',
-  }}
+  className="u-wr64np"
 >
   <Card
     size="small"
-    style={{
+    className={sx({
       width: '100%',
       flex: 1,
       borderRadius: 16,
@@ -1533,7 +1503,7 @@ export default function RelationshipGraph() {
       overflow: 'hidden',
       display: 'flex',
       flexDirection: 'column',
-    }}
+    })}
     styles={{
       body: {
         flex: 1,
@@ -1555,35 +1525,27 @@ export default function RelationshipGraph() {
               </Button>
             }
           >
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div className="u-gan332">
               <div
-                style={{
-                  textAlign: 'center',
-                  marginBottom: 16,
-                  padding: '8px 12px 0',
-                  minHeight: 140,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                }}
+                className="u-2ljzwf"
               >
-                <div style={{ position: 'relative', width: 84, height: 84, marginBottom: 12 }}>
+                <div className="u-1wwvla9">
                   {nodeDetail.avatar_url ? (
                     <img
                       src={nodeDetail.avatar_url}
                       alt={nodeDetail.name}
-                      style={{
+                      className={sx({
                         width: '100%',
                         height: '100%',
                         borderRadius: '50%',
                         objectFit: 'cover',
                         border: `3px solid ${token.colorBgContainer}`,
                         boxShadow: `0 4px 12px ${alphaColor(token.colorTextBase, 0.18)}`,
-                      }}
+                      })}
                     />
                   ) : (
                     <div
-                      style={{
+                      className={sx({
                         width: '100%',
                         height: '100%',
                         borderRadius: '50%',
@@ -1595,13 +1557,13 @@ export default function RelationshipGraph() {
                         color: token.colorWhite,
                         border: `3px solid ${token.colorBgContainer}`,
                         boxShadow: `0 4px 12px ${alphaColor(token.colorTextBase, 0.18)}`,
-                      }}
+                      })}
                     >
                       {nodeDetailIsOrganization ? <TeamOutlined /> : <UserOutlined />}
                     </div>
                   )}
                   <div
-                    style={{
+                    className={sx({
                       position: 'absolute',
                       bottom: -4,
                       right: -4,
@@ -1615,14 +1577,14 @@ export default function RelationshipGraph() {
                       border: `2px solid ${token.colorBgContainer}`,
                       color: token.colorWhite,
                       boxShadow: `0 2px 6px ${alphaColor(token.colorTextBase, 0.22)}`,
-                    }}
+                    })}
                   >
-                    {nodeDetailIsOrganization ? <ApartmentOutlined style={{ fontSize: 14 }} /> : <UserOutlined style={{ fontSize: 14 }} />}
+                    {nodeDetailIsOrganization ? <ApartmentOutlined className="u-17mbhes" /> : <UserOutlined className="u-17mbhes" />}
                   </div>
                 </div>
 
-                <div style={{ fontSize: 20, fontWeight: 600, color: token.colorText, marginBottom: 8 }}>{nodeDetail.name}</div>
-                <Space size={6} wrap style={{ justifyContent: 'center' }}>
+                <div className={sx({ fontSize: 20, fontWeight: 600, color: token.colorText, marginBottom: 8 })}>{nodeDetail.name}</div>
+                <Space size={6} wrap className="u-15nbr25">
                   {!nodeDetailIsOrganization && (
                     <Tag
                       color={
@@ -1632,7 +1594,7 @@ export default function RelationshipGraph() {
                             ? 'purple'
                             : 'blue'
                       }
-                      style={{ borderRadius: 12, padding: '0 10px', fontWeight: 500 }}
+                      className="u-11axtjt"
                     >
                       {nodeDetail.role_type === 'protagonist'
                         ? '主角'
@@ -1641,12 +1603,12 @@ export default function RelationshipGraph() {
                           : '配角'}
                     </Tag>
                   )}
-                  {nodeDetail.gender && !nodeDetailIsOrganization && <Tag style={{ borderRadius: 12, padding: '0 10px' }}>{nodeDetail.gender}</Tag>}
-                  {nodeDetail.age && !nodeDetailIsOrganization && <Tag style={{ borderRadius: 12, padding: '0 10px' }}>{nodeDetail.age}岁</Tag>}
+                  {nodeDetail.gender && !nodeDetailIsOrganization && <Tag className="u-5bqoag">{nodeDetail.gender}</Tag>}
+                  {nodeDetail.age && !nodeDetailIsOrganization && <Tag className="u-5bqoag">{nodeDetail.age}岁</Tag>}
                 </Space>
               </div>
 
-              <div style={{ flex: 1, overflowY: 'auto', paddingRight: 8, paddingLeft: 4, paddingBottom: 16 }}>
+              <div className="u-bf5bd8">
                 {!nodeDetailIsOrganization ? (
                   <>
                     {renderCareerTags()}
@@ -1656,21 +1618,21 @@ export default function RelationshipGraph() {
 
                     {traitList.length > 0 && (
                       <div
-                        style={{
+                        className={sx({
                           marginBottom: 12,
                           padding: '12px 14px',
                           borderRadius: 12,
                           background: token.colorFillQuaternary,
                           border: `1px solid ${token.colorBorderSecondary}`,
                           boxShadow: `0 2px 4px ${alphaColor(token.colorTextBase, 0.06)}`,
-                        }}
+                        })}
                       >
-                        <Text strong style={{ fontSize: 14, color: token.colorText }}>
+                        <Text strong className={sx({ fontSize: 14, color: token.colorText })}>
                           特征标签
                         </Text>
-                        <Space size={[6, 8]} wrap style={{ marginTop: 10 }}>
+                        <Space size={[6, 8]} wrap className="u-r1lmlr">
                           {traitList.slice(0, 12).map((trait, index) => (
-                            <Tag key={`${trait}-${index}`} color="blue" style={{ borderRadius: 12, padding: '0 10px', margin: 0 }}>
+                            <Tag key={`${trait}-${index}`} color="blue" className="u-1e04y74">
                               {trait}
                             </Tag>
                           ))}
@@ -1687,41 +1649,41 @@ export default function RelationshipGraph() {
 
                     {nodeDetail.power_level !== undefined && nodeDetail.power_level !== null && (
                       <div
-                        style={{
+                        className={sx({
                           marginBottom: 12,
                           padding: '12px 14px',
                           borderRadius: 12,
                           background: token.colorFillQuaternary,
                           border: `1px solid ${token.colorBorderSecondary}`,
                           boxShadow: `0 2px 4px ${alphaColor(token.colorTextBase, 0.06)}`,
-                        }}
+                        })}
                       >
-                        <Text strong style={{ fontSize: 14, color: token.colorText }}>
+                        <Text strong className={sx({ fontSize: 14, color: token.colorText })}>
                           势力等级
                         </Text>
-                        <div style={{ ...clampTextStyle(1), fontSize: 18, color: token.colorWarning, fontWeight: 'bold' }}>
-                          {nodeDetail.power_level}<span style={{ fontSize: 14, color: token.colorTextTertiary, fontWeight: 'normal' }}>/100</span>
+                        <div className={sx({ ...clampTextStyle(1), fontSize: 18, color: token.colorWarning, fontWeight: 'bold' })}>
+                          {nodeDetail.power_level}<span className={sx({ fontSize: 14, color: token.colorTextTertiary, fontWeight: 'normal' })}>/100</span>
                         </div>
                       </div>
                     )}
 
                     {orgMembers.length > 0 && (
                       <div
-                        style={{
+                        className={sx({
                           marginBottom: 12,
                           padding: '12px 14px',
                           borderRadius: 12,
                           background: token.colorFillQuaternary,
                           border: `1px solid ${token.colorBorderSecondary}`,
                           boxShadow: `0 2px 4px ${alphaColor(token.colorTextBase, 0.06)}`,
-                        }}
+                        })}
                       >
-                        <Text strong style={{ fontSize: 14, color: token.colorText }}>
+                        <Text strong className={sx({ fontSize: 14, color: token.colorText })}>
                           组织成员
                         </Text>
-                        <Space size={[6, 8]} wrap style={{ marginTop: 10 }}>
+                        <Space size={[6, 8]} wrap className="u-r1lmlr">
                           {orgMembers.slice(0, 16).map((member, index) => (
-                            <Tag key={`${member}-${index}`} color="green" style={{ borderRadius: 12, padding: '0 10px', margin: 0 }}>
+                            <Tag key={`${member}-${index}`} color="green" className="u-1e04y74">
                               {member}
                             </Tag>
                           ))}
@@ -1739,19 +1701,14 @@ export default function RelationshipGraph() {
       {/* 职业节点点击提示（不展示详情卡时） */}
       {selectedNodeId && !nodeDetail && (selectedNodeId.startsWith('career-main-') || selectedNodeId.startsWith('career-sub-')) && (
         <div
-          style={{
-            position: 'fixed',
-            right: 20,
-            top: 80,
-            zIndex: 1000,
-          }}
+          className="u-vvolyw"
         >
-          <Card size="small" style={{ width: 300, borderRadius: 10, boxShadow: `0 6px 18px ${alphaColor(token.colorTextBase, 0.2)}` }}>
+          <Card size="small" className={sx({ width: 300, borderRadius: 10, boxShadow: `0 6px 18px ${alphaColor(token.colorTextBase, 0.2)}` })}>
             <Space align="start">
-              <TrophyOutlined style={{ color: token.colorWarning, marginTop: 4 }} />
+              <TrophyOutlined className={sx({ color: token.colorWarning, marginTop: 4 })} />
               <div>
                 <Text strong>职业节点</Text>
-                <p style={{ ...clampTextStyle(2), marginTop: 2 }}>
+                <p className={sx({ ...clampTextStyle(2), marginTop: 2 })}>
                   职业节点用于展示主/副职业分组及其与角色的关联关系，不显示角色详情卡。
                 </p>
               </div>

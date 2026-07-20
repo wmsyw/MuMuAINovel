@@ -48,7 +48,7 @@ def make_service(
     default_max_tokens: int = 256,
 ) -> AIService:
     service = AIService(
-        api_provider="mumu",
+        api_provider="openai",
         api_key="test-key",
         api_base_url="https://api.openai.test/v1",
         default_model=default_model,
@@ -58,18 +58,18 @@ def make_service(
         default_reasoning_intensity=default_reasoning_intensity,
         enable_mcp=False,
     )
-    service._openai_provider = OpenAIProvider(client)
+    service._providers["openai"] = OpenAIProvider(client)
     return service
 
 
-def test_ai_service_preserves_mumu_alias_and_legacy_chat_completion_shape() -> None:
+def test_ai_service_preserves_openai_legacy_chat_completion_shape() -> None:
     client = CapturingOpenAIClient()
     service = make_service(client, default_model="gpt-4o-mini")
 
     result = asyncio.run(
         service.generate_text(
             prompt="写一段话",
-            provider="mumu",
+            provider="openai",
             model="gpt-4o-mini",
             auto_mcp=False,
             handle_tool_calls=False,

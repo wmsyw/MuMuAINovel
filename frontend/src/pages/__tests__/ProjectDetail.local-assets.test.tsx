@@ -109,7 +109,7 @@ async function renderProjectDetail(initialPath: string) {
       <MemoryRouter initialEntries={[initialPath]}>
         <Routes>
           <Route path="/project/:projectId/*" element={<ProjectDetail />}>
-            <Route path="sponsor" element={<div data-testid="sponsor-page">赞助支持页面</div>} />
+            <Route path="world-setting" element={<div data-testid="world-setting-page">世界设定页面</div>} />
             <Route path="local-assets" element={<div data-testid="local-assets-page">本地资源页面</div>} />
           </Route>
         </Routes>
@@ -151,7 +151,7 @@ describe('ProjectDetail local-assets feature gate', () => {
 
     try {
       await waitForAssertion(() => {
-        expect(view.container.querySelector('[data-testid="sponsor-page"]')).not.toBeNull();
+        expect(view.container.querySelector('[data-testid="world-setting-page"]')).not.toBeNull();
         expect(view.container.querySelector('[data-testid="local-assets-page"]')).toBeNull();
         expect(view.container.querySelector('a[href="/project/project-local-assets-1/local-assets"]')).toBeNull();
       });
@@ -172,7 +172,7 @@ describe('ProjectDetail local-assets feature gate', () => {
     try {
       await waitForAssertion(() => {
         expect(view.container.querySelector('[data-testid="local-assets-page"]')).not.toBeNull();
-        expect(view.container.querySelector('[data-testid="sponsor-page"]')).toBeNull();
+        expect(view.container.querySelector('[data-testid="world-setting-page"]')).toBeNull();
         expect(view.container.querySelector('a[href="/project/project-local-assets-1/local-assets"]')).not.toBeNull();
       });
     } finally {

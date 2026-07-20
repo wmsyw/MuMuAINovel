@@ -275,3 +275,65 @@ def test_world_setting_result_schema_basics_remain_registered() -> None:
         "world_atmosphere",
         "world_rules",
     }.issubset(project_columns)
+
+def test_accept_and_rollback_sync_dynamic_world_setting_data() -> None:
+    engine = sa.create_engine("sqlite:///:memory:")
+    with engine.begin() as connection:
+        Base.metadata.create_all(connection)
+        with Session(bind=connection) as session:
+            project = _seed_project(session)
+            project.world_setting_data = {
+                "template_id": "template-world",
+                "template_name": "扩展世界",
+                "fields": {
+                    "time_period": {"label": "时间设定", "type": "text", "required": False},
+                    "location": {"label": "地点设定", "type": "textarea", "required": False},
+                    "magic_system": {"label": "魔法体系", "type": "textarea", "required": False},
+                },
+                "values": {
+                    "time_period": "旧纪元三百年",
+                    "location": "旧都群岛",
+                    "magic_system": "月潮法术",
+                },
+            }
+            legacy = _seed_legacy_accepted_result(session, project)
+            service = WorldSettingResultService(session)
+            result = service.create_pending_result(
+                project_id=project.id,
+                world_time_period=" 新纪元元年 ",
+                world_location="群星裂谷",
+                world_atmosphere="壮阔紧张",
+                world_rules="星核契约会反噬说谎者",
+                raw_payload={
+                    "world_setting_data": {
+                        "template_id": "template-world",
+                        "template_name": "扩展世界",
+                        "fields": {
+                            "time_period": {"label": "时间设定", "type": "text", "required": False},
+                            "location": {"label": "地点设定", "type": "textarea", "required": False},
+                            "magic_system": {"label": "魔法体系", "type": "textarea", "required": False},
+                        },
+                        "values": {
+                            "time_period": " 新纪元元年 ",
+                            "location": "群星裂谷",
+                            "magic_system": "星核契约",
+                        },
+                    }
+                },
+            )
+
+            accepted = service.accept_result(result.id, accepted_by="reviewer-world")
+            assert accepted.changed is True
+            assert project.world_setting_data["values"]["time_period"] == "新纪元元年"
+            assert project.world_setting_data["values"]["location"] == "群星裂谷"
+            assert project.world_setting_data["values"]["magic_system"] == "星核契约"
+            assert project.world_setting_data["values"]["atmosphere"] == "壮阔紧张"
+            assert project.world_setting_data["values"]["rules"] == "星核契约会反噬说谎者"
+            assert project.world_time_period == "新纪元元年"
+
+            rolled_back = service.rollback_result(result.id, actor_user_id="reviewer-world")
+            assert rolled_back.changed is True
+            assert rolled_back.previous_result == legacy
+            assert project.world_setting_data["values"]["magic_system"] == "月潮法术"
+            assert project.world_setting_data["values"]["location"] == "旧都群岛"
+            assert project.world_time_period == "旧纪元三百年"

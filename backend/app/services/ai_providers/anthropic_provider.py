@@ -4,7 +4,7 @@ from typing import Any, AsyncGenerator, Dict, List, Optional
 from app.logger import get_logger
 from app.services.ai_capabilities import ReasoningConfig
 from app.services.ai_clients.anthropic_client import AnthropicClient
-from .base_provider import BaseAIProvider
+from .base_provider import AICapabilities, BaseAIProvider
 
 logger = get_logger(__name__)
 
@@ -14,6 +14,12 @@ class AnthropicProvider(BaseAIProvider):
 
     def __init__(self, client: AnthropicClient):
         self.client = client
+
+    def get_capabilities(self) -> AICapabilities:
+        return AICapabilities(tools=True, reasoning=True)
+
+    async def close(self) -> None:
+        await self.client.close()
 
     async def generate(
         self,

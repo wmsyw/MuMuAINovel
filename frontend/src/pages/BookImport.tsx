@@ -33,6 +33,8 @@ import type {
   BookImportStepFailure,
   BookImportTask,
 } from '../types';
+import { useIsMobile } from '../hooks/useMediaQuery';
+import { sx } from '../styles/sx';
 
 const { Text, Title } = Typography;
 const { Dragger } = Upload;
@@ -112,7 +114,7 @@ function isNotFoundError(error: unknown): boolean {
 export default function BookImport() {
   const navigate = useNavigate();
   const { token } = theme.useToken();
-  const isMobile = window.innerWidth <= 768;
+  const isMobile = useIsMobile();
   const [file, setFile] = useState<File | null>(null);
   const [extractMode, setExtractMode] = useState<BookImportExtractMode>('tail');
   const [tailChapterCount, setTailChapterCount] = useState(10);
@@ -589,17 +591,17 @@ export default function BookImport() {
 
   return (
     <div
-      style={{
+      className={sx({
         minHeight: '90vh',
         overflow: 'auto',
         background: `linear-gradient(180deg, ${token.colorBgLayout} 0%, ${token.colorFillSecondary} 100%)`,
         padding: isMobile ? '20px 16px 70px' : '24px 24px 70px',
-      }}
+      })}
     >
-      <div style={{ maxWidth: 1400, margin: '0 auto', width: '100%' }}>
+      <div className="u-nsav5t">
         <Card
           variant="borderless"
-          style={{
+          className={sx({
             background: `linear-gradient(135deg, ${token.colorPrimary} 0%, ${token.colorPrimaryHover} 100%)`,
             borderRadius: isMobile ? 16 : 20,
             boxShadow: token.boxShadowSecondary,
@@ -607,19 +609,19 @@ export default function BookImport() {
             border: 'none',
             position: 'relative',
             overflow: 'hidden',
-          }}
+          })}
         >
-          <div style={{ position: 'absolute', top: -48, right: -48, width: 160, height: 160, borderRadius: '50%', background: token.colorWhite, opacity: 0.08, pointerEvents: 'none' }} />
-          <div style={{ position: 'absolute', bottom: -40, left: '26%', width: 110, height: 110, borderRadius: '50%', background: token.colorWhite, opacity: 0.05, pointerEvents: 'none' }} />
+          <div className={sx({ position: 'absolute', top: -48, right: -48, width: 160, height: 160, borderRadius: '50%', background: token.colorWhite, opacity: 0.08, pointerEvents: 'none' })} />
+          <div className={sx({ position: 'absolute', bottom: -40, left: '26%', width: 110, height: 110, borderRadius: '50%', background: token.colorWhite, opacity: 0.05, pointerEvents: 'none' })} />
 
-          <Row align="middle" justify="space-between" gutter={[16, 16]} style={{ position: 'relative', zIndex: 1 }}>
+          <Row align="middle" justify="space-between" gutter={[16, 16]} className="u-5dyu45">
             <Col xs={24} sm={12}>
               <Space direction="vertical" size={4}>
-                <Title level={isMobile ? 3 : 2} style={{ margin: 0, color: token.colorWhite, textShadow: `0 2px 4px ${token.colorBgMask}` }}>
-                  <InboxOutlined style={{ color: token.colorWhite, opacity: 0.9, marginRight: 8 }} />
+                <Title level={isMobile ? 3 : 2} className={sx({ margin: 0, color: token.colorWhite, textShadow: `0 2px 4px ${token.colorBgMask}` })}>
+                  <InboxOutlined className={sx({ color: token.colorWhite, opacity: 0.9, marginRight: 8 })} />
                   拆书导入
                 </Title>
-                <Text style={{ fontSize: isMobile ? 12 : 14, color: token.colorTextLightSolid, opacity: 0.85, marginLeft: isMobile ? 40 : 48 }}>
+                <Text className={sx({ fontSize: isMobile ? 12 : 14, color: token.colorTextLightSolid, opacity: 0.85, marginLeft: isMobile ? 40 : 48 })}>
                   上传TXT并自动解析为章节、预览并导入项目
                 </Text>
               </Space>
@@ -627,14 +629,14 @@ export default function BookImport() {
             <Col xs={24} sm={12}>
               <Space
                 size={12}
-                style={{
+                className={sx({
                   width: '100%',
                   display: 'flex',
                   justifyContent: isMobile ? 'flex-start' : 'flex-end',
-                }}
+                })}
               >
                 <Tag
-                  style={{
+                  className={sx({
                     marginInlineEnd: 0,
                     background: token.colorWhite,
                     border: `1px solid ${token.colorWhite}`,
@@ -642,7 +644,7 @@ export default function BookImport() {
                     fontWeight: 600,
                     borderRadius: 8,
                     paddingInline: 10,
-                  }}
+                  })}
                 >
                   当前进度：{currentStepText}
                 </Tag>
@@ -659,7 +661,7 @@ export default function BookImport() {
                     type="primary"
                     icon={<ReloadOutlined />}
                     disabled={!canRestart}
-                    style={{ boxShadow: '0 6px 16px rgba(0, 0, 0, 0.2)', borderRadius: 10 }}
+                    className="u-1cqqb6m"
                   >
                     重新开始
                   </Button>
@@ -670,13 +672,13 @@ export default function BookImport() {
 
           <Card
             variant="borderless"
-            style={{
+            className={sx({
               marginTop: isMobile ? 14 : 18,
               borderRadius: 12,
               background: token.colorBgContainer,
               border: `1px solid ${token.colorBorderSecondary}`,
               boxShadow: token.boxShadow,
-            }}
+            })}
             styles={{ body: { padding: isMobile ? '10px 12px' : '12px 16px' } }}
           >
             <Steps current={currentStep} size={isMobile ? 'small' : 'default'} items={stepItems} />
@@ -684,8 +686,8 @@ export default function BookImport() {
         </Card>
 
       {currentStep === 0 && (
-      <Card title="上传 TXT 并开始解析" style={{ marginBottom: 16 }}>
-        <Space direction="vertical" style={{ width: '100%' }} size={16}>
+      <Card title="上传 TXT 并开始解析" className="u-6srbul">
+        <Space direction="vertical" className="u-1f3r3s" size={16}>
           <Dragger
             accept=".txt"
             multiple={false}
@@ -707,7 +709,7 @@ export default function BookImport() {
                   ]
                 : []
             }
-            style={{ padding: '8px 0' }}
+            className="u-15tlmef"
           >
             <p className="ant-upload-drag-icon">
               <InboxOutlined />
@@ -717,7 +719,7 @@ export default function BookImport() {
           </Dragger>
 
           <Card size="small" title="解析范围设置">
-            <Space direction="vertical" style={{ width: '100%' }} size={12}>
+            <Space direction="vertical" className="u-1f3r3s" size={12}>
               {rangeLocked && (
                 <Alert
                   type="warning"
@@ -733,7 +735,7 @@ export default function BookImport() {
                   { label: '截取末 x 章反向生成', value: 'tail' },
                   { label: '整本反向生成', value: 'full' },
                 ]}
-                style={{ width: '100%' }}
+                className="u-1f3r3s"
                 disabled={rangeLocked}
               />
               <InputNumber
@@ -745,7 +747,7 @@ export default function BookImport() {
                 disabled={rangeLocked || extractMode !== 'tail'}
                 onChange={(value) => setTailChapterCount(typeof value === 'number' ? value : 10)}
                 addonBefore="末尾章节数"
-                style={{ width: '100%' }}
+                className="u-1f3r3s"
               />
               <Text type="secondary">
                 {effectiveExtractMode === 'tail'
@@ -762,14 +764,14 @@ export default function BookImport() {
             showIcon
             message="支持的拆书 TXT 格式要求"
             description={
-              <div style={{ lineHeight: 1.8 }}>
+              <div className="u-1ezb7ed">
                 <div>1. 仅支持 <strong>.txt</strong> 文件，建议每章使用单独的章节标题行。</div>
                 <div>2. 推荐格式：<strong>第1章 标题</strong>，下一行开始写正文内容。</div>
                 <div>3. 正文建议按自然段换行，首行可缩进两个字符。</div>
                 <div>4. 章节之间保留空行即可，不要添加多余的分割线、全文完、导出时间等干扰内容。</div>
-                <div style={{ marginTop: 8 }}>
+                <div className="u-u35y5u">
                   示例：
-                  <pre style={{ margin: '8px 0 0', padding: 12, borderRadius: 8, background: token.colorFillAlter, whiteSpace: 'pre-wrap' }}>
+                  <pre className={sx({ margin: '8px 0 0', padding: 12, borderRadius: 8, background: token.colorFillAlter, whiteSpace: 'pre-wrap' })}>
 {`第1章 初入江湖
 这里是第1章正文第一段。
 这里是第1章正文第二段。
@@ -800,11 +802,11 @@ export default function BookImport() {
       )}
 
       {currentStep === 1 && (
-      <Card title="解析任务状态" style={{ marginBottom: 16 }}>
+      <Card title="解析任务状态" className="u-6srbul">
         {!taskId ? (
           <Empty description="尚未创建任务" />
         ) : (
-          <div style={{ textAlign: 'center', padding: '24px 0' }}>
+          <div className="u-1iz3svh">
             <Progress
               type="circle"
               percent={taskStatus?.progress || 0}
@@ -814,8 +816,8 @@ export default function BookImport() {
                 'active'
               }
             />
-            <div style={{ marginTop: 24 }}>
-              <Text strong style={{ fontSize: 16 }}>
+            <div className="u-1xr8872">
+              <Text strong className="u-tw6n7q">
                 {taskStatus?.status === 'pending' && '等待调度...'}
                 {taskStatus?.status === 'running' && '正在解析TXT文件...'}
                 {taskStatus?.status === 'completed' && '解析完成！正在生成预览...'}
@@ -823,17 +825,17 @@ export default function BookImport() {
                 {taskStatus?.status === 'cancelled' && '已取消'}
               </Text>
               {taskStatus?.message && (
-                <div style={{ marginTop: 8 }}>
+                <div className="u-u35y5u">
                   <Text type="secondary">{taskStatus.message}</Text>
                 </div>
               )}
             </div>
 
             {taskStatus?.error && (
-              <Alert type="error" message={taskStatus.error} showIcon style={{ marginTop: 16, textAlign: 'left' }} />
+              <Alert type="error" message={taskStatus.error} showIcon className="u-1ve3etn" />
             )}
 
-            <Space style={{ marginTop: 24 }}>
+            <Space className="u-1xr8872">
               <Button icon={<ReloadOutlined />} onClick={refreshStatus}>刷新状态</Button>
               {taskStatus && ['pending', 'running'].includes(taskStatus.status) && (
                 <Button danger icon={<StopOutlined />} onClick={cancelTask}>取消任务</Button>
@@ -858,21 +860,21 @@ export default function BookImport() {
             确认导入
           </Button>
         }
-        style={{ marginBottom: 16 }}
+        className="u-6srbul"
       >
         <Spin spinning={loadingPreview}>
           {!preview ? (
             <Empty description="解析完成后将显示预览数据" />
           ) : (
-            <div style={{ maxHeight: '60vh', overflowY: 'auto', paddingRight: 8 }}>
-              <Space direction="vertical" style={{ width: '100%' }} size={16}>
+            <div className="u-1k1r8vr">
+              <Space direction="vertical" className="u-1f3r3s" size={16}>
               {preview.warnings.length > 0 && (
                 <Alert
                   type="warning"
                   showIcon
                   message="检测到告警"
                   description={
-                    <ul style={{ margin: 0, paddingLeft: 20 }}>
+                    <ul className="u-1ou6caz">
                       {preview.warnings.map((w, idx) => (
                         <li key={`${w.code}-${idx}`}>[{w.level}] {w.message}</li>
                       ))}
@@ -939,7 +941,7 @@ export default function BookImport() {
                   <Col xs={24} md={12}>
                     <Text>叙事角度</Text>
                     <Select
-                      style={{ width: '100%' }}
+                      className="u-1f3r3s"
                       value={preview.project_suggestion.narrative_perspective}
                       onChange={(v) =>
                         setPreview(prev => prev ? ({
@@ -957,7 +959,7 @@ export default function BookImport() {
                   <Col xs={24} md={12}>
                     <Text>目标字数</Text>
                     <InputNumber
-                      style={{ width: '100%' }}
+                      className="u-1f3r3s"
                       min={1000}
                       step={1000}
                       value={preview.project_suggestion.target_words}
@@ -981,7 +983,7 @@ export default function BookImport() {
                     key: String(idx),
                     label: `第 ${ch.chapter_number} 章 · ${ch.title}`,
                     children: (
-                      <Space direction="vertical" style={{ width: '100%' }}>
+                      <Space direction="vertical" className="u-1f3r3s">
                         <Input
                           value={ch.title}
                           addonBefore="标题"
@@ -1015,9 +1017,9 @@ export default function BookImport() {
       )}
 
       {currentStep === 3 && (
-      <Card title="生成导入进度" style={{ marginBottom: 16 }}>
-        <div style={{ textAlign: 'center', padding: '40px 20px', maxWidth: 600, margin: '0 auto' }}>
-          <Typography.Title level={4} style={{ marginBottom: 32 }}>
+      <Card title="生成导入进度" className="u-6srbul">
+        <div className="u-5zg3tf">
+          <Typography.Title level={4} className="u-yplvzz">
             {retrying ? '正在重试失败的生成步骤' : (failedSteps.length > 0 && isApplyComplete ? '导入完成，部分步骤需要重试' : '正在为您生成并导入项目内容')}
           </Typography.Title>
           
@@ -1031,19 +1033,19 @@ export default function BookImport() {
             }
             strokeColor={{
               '0%': 'var(--color-primary)',
-              '100%': failedSteps.length > 0 ? '#faad14' : 'var(--color-primary-active)',
+              '100%': failedSteps.length > 0 ? token.colorWarning : 'var(--color-primary-active)',
             }}
-            style={{ marginBottom: 24 }}
+            className="u-19d88e2"
           />
           
           <Typography.Paragraph
-            style={{
+            className={sx({
               fontSize: 16,
               marginBottom: 32,
               color: applyError ? 'var(--color-error)' :
-                (failedSteps.length > 0 && isApplyComplete && !retrying) ? '#faad14' :
+                (failedSteps.length > 0 && isApplyComplete && !retrying) ? token.colorWarning :
                 'var(--color-text-secondary)'
-            }}
+            })}
           >
             {retrying ? retryMessage : (applyError || applyMessage)}
           </Typography.Paragraph>
@@ -1054,13 +1056,13 @@ export default function BookImport() {
               message="导入出错"
               description={applyError}
               showIcon
-              style={{ textAlign: 'left', marginBottom: 24 }}
+              className="u-i1lxpe"
             />
           )}
 
           {/* 步骤失败提示与重试UI */}
           {failedSteps.length > 0 && isApplyComplete && !retrying && (
-            <div style={{ textAlign: 'left', marginBottom: 24 }}>
+            <div className="u-i1lxpe">
               <Alert
                 type="warning"
                 icon={<WarningOutlined />}
@@ -1068,7 +1070,7 @@ export default function BookImport() {
                 message={`${failedSteps.length} 个生成步骤失败`}
                 description={
                   <div>
-                    <Typography.Paragraph style={{ marginBottom: 12, color: 'rgba(0,0,0,0.65)' }}>
+                    <Typography.Paragraph className="u-n9nj68">
                       以下AI生成步骤未能完成，但基础数据（章节、大纲）已成功导入。您可以选择重试或跳过。
                     </Typography.Paragraph>
                     <List
@@ -1077,7 +1079,7 @@ export default function BookImport() {
                       dataSource={failedSteps}
                       renderItem={(item) => (
                         <List.Item
-                          style={{ padding: '8px 12px' }}
+                          className="u-3b493u"
                         >
                           <List.Item.Meta
                             title={
@@ -1089,7 +1091,7 @@ export default function BookImport() {
                               </Space>
                             }
                             description={
-                              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                              <Typography.Text type="secondary" className="u-1pw6xki">
                                 {item.error.length > 120 ? item.error.slice(0, 120) + '...' : item.error}
                               </Typography.Text>
                             }
@@ -1097,7 +1099,7 @@ export default function BookImport() {
                         </List.Item>
                       )}
                     />
-                    <Space style={{ marginTop: 16, display: 'flex', justifyContent: 'center' }}>
+                    <Space className="u-13c2il5">
                       <Button
                         type="primary"
                         icon={<RedoOutlined />}
@@ -1112,35 +1114,29 @@ export default function BookImport() {
                     </Space>
                   </div>
                 }
-                style={{ marginBottom: 16 }}
+                className="u-6srbul"
               />
             </div>
           )}
 
           {/* 重试进行中 */}
           {retrying && (
-            <div style={{ marginBottom: 24 }}>
+            <div className="u-19d88e2">
               <Spin spinning={retrying}>
                 <Alert
                   type="info"
                   showIcon
                   message="正在重试..."
                   description={retryMessage}
-                  style={{ textAlign: 'left' }}
+                  className="u-1jqnuuc"
                 />
               </Spin>
             </div>
           )}
           
           {!failedSteps.length && !retrying && (
-            <div style={{
-              background: 'var(--color-bg-layout)',
-              padding: 16,
-              borderRadius: 8,
-              textAlign: 'left',
-              marginTop: 32
-            }}>
-              <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+            <div className="u-7vogbc">
+              <Typography.Text type="secondary" className="u-sidwtb">
                 导入过程中，AI会自动帮您补全：<br />
                 • 世界观设定（时间、地点、氛围、规则）<br />
                 • 职业体系（主职业与副职业）<br />

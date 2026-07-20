@@ -1,7 +1,10 @@
 """项目相关的Pydantic模型"""
-from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, Literal
 from datetime import datetime
+from typing import Any, Optional, Literal
+
+from pydantic import BaseModel, Field, ConfigDict
+
+from app.schemas.world_setting_template import ProjectWorldSettingData
 
 
 class ProjectBase(BaseModel):
@@ -35,6 +38,7 @@ class ProjectUpdate(BaseModel):
     world_location: Optional[str] = None
     world_atmosphere: Optional[str] = None
     world_rules: Optional[str] = None
+    world_setting_data: Optional[ProjectWorldSettingData] = None
     chapter_count: Optional[int] = None
     narrative_perspective: Optional[str] = None
     character_count: Optional[int] = None
@@ -52,6 +56,7 @@ class ProjectResponse(ProjectBase):
     world_location: Optional[str] = None
     world_atmosphere: Optional[str] = None
     world_rules: Optional[str] = None
+    world_setting_data: Optional[ProjectWorldSettingData] = None
     chapter_count: Optional[int] = None
     narrative_perspective: Optional[str] = None
     character_count: Optional[int] = None

@@ -7,6 +7,7 @@ import {
   UserOutlined,
 } from '@ant-design/icons';
 import type { MemoryAnnotation } from '../common/AnnotatedText';
+import { sx } from '../../styles/sx';
 
 const { Panel } = Collapse;
 
@@ -117,35 +118,35 @@ const MemorySidebar: React.FC<MemorySidebarProps> = ({
           size="small"
           hoverable
           onClick={() => onAnnotationClick?.(annotation)}
-          style={{
+          className={sx({
             marginBottom: 12,
             borderLeft: `4px solid ${color}`,
             backgroundColor: isActive ? `color-mix(in srgb, ${color} 8%, transparent)` : 'transparent',
             cursor: 'pointer',
             transition: 'all 0.2s',
-          }}
+          })}
           bodyStyle={{ padding: 12 }}
         >
-        <div style={{ marginBottom: 8 }}>
+        <div className="u-1jeouum">
           <Badge
             count={`${(annotation.importance * 10).toFixed(1)}`}
-            style={{
+            className={sx({
               backgroundColor: color,
               float: 'right',
-            }}
+            })}
           />
-          <div style={{ fontWeight: 600, fontSize: 14, paddingRight: 50 }}>
+          <div className="u-16li5vt">
             {config.icon} {annotation.title}
           </div>
         </div>
 
         <div
-          style={{
+          className={sx({
             fontSize: 13,
             color: token.colorTextSecondary,
             lineHeight: 1.6,
             marginBottom: 8,
-          }}
+          })}
         >
           {annotation.content.length > 100
             ? `${annotation.content.slice(0, 100)}...`
@@ -155,7 +156,7 @@ const MemorySidebar: React.FC<MemorySidebarProps> = ({
         {annotation.tags && annotation.tags.length > 0 && (
           <div>
             {annotation.tags.map((tag, index) => (
-              <Tag key={index} style={{ fontSize: 11, margin: '2px 4px 2px 0' }}>
+              <Tag key={index} className="u-1wqmcpx">
                 {tag}
               </Tag>
             ))}
@@ -164,14 +165,14 @@ const MemorySidebar: React.FC<MemorySidebarProps> = ({
 
         {/* 特殊元数据 */}
         {annotation.metadata.strength && (
-          <div style={{ marginTop: 4, fontSize: 11, color: token.colorTextTertiary }}>
+          <div className={sx({ marginTop: 4, fontSize: 11, color: token.colorTextTertiary })}>
             强度: {annotation.metadata.strength}/10
           </div>
         )}
         {annotation.metadata.foreshadowType && (
           <Tag
             color={annotation.metadata.foreshadowType === 'planted' ? 'blue' : 'green'}
-            style={{ marginTop: 4 }}
+            className="u-vataou"
           >
             {annotation.metadata.foreshadowType === 'planted' ? '已埋下' : '已回收'}
           </Tag>
@@ -183,40 +184,40 @@ const MemorySidebar: React.FC<MemorySidebarProps> = ({
 
   if (annotations.length === 0) {
     return (
-      <div style={{ padding: 24 }}>
+      <div className="u-1lb6cvx">
         <Empty description="暂无分析数据" />
       </div>
     );
   }
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto', padding: '16px' }}>
+    <div className="u-jgk8qc">
       {/* 统计概览 */}
-      <Card size="small" style={{ marginBottom: 16 }}>
-        <div style={{ fontWeight: 600, marginBottom: 12 }}>📊 分析概览</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+      <Card size="small" className="u-6srbul">
+        <div className="u-1y1vc8n">📊 分析概览</div>
+        <div className="u-1apgu3n">
           <div>
-            <div style={{ fontSize: 12, color: token.colorTextTertiary }}>钩子</div>
-            <div style={{ fontSize: 20, fontWeight: 600, color: typeColors.hook }}>
+            <div className={sx({ fontSize: 12, color: token.colorTextTertiary })}>钩子</div>
+            <div className={sx({ fontSize: 20, fontWeight: 600, color: typeColors.hook })}>
               {stats.hooks}
             </div>
           </div>
           <div>
-            <div style={{ fontSize: 12, color: token.colorTextTertiary }}>伏笔</div>
-            <div style={{ fontSize: 20, fontWeight: 600, color: typeColors.foreshadow }}>
+            <div className={sx({ fontSize: 12, color: token.colorTextTertiary })}>伏笔</div>
+            <div className={sx({ fontSize: 20, fontWeight: 600, color: typeColors.foreshadow })}>
               {stats.foreshadows}
             </div>
           </div>
           <div>
-            <div style={{ fontSize: 12, color: token.colorTextTertiary }}>情节点</div>
-            <div style={{ fontSize: 20, fontWeight: 600, color: typeColors.plot_point }}>
+            <div className={sx({ fontSize: 12, color: token.colorTextTertiary })}>情节点</div>
+            <div className={sx({ fontSize: 20, fontWeight: 600, color: typeColors.plot_point })}>
               {stats.plotPoints}
             </div>
           </div>
           <div>
-            <div style={{ fontSize: 12, color: token.colorTextTertiary }}>角色事件</div>
+            <div className={sx({ fontSize: 12, color: token.colorTextTertiary })}>角色事件</div>
             <div
-              style={{ fontSize: 20, fontWeight: 600, color: typeColors.character_event }}
+              className={sx({ fontSize: 20, fontWeight: 600, color: typeColors.character_event })}
             >
               {stats.characterEvents}
             </div>
@@ -224,7 +225,7 @@ const MemorySidebar: React.FC<MemorySidebarProps> = ({
         </div>
       </Card>
 
-      <Divider style={{ margin: '16px 0' }} />
+      <Divider className="u-1ys5lhf" />
 
       {/* 分类展示 */}
       <Collapse defaultActiveKey={['hook', 'foreshadow', 'plot_point']} ghost>
@@ -237,7 +238,7 @@ const MemorySidebar: React.FC<MemorySidebarProps> = ({
             <Panel
               key={type}
               header={
-                <span style={{ fontWeight: 600 }}>
+                <span className="u-63i2du">
                   {config.icon} {config.label} ({items.length})
                 </span>
               }

@@ -21,6 +21,8 @@ import BookshelfPage from './BookshelfPage';
 import { getStoredSidebarCollapsed, setStoredSidebarCollapsed } from '../utils/sidebarState';
 import AnnouncementTimelineModal from '../components/AnnouncementTimelineModal';
 import { useAnnouncements } from '../hooks/useAnnouncements';
+import { useIsMobile } from '../hooks/useMediaQuery';
+import { sx } from '../styles/sx';
 
 const { Text } = Typography;
 
@@ -150,7 +152,7 @@ export default function ProjectList() {
   }, [collapsed]);
 
   const handleDelete = (id: string) => {
-    const isMobile = window.innerWidth <= 768;
+    const mobileViewport = isMobile;
     modal.confirm({
       title: '确认删除',
       content: '删除项目将同时删除所有相关数据，此操作不可恢复。确定要删除吗？',
@@ -158,7 +160,7 @@ export default function ProjectList() {
       cancelText: '取消',
       okType: 'danger',
       centered: true,
-      ...(isMobile && {
+      ...(mobileViewport && {
         style: { top: 'auto' }
       }),
       onOk: async () => {
@@ -211,7 +213,7 @@ export default function ProjectList() {
     };
     const config = statusConfig[status] || statusConfig.planning;
     return (
-      <Tag color={config.color} icon={config.icon} style={{ margin: 0, borderRadius: 4, flexShrink: 0 }}>
+      <Tag color={config.color} icon={config.icon} className="u-1xz8g1y">
         {config.text}
       </Tag>
     );
@@ -390,7 +392,7 @@ export default function ProjectList() {
     }
   };
 
-  const isMobile = window.innerWidth <= 768;
+  const isMobile = useIsMobile();
   const headerHeight = isMobile ? 56 : 70;
   const expandedSiderWidth = 220;
   const collapsedSiderWidth = 60;
@@ -451,11 +453,6 @@ export default function ProjectList() {
           icon: <MailOutlined />,
           label: '系统设置',
         }] : []),
-        {
-          key: 'mumu-api',
-          icon: <ApiOutlined />,
-          label: 'MuMuのAPI',
-        },
       ],
     },
   ];
@@ -491,26 +488,21 @@ export default function ProjectList() {
       icon: <MailOutlined />,
       label: '系统设置',
     }] : []),
-    {
-      key: 'mumu-api',
-      icon: <ApiOutlined />,
-      label: 'MuMuのAPI',
-    },
   ];
 
   return (
-    <div style={{
+    <div className={sx({
       height: '100vh',
       display: 'flex',
       flexDirection: 'column',
       background: token.colorBgLayout,
       overflow: 'hidden'
-    }}>
+    })}>
       {contextHolder}
 
       {!isMobile && (
         <div
-          style={{
+          className={sx({
           width: desktopSiderWidth,
           background: token.colorBgContainer,
           borderRight: `1px solid ${token.colorBorderSecondary}`,
@@ -525,8 +517,8 @@ export default function ProjectList() {
           transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           boxShadow: `4px 0 16px ${alphaColor(token.colorText, 0.06)}`,
           zIndex: 1000
-        }}>
-          <div style={{
+        })}>
+          <div className={sx({
             height: 70,
             display: 'flex',
             alignItems: 'center',
@@ -535,13 +527,13 @@ export default function ProjectList() {
             flexShrink: 0,
             justifyContent: collapsed ? 'center' : 'space-between',
             gap: 8
-          }}>
+          })}>
             {collapsed ? (
               <Button
                 type="text"
                 icon={<MenuUnfoldOutlined />}
                 onClick={() => setCollapsed(false)}
-                style={{
+                className={sx({
                   color: token.colorWhite,
                   width: '100%',
                   height: '100%',
@@ -550,12 +542,12 @@ export default function ProjectList() {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center'
-                }}
+                })}
               />
             ) : (
               <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, overflow: 'hidden' }}>
-                  <div style={{
+                <div className="u-15s11wm">
+                  <div className={sx({
                     width: 30,
                     height: 30,
                     background: alphaColor(token.colorWhite, 0.2),
@@ -566,10 +558,10 @@ export default function ProjectList() {
                     color: token.colorWhite,
                     fontSize: 16,
                     backdropFilter: 'blur(4px)'
-                  }}>
+                  })}>
                     <BookOutlined />
                   </div>
-                  <span style={{
+                  <span className={sx({
                     color: token.colorWhite,
                     fontWeight: 600,
                     fontSize: 15,
@@ -577,69 +569,63 @@ export default function ProjectList() {
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis'
-                  }}>
-                    MuMuAINovel
+                  })}>
+                    AI Novel Studio
                   </span>
                 </div>
                 <Button
                   type="text"
                   icon={<MenuFoldOutlined />}
                   onClick={() => setCollapsed(true)}
-                  style={{
+                  className={sx({
                     color: token.colorWhite,
                     width: 32,
                     height: 32,
                     padding: 0,
                     flexShrink: 0
-                  }}
+                  })}
                 />
               </>
             )}
           </div>
 
-          <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+          <div className="u-1ee2tra">
             <Menu
               mode="inline"
               inlineCollapsed={collapsed}
               selectedKeys={[activeView]}
-              style={{ borderRight: 0, paddingTop: 12, width: '100%' }}
-              onClick={({ key }) => {
-                if (key === 'mumu-api') {
-                  window.open('https://api.mumuverse.space/register?aff=4NN8', '_blank', 'noopener,noreferrer');
-                  return;
-                }
-                changeView(key as ProjectListView);
-              }}
+              className="u-1vh7nrh"
+              onClick={({ key }) => changeView(key as ProjectListView)}
               items={collapsed ? sideMenuItemsCollapsed : sideMenuItems}
             />
           </div>
 
-          <div style={{
+          <div className={sx({
             padding: collapsed ? '12px 8px' : 16,
             borderTop: `1px solid ${token.colorBorderSecondary}`,
             flexShrink: 0
-          }}>
+          })}>
             {collapsed ? (
-              <Space direction="vertical" style={{ width: '100%', alignItems: 'center' }} size={10}>
+              <Space direction="vertical" className="u-gxhst" size={10}>
                 <Button
                   type="text"
                   icon={collapsedThemeIcon}
                   onClick={cycleThemeMode}
                   title={`主题模式：${mode === 'light' ? '浅色' : mode === 'dark' ? '深色' : '跟随系统'}（点击切换）`}
-                  style={{
+                  className={sx({
                     width: 40,
                     height: 40,
                     borderRadius: 20,
                     background: alphaColor(token.colorBgContainer, 0.65),
                     border: `1px solid ${token.colorBorder}`,
                     color: token.colorTextSecondary,
-                  }}
+                  })}
                 />
                 <UserMenu compact />
               </Space>
             ) : (
-              <Space direction="vertical" style={{ width: '100%' }} size={12}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: token.colorTextTertiary }}>
+              <Space direction="vertical" className="u-1f3r3s" size={12}>
+                <div className={sx({ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: token.colorTextTertiary })}>
                   <span>主题模式</span>
                   <span>{resolvedMode === 'dark' ? '深色' : '浅色'}</span>
                 </div>
@@ -651,7 +637,7 @@ export default function ProjectList() {
         </div>
       )}
 
-      <div style={{
+      <div className={sx({
         background: token.colorPrimary,
         padding: isMobile ? '0 12px' : '0 24px',
         display: 'flex',
@@ -667,24 +653,24 @@ export default function ProjectList() {
         flexShrink: 0,
         transition: 'left 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         overflow: 'hidden'
-      }}>
+      })}>
         {isMobile ? (
           <>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div className="u-18xktuc">
               <Button
                 type="text"
                 icon={<MenuUnfoldOutlined />}
                 onClick={() => setDrawerVisible(true)}
-                style={{
+                className={sx({
                   fontSize: 18,
                   color: token.colorWhite,
                   width: 36,
                   height: 36
-                }}
+                })}
               />
             </div>
 
-            <h2 style={{
+            <h2 className={sx({
               margin: 0,
               color: token.colorWhite,
               fontSize: 16,
@@ -696,7 +682,7 @@ export default function ProjectList() {
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               paddingRight: 36
-            }}>
+            })}>
               {currentViewTitle}
             </h2>
 
@@ -705,20 +691,20 @@ export default function ProjectList() {
                 type="text"
                 icon={<BellOutlined />}
                 onClick={() => setAnnouncementVisible(true)}
-                style={{
+                className={sx({
                   fontSize: 18,
                   color: token.colorWhite,
                   width: 36,
                   height: 36
-                }}
+                })}
               />
             </Badge>
           </>
         ) : (
           <>
-            <div style={{ width: 40, zIndex: 1 }} />
+            <div className="u-rewg72" />
 
-            <h2 style={{
+            <h2 className={sx({
               margin: 0,
               color: token.colorWhite,
               fontSize: '24px',
@@ -731,31 +717,31 @@ export default function ProjectList() {
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               maxWidth: '45%'
-            }}>
+            })}>
               {currentViewTitle}
             </h2>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, zIndex: 1 }}>
+            <div className="u-1w5jl7x">
               <Badge dot={hasUnreadAnnouncements} offset={[-4, 4]}>
                 <Button
                   type="text"
                   icon={<BellOutlined />}
                   onClick={() => setAnnouncementVisible(true)}
-                  style={{
+                  className={sx({
                     color: token.colorWhite,
                     width: 40,
                     height: 40,
                     borderRadius: 20,
                     background: alphaColor(token.colorWhite, 0.12),
                     border: `1px solid ${alphaColor(token.colorWhite, 0.18)}`,
-                  }}
+                  })}
                   title="系统公告"
                 />
               </Badge>
               {activeView === 'projects' && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+                <div className="u-1h1m6rc">
                   {projects.length > 0 && (
-                    <div style={{ display: 'flex', gap: '16px' }}>
+                    <div className="u-a1l5p2">
                       {[
                         { label: '创作中', value: activeProjects, unit: '本' },
                         { label: '已完结', value: completedProjects, unit: '本' },
@@ -763,7 +749,7 @@ export default function ProjectList() {
                       ].map((item, index) => (
                         <div
                           key={index}
-                          style={{
+                          className={sx('header-stat-card', {
                             display: 'flex',
                             flexDirection: 'column',
                             alignItems: 'center',
@@ -776,23 +762,14 @@ export default function ProjectList() {
                             boxShadow: `inset 0 0 15px ${alphaColor(token.colorWhite, 0.15)}, 0 4px 10px ${alphaColor(token.colorText, 0.1)}`,
                             cursor: 'default',
                             transition: 'transform 0.3s ease, box-shadow 0.3s ease',
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.transform = 'translateY(-3px) scale(1.02)';
-                            e.currentTarget.style.boxShadow = `inset 0 0 20px ${alphaColor(token.colorWhite, 0.25)}, 0 8px 16px ${alphaColor(token.colorText, 0.15)}`;
-                            e.currentTarget.style.border = `1px solid ${alphaColor(token.colorWhite, 0.1)}`;
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.transform = 'translateY(0) scale(1)';
-                            e.currentTarget.style.boxShadow = `inset 0 0 15px ${alphaColor(token.colorWhite, 0.15)}, 0 4px 10px ${alphaColor(token.colorText, 0.1)}`;
-                          }}
+                          })}
                         >
-                          <span style={{ fontSize: '11px', color: alphaColor(token.colorWhite, 0.9), marginBottom: '2px', lineHeight: 1 }}>
+                          <span className={sx({ fontSize: '11px', color: alphaColor(token.colorWhite, 0.9), marginBottom: '2px', lineHeight: 1 })}>
                             {item.label}
                           </span>
-                          <span style={{ fontSize: '15px', fontWeight: '600', color: token.colorWhite, lineHeight: 1, fontFamily: 'Monaco, monospace' }}>
+                          <span className={sx({ fontSize: '15px', fontWeight: '600', color: token.colorWhite, lineHeight: 1, fontFamily: 'Monaco, monospace' })}>
                             {item.label === '总字数' ? formatWordCount(item.value) : item.value}
-                            {item.unit && <span style={{ fontSize: '10px', marginLeft: '2px', opacity: 0.8 }}>{item.unit}</span>}
+                            {item.unit && <span className="u-fv6gez">{item.unit}</span>}
                           </span>
                         </div>
                       ))}
@@ -808,8 +785,8 @@ export default function ProjectList() {
       {isMobile && (
         <Drawer
           title={
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{
+            <div className="u-19pj7et">
+              <div className={sx({
                 width: 30,
                 height: 30,
                 background: token.colorPrimary,
@@ -819,10 +796,10 @@ export default function ProjectList() {
                 justifyContent: 'center',
                 color: token.colorWhite,
                 fontSize: 16,
-              }}>
+              })}>
                 <BookOutlined />
               </div>
-              <span style={{ fontWeight: 600, fontSize: 16, fontFamily: token.fontFamily }}>MuMuAINovel</span>
+              <span className={sx({ fontWeight: 600, fontSize: 16, fontFamily: token.fontFamily })}>AI Novel Studio</span>
             </div>
           }
           placement="left"
@@ -831,17 +808,12 @@ export default function ProjectList() {
           width={280}
           styles={{ body: { padding: 0, display: 'flex', flexDirection: 'column' } }}
         >
-          <div style={{ flex: 1, overflowY: 'auto' }}>
+          <div className="u-250t5n">
             <Menu
               mode="inline"
               selectedKeys={[activeView]}
-              style={{ borderRight: 0, paddingTop: 8 }}
+              className="u-1tba8zi"
               onClick={({ key }) => {
-                if (key === 'mumu-api') {
-                  window.open('https://api.mumuverse.space/register?aff=4NN8', '_blank', 'noopener,noreferrer');
-                  setDrawerVisible(false);
-                  return;
-                }
                 changeView(key as ProjectListView);
                 setDrawerVisible(false);
               }}
@@ -850,9 +822,9 @@ export default function ProjectList() {
 
           </div>
 
-          <div style={{ padding: 16, borderTop: `1px solid ${token.colorBorderSecondary}` }}>
-            <Space direction="vertical" style={{ width: '100%' }} size={12}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: token.colorTextTertiary }}>
+          <div className={sx({ padding: 16, borderTop: `1px solid ${token.colorBorderSecondary}` })}>
+            <Space direction="vertical" className="u-1f3r3s" size={12}>
+              <div className={sx({ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: token.colorTextTertiary })}>
                 <span>主题模式</span>
                 <span>{resolvedMode === 'dark' ? '深色' : '浅色'}</span>
               </div>
@@ -863,7 +835,7 @@ export default function ProjectList() {
         </Drawer>
       )}
 
-      <div style={{
+      <div className={sx({
         flex: 1,
         display: 'flex',
         flexDirection: 'column',
@@ -872,12 +844,12 @@ export default function ProjectList() {
         marginLeft: isMobile ? 0 : desktopSiderWidth,
         marginTop: headerHeight,
         transition: 'margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-      }}>
+      })}>
 
         {/* 内容显示区 */}
         <div
           ref={scrollContainerRef}
-          style={{
+          className={sx({
             flex: 1,
             overflowY: 'auto',
             padding: activeView === 'projects'
@@ -886,7 +858,7 @@ export default function ProjectList() {
             background: activeView === 'projects'
               ? `linear-gradient(180deg, ${alphaColor(token.colorPrimary, 0.04)} 0%, ${token.colorBgLayout} 26%)`
               : token.colorBgLayout,
-          }}
+          })}
         >
           {activeView === 'settings' && <SettingsPage />}
           {activeView === 'system-settings' && <SystemSettingsPage />}
@@ -947,9 +919,9 @@ export default function ProjectList() {
         centered
         okButtonProps={{ disabled: !validationResult?.valid }}
       >
-        <Space direction="vertical" size={16} style={{ width: '100%' }}>
+        <Space direction="vertical" size={16} className="u-1f3r3s">
           <div>
-            <p style={{ marginBottom: '12px', color: token.colorTextSecondary }}>
+            <p className={sx({ marginBottom: '12px', color: token.colorTextSecondary })}>
               选择之前导出的 JSON 格式项目文件
             </p>
             <Upload
@@ -968,16 +940,16 @@ export default function ProjectList() {
           </div>
 
           {validating && (
-            <div style={{ textAlign: 'center', padding: '20px' }}>
+            <div className="u-177okhd">
               <Spin tip="验证文件中..." />
             </div>
           )}
 
           {validationResult && (
-            <Card size="small" style={{ background: validationResult.valid ? token.colorSuccessBg : token.colorErrorBg }}>
-              <Space direction="vertical" size={8} style={{ width: '100%' }}>
+            <Card size="small" className={sx({ background: validationResult.valid ? token.colorSuccessBg : token.colorErrorBg })}>
+              <Space direction="vertical" size={8} className="u-1f3r3s">
                 <div>
-                  <Text strong style={{ color: validationResult.valid ? token.colorSuccess : token.colorError }}>
+                  <Text strong className={sx({ color: validationResult.valid ? token.colorSuccess : token.colorError })}>
                     {validationResult.valid ? '✓ 文件验证通过' : '✗ 文件验证失败'}
                   </Text>
                 </div>
@@ -988,8 +960,8 @@ export default function ProjectList() {
                   </div>
                 )}
                 {validationResult.statistics && (
-                   <div style={{ marginTop: 8 }}>
-                      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>数据统计：</Text>
+                   <div className="u-u35y5u">
+                      <Text type="secondary" className="u-buvs4t">数据统计：</Text>
                       <Space size={[6, 6]} wrap>
                         {validationResult.statistics.chapters > 0 && <Tag color="blue">章节: {validationResult.statistics.chapters}</Tag>}
                         {validationResult.statistics.characters > 0 && <Tag color="green">角色: {validationResult.statistics.characters}</Tag>}
@@ -1007,9 +979,9 @@ export default function ProjectList() {
                    </div>
                 )}
                 {validationResult.warnings?.length > 0 && (
-                   <div style={{ marginTop: 8 }}>
-                     <Text type="warning" strong style={{ fontSize: 12 }}>提示：</Text>
-                     <ul style={{ margin: '4px 0 0 0', paddingLeft: 20, color: token.colorWarning, fontSize: 12 }}>
+                   <div className="u-u35y5u">
+                     <Text type="warning" strong className="u-1pw6xki">提示：</Text>
+                     <ul className={sx({ margin: '4px 0 0 0', paddingLeft: 20, color: token.colorWarning, fontSize: 12 })}>
                        {validationResult.warnings.map((w: string, i: number) => <li key={i}>{w}</li>)}
                      </ul>
                    </div>
@@ -1017,7 +989,7 @@ export default function ProjectList() {
                 {validationResult.errors?.length > 0 && (
                    <div>
                      <Text type="danger" strong>错误：</Text>
-                     <ul style={{ margin: '4px 0 0 0', paddingLeft: 20, color: token.colorError, fontSize: 13 }}>
+                     <ul className={sx({ margin: '4px 0 0 0', paddingLeft: 20, color: token.colorError, fontSize: 13 })}>
                        {validationResult.errors.map((e: string, i: number) => <li key={i}>{e}</li>)}
                      </ul>
                    </div>
@@ -1041,11 +1013,11 @@ export default function ProjectList() {
         centered
         okButtonProps={{ disabled: selectedProjectIds.length === 0 }}
       >
-         <Space direction="vertical" size={16} style={{ width: '100%' }}>
-            <Card size="small" style={{ background: token.colorFillTertiary }}>
-              <Space direction="vertical" size={12} style={{ width: '100%' }}>
+         <Space direction="vertical" size={16} className="u-1f3r3s">
+            <Card size="small" className={sx({ background: token.colorFillTertiary })}>
+              <Space direction="vertical" size={12} className="u-1f3r3s">
                 <Text strong>导出选项</Text>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 24px' }}>
+                <div className="u-526ryh">
                   <Checkbox checked={exportOptions.includeWritingStyles} onChange={e => setExportOptions(prev => ({...prev, includeWritingStyles: e.target.checked}))}>写作风格</Checkbox>
                   <Checkbox checked={exportOptions.includeCareers} onChange={e => setExportOptions(prev => ({...prev, includeCareers: e.target.checked}))}>职业系统</Checkbox>
                   <Tooltip title="包含生成历史记录，文件可能较大">
@@ -1062,7 +1034,7 @@ export default function ProjectList() {
             </Card>
 
             <div>
-               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+               <div className="u-89hiqo">
                   <Text>选择项目 ({exportableProjects.length})</Text>
                   <Checkbox 
                     checked={selectedProjectIds.length === exportableProjects.length && exportableProjects.length > 0}
@@ -1072,12 +1044,12 @@ export default function ProjectList() {
                     全选
                   </Checkbox>
                </div>
-               <div style={{ maxHeight: 300, overflowY: 'auto', border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8, padding: 8 }}>
-                  <Space direction="vertical" style={{ width: '100%' }}>
+               <div className={sx({ maxHeight: 300, overflowY: 'auto', border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8, padding: 8 })}>
+                  <Space direction="vertical" className="u-1f3r3s">
                     {exportableProjects.map(p => (
                       <div 
                         key={p.id}
-                        style={{ 
+                        className={sx({ 
                           padding: '8px 12px', 
                           background: selectedProjectIds.includes(p.id) ? token.colorPrimaryBg : token.colorBgContainer,
                           borderRadius: 6,
@@ -1085,13 +1057,13 @@ export default function ProjectList() {
                           display: 'flex',
                           alignItems: 'center',
                           gap: 12
-                        }}
+                        })}
                         onClick={() => handleToggleProject(p.id)}
                       >
                         <Checkbox checked={selectedProjectIds.includes(p.id)} />
-                        <div style={{ flex: 1 }}>
+                        <div className="u-e4rq7y">
                            <div>{p.title}</div>
-                           <div style={{ fontSize: 12, color: token.colorTextTertiary }}>{formatWordCount(p.current_words || 0)} 字 · {getStatusTag(getDisplayStatus(p.status, getProgress(p.current_words || 0, p.target_words || 0)))}</div>
+                           <div className={sx({ fontSize: 12, color: token.colorTextTertiary })}>{formatWordCount(p.current_words || 0)} 字 · {getStatusTag(getDisplayStatus(p.status, getProgress(p.current_words || 0, p.target_words || 0)))}</div>
                         </div>
                       </div>
                     ))}

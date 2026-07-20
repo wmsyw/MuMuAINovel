@@ -12,6 +12,7 @@ import pytest
 
 from app.services.ai_capabilities import UnsupportedReasoningIntensityError, build_reasoning_config
 from app.services.ai_providers.base_provider import BaseAIProvider
+from app.services.ai_providers.registry import ProviderRegistry
 from app.services.ai_service import AIService
 
 
@@ -28,9 +29,14 @@ PROVIDER_SDK_NAMES = {
 
 
 class _CapturingProvider(BaseAIProvider):
-    def __init__(self) -> None:
+    def __init__(self, response: dict[str, Any] | None = None) -> None:
         self.generate_calls: list[dict[str, Any]] = []
         self.stream_calls: list[dict[str, Any]] = []
+        self.close_calls = 0
+        self.response = response
+
+    async def close(self) -> None:
+        self.close_calls += 1
 
     async def generate(
         self,
@@ -55,6 +61,8 @@ class _CapturingProvider(BaseAIProvider):
                 "reasoning_config": reasoning_config,
             }
         )
+        if self.response is not None:
+            return self.response
         return {
             "content": "provider-ok",
             "finish_reason": "stop",
@@ -161,10 +169,10 @@ def test_unsupported_capability_is_handled() -> None:
         )
 
 
-def test_ai_service_normalizes_aliases_and_passes_reasoning_contract_to_provider() -> None:
+def test_ai_service_passes_reasoning_contract_to_registered_provider() -> None:
     provider = _CapturingProvider()
     service = AIService(
-        api_provider="mumu",
+        api_provider="openai",
         api_key="",
         api_base_url="https://api.example.invalid/v1",
         default_model="gpt-5-preview",
@@ -173,12 +181,12 @@ def test_ai_service_normalizes_aliases_and_passes_reasoning_contract_to_provider
         default_system_prompt="系统提示",
         enable_mcp=False,
     )
-    service.__dict__["_openai_provider"] = provider
+    service._providers["openai"] = provider
 
     result = asyncio.run(
         service.generate_text(
             prompt="写一段摘要",
-            provider="mumu",
+            provider="openai",
             model="gpt-5-preview",
             temperature=0.4,
             max_tokens=256,
@@ -222,3 +230,92 @@ def test_reasoning_registry_unknown_model_returns_auto_without_provider_payload(
     assert config.intensity.value == "auto"
     assert config.provider_payload == {}
     assert config.warning is not None
+
+
+def test_selected_alias_uses_canonical_storage_and_keyless_factory(monkeypatch: pytest.MonkeyPatch) -> None:
+    canonical_name = "contract-local-provider"
+    factory_calls: list[dict[str, Any]] = []
+
+    def factory(**config: object) -> BaseAIProvider:
+        factory_calls.append(config)
+        assert config["api_key"] is None
+        return _CapturingProvider()
+
+    registry_get_calls: list[str] = []
+    original_get = ProviderRegistry.get
+
+    def recording_get(name: str, **config: object) -> BaseAIProvider:
+        registry_get_calls.append(ProviderRegistry.resolve(name))
+        return original_get(name, **config)
+
+    monkeypatch.setattr(ProviderRegistry, "get", recording_get)
+    ProviderRegistry.register(canonical_name, factory, aliases=("Contract_Local",), replace=True)
+    try:
+        service = AIService(
+            api_provider="CONTRACT_LOCAL",
+            api_key=None,
+            api_base_url=None,
+            default_model="local-model",
+            default_temperature=0.2,
+            default_max_tokens=64,
+            enable_mcp=False,
+        )
+
+        assert service.api_provider == canonical_name
+        assert tuple(service._providers) == (canonical_name,)
+        assert registry_get_calls == [canonical_name]
+        assert len(factory_calls) == 1
+    finally:
+        ProviderRegistry.unregister(canonical_name)
+
+
+def test_ai_service_close_is_scoped_to_owned_providers(monkeypatch: pytest.MonkeyPatch) -> None:
+    service_a = AIService(api_provider="openai", api_key="", enable_mcp=False)
+    service_b = AIService(api_provider="openai", api_key="", enable_mcp=False)
+    provider_a = _CapturingProvider()
+    provider_b = _CapturingProvider()
+    service_a._providers["openai"] = provider_a
+    service_b._providers["openai"] = provider_b
+
+    async def unexpected_global_cleanup() -> None:
+        raise AssertionError("service close must not perform process-wide cleanup")
+
+    monkeypatch.setattr("app.services.ai_service.cleanup_provider_clients", unexpected_global_cleanup)
+
+    asyncio.run(service_a.close())
+    asyncio.run(service_a.close())
+
+    assert provider_a.close_calls == 1
+    assert provider_b.close_calls == 0
+
+
+def test_null_tool_only_content_is_normalized_to_empty_text() -> None:
+    base_provider = _CapturingProvider(response={"content": None})
+    assert asyncio.run(
+        base_provider.generate_text(
+            prompt="prompt",
+            model="model",
+            temperature=0.2,
+            max_tokens=64,
+        )
+    ) == ""
+
+    tool_only_provider = _CapturingProvider(
+        response={
+            "content": None,
+            "tool_calls": [{"function": {"name": "lookup"}}],
+            "finish_reason": "tool_calls",
+        }
+    )
+    service = AIService(api_provider="openai", api_key="", enable_mcp=False)
+    service._providers["openai"] = tool_only_provider
+
+    result = asyncio.run(
+        service.generate_text(
+            prompt="prompt",
+            auto_mcp=False,
+            handle_tool_calls=False,
+        )
+    )
+
+    assert result["content"] == ""

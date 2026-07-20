@@ -8,6 +8,7 @@ import type { InspirationDirectionCard, InspirationQualityReport, InspirationSto
 const mocks = vi.hoisted(() => ({
   createProject: vi.fn(),
   generateCards: vi.fn(),
+  batchGenerate: vi.fn(),
   mergeCards: vi.fn(),
   generateStoryBible: vi.fn(),
   evaluate: vi.fn(),
@@ -19,6 +20,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../services/api', () => ({
   inspirationApi: {
     generateCards: mocks.generateCards,
+    batchGenerate: mocks.batchGenerate,
     mergeCards: mocks.mergeCards,
     generateStoryBible: mocks.generateStoryBible,
     evaluate: mocks.evaluate,
@@ -211,7 +213,7 @@ const revisedDirectionCard: InspirationDirectionCard = {
   opening_hook: '主角潜入地下拍卖会时，第一件拍品正是他童年的故乡坐标。',
 };
 
-function createMemoryStorage(): Storage {
+function createMemoryStorage(onSetItem?: (key: string, value: string) => void): Storage {
   const values = new Map<string, string>();
 
   return {
@@ -231,8 +233,9 @@ function createMemoryStorage(): Storage {
       values.delete(key);
     },
     setItem(key: string, value: string) {
+      onSetItem?.(key, value);
       values.set(key, value);
-    },
+    }
   };
 }
 
@@ -271,7 +274,7 @@ function seedConfirmCache(
         {
           type: 'ai',
           content: '太棒了！你的小说设定已完成，请确认。请选择下一步操作：',
-          options: ['保存灵感草稿', '创建项目草稿', '开始完整项目生成', '重新开始'],
+          options: ['进入项目创建向导', '保存灵感草稿', '创建项目草稿', '开始完整项目生成', '重新开始'],
         },
       ],
       currentStep: 'confirm',
@@ -474,6 +477,7 @@ beforeEach(() => {
   localStorage.clear();
   mocks.createProject.mockReset();
   mocks.generateCards.mockReset();
+  mocks.batchGenerate.mockReset();
   mocks.mergeCards.mockReset();
   mocks.generateStoryBible.mockReset();
   mocks.evaluate.mockReset();
@@ -482,6 +486,7 @@ beforeEach(() => {
   mocks.generatorProps.length = 0;
   mocks.createProject.mockResolvedValue(projectDraft);
   mocks.generateCards.mockResolvedValue({ prompt: '请选择一个故事方向', cards: directionCards, warnings: [] });
+  mocks.batchGenerate.mockResolvedValue({ ideas: directionCards, generation_meta: { count: directionCards.length, requested_count: 3, platform: 'qidian', filters: { genre_tags: [], plot_keywords: [], character_traits: [] }, warnings: [] } });
   mocks.mergeCards.mockResolvedValue({ card: mergedDirectionCard, warnings: [] });
   mocks.generateStoryBible.mockResolvedValue({ story_bible_draft: storyBibleDraft, warnings: [] });
   mocks.evaluate.mockResolvedValue(qualityReport);
@@ -550,6 +555,30 @@ describe('Inspiration optimization baseline action wiring', () => {
       });
 
       expect(mocks.createProject).not.toHaveBeenCalled();
+    } finally {
+      await view.cleanup();
+    }
+  });
+  it('reports wizard handoff storage failures without clearing progress or navigating', async () => {
+    const storage = createMemoryStorage((key) => {
+      if (key === DRAFTS_KEY) {
+        throw new Error('storage quota exceeded');
+      }
+    });
+    Object.defineProperty(window, 'localStorage', { configurable: true, value: storage });
+    Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: storage });
+    seedConfirmCache();
+    const view = await renderInspiration();
+
+    try {
+      await waitForAssertion(() => expect(view.container.textContent).toContain('进入项目创建向导'));
+      await clickOption(view.container, '进入项目创建向导');
+
+      await waitForAssertion(() => {
+        expect(document.body.textContent).toContain('无法保存灵感草稿，未进入项目创建向导');
+      });
+      expect(mocks.navigate).not.toHaveBeenCalled();
+      expect(localStorage.getItem(CACHE_KEY)).not.toBeNull();
     } finally {
       await view.cleanup();
     }
@@ -755,7 +784,7 @@ describe('Inspiration optimization baseline action wiring', () => {
         await delay(850);
       });
 
-      expect(mocks.navigate).toHaveBeenCalledWith('/project/project-inspiration-draft/sponsor');
+      expect(mocks.navigate).toHaveBeenCalledWith('/project/project-inspiration-draft/world-setting');
 
       expect(mocks.generatorProps).toHaveLength(0);
     } finally {

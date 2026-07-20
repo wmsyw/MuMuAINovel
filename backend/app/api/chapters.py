@@ -9,12 +9,15 @@ from sqlalchemy.orm import selectinload
 import json
 import asyncio
 from typing import Any, Optional
+import uuid
+from sqlalchemy.exc import IntegrityError
 from datetime import datetime
 from asyncio import Queue, Lock
 
 from app.database import get_db
 from app import feature_flags
 from app.api.common import verify_project_access
+from app.config import settings as app_settings
 from app.services.chapter_context_service import (
     OneToManyContextBuilder,
     OneToOneContextBuilder,
@@ -71,7 +74,12 @@ from app.services.memory_service import memory_service
 from app.services.foreshadow_service import foreshadow_service
 from app.services.chapter_regenerator import ChapterRegenerator
 from app.services.chapter_fact_sync_service import ChapterFactSyncService
-from app.services.extraction_service import run_extraction_trigger_after_commit
+from app.services.extraction_service import (
+    CHAPTER_COMPLETION_VERSION,
+    hash_chapter_content,
+    run_automatic_chapter_extraction_task,
+)
+from app.services.world_setting_data_service import world_setting_context
 from app.logger import get_logger
 from app.api.settings import get_user_ai_service, get_user_ai_service_from_db_by_usage
 from app.utils.sse_response import SSEResponse, create_sse_response
@@ -134,6 +142,81 @@ async def _maybe_apply_lorebook_injection(
         trace,
         injection_enabled=True,
     )
+
+
+async def _schedule_chapter_extraction_after_completion(
+    *,
+    user_id: str,
+    project_id: str,
+    chapter_id: str,
+    chapter_title: str,
+    status: str | None,
+    content: str | None,
+    trigger: str,
+    source_metadata: dict[str, Any] | None = None,
+    db: AsyncSession,
+) -> BackgroundTask | None:
+    """Queue exactly one extraction task for one accepted content snapshot."""
+
+    if not app_settings.EXTRACTION_PIPELINE_ENABLED:
+        return None
+    if str(status or "").lower() != "completed" or not (content or "").strip():
+        return None
+
+    accepted_content_hash = hash_chapter_content(content)
+    accepted_content_version = CHAPTER_COMPLETION_VERSION
+    deterministic_task_id = str(
+        uuid.uuid5(
+            uuid.NAMESPACE_URL,
+            f"chapter-entity-extraction:{project_id}:{chapter_id}:{accepted_content_version}:{accepted_content_hash}",
+        )
+    )
+    task_input = {
+        "chapter_id": chapter_id,
+        "chapter_title": chapter_title,
+        "trigger": trigger,
+        "accepted_content_hash": accepted_content_hash,
+        "accepted_content_version": accepted_content_version,
+        "content_hash": accepted_content_hash,
+        "content_version": accepted_content_version,
+        "source_metadata": source_metadata or {},
+    }
+
+    from app.services.background_task_service import background_task_service
+
+    write_lock = await get_db_write_lock(str(user_id))
+    async with write_lock:
+        existing = await background_task_service.get_task(deterministic_task_id, str(user_id), db)
+        if existing is not None:
+            return existing
+        try:
+            task = await background_task_service.create_task(
+                user_id=str(user_id),
+                project_id=project_id,
+                task_type="chapter_entity_extraction",
+                task_input=task_input,
+                db=db,
+                task_id=deterministic_task_id,
+            )
+        except IntegrityError:
+            # A second process may have won the deterministic insert race.
+            await db.rollback()
+            existing = await background_task_service.get_task(deterministic_task_id, str(user_id), db)
+            if existing is not None:
+                return existing
+            raise
+
+        await background_task_service.spawn_background_task(
+            task.id,
+            str(user_id),
+            run_automatic_chapter_extraction_task,
+            project_id,
+            chapter_id,
+            accepted_content_hash,
+            accepted_content_version,
+        )
+        logger.info("章节 %s 验收完成，已排队实体提取任务 %s", chapter_id[:8], task.id[:8])
+        return task
 
 
 def _schedule_chapter_fact_sync_fire_and_forget(
@@ -215,13 +298,16 @@ async def create_chapter(
     await db.commit()
     await db.refresh(db_chapter)
     if db_chapter.content and db_chapter.content.strip():
-        _ = await run_extraction_trigger_after_commit(
-            db,
+        await _schedule_chapter_extraction_after_completion(
+            user_id=str(user_id),
             project_id=db_chapter.project_id,
             chapter_id=db_chapter.id,
-            user_id=str(user_id),
-            trigger_source="chapter_save",
+            chapter_title=db_chapter.title,
+            status=db_chapter.status,
+            content=db_chapter.content,
+            trigger="chapter_create",
             source_metadata={"operation": "create_chapter"},
+            db=db,
         )
     return db_chapter
 
@@ -397,6 +483,7 @@ async def update_chapter(
 
     # 记录旧字数
     old_word_count = chapter.word_count or 0
+    previous_status = chapter.status
 
     # 更新字段
     update_data = chapter_update.model_dump(exclude_unset=True)
@@ -487,6 +574,23 @@ async def update_chapter(
             content=chapter.content,
             source="chapter_save",
             source_metadata={"operation": "update_chapter"},
+        )
+
+    if chapter.content and chapter.content.strip() and chapter.status == "completed":
+        await _schedule_chapter_extraction_after_completion(
+            user_id=str(user_id),
+            project_id=chapter.project_id,
+            chapter_id=chapter.id,
+            chapter_title=chapter.title,
+            status=chapter.status,
+            content=chapter.content,
+            trigger="chapter_update",
+            source_metadata={
+                "operation": "update_chapter",
+                "previous_status": previous_status,
+                "content_changed": "content" in update_data,
+            },
+            db=db,
         )
 
     chapter_dict = {
@@ -1965,6 +2069,9 @@ async def generate_chapter_content_stream(
                             or "暂无相关记忆",
                         )
                         logger.debug(f"创建第一章提示词: {base_prompt}")
+                dynamic_world_context = chapter_context.world_setting_context or world_setting_context(project)
+                if dynamic_world_context:
+                    base_prompt = f"{base_prompt}\n\n【动态世界设定】\n{dynamic_world_context}"
 
                 base_prompt = await _maybe_apply_lorebook_injection(
                     base_prompt,
@@ -2112,6 +2219,17 @@ async def generate_chapter_content_stream(
                 await db_session.commit()
                 db_committed = True
                 await db_session.refresh(current_chapter)
+                await _schedule_chapter_extraction_after_completion(
+                    user_id=current_user_id,
+                    project_id=project.id,
+                    chapter_id=current_chapter.id,
+                    chapter_title=current_chapter.title,
+                    status=current_chapter.status,
+                    content=current_chapter.content,
+                    trigger="chapter_stream_generation",
+                    source_metadata={"operation": "generate_chapter_content_stream"},
+                    db=db_session,
+                )
 
                 _schedule_chapter_fact_sync_fire_and_forget(
                     user_id=current_user_id,
@@ -2514,6 +2632,9 @@ async def _run_chapter_generation_bg(
                 relevant_memories=chapter_context.relevant_memories or '暂无相关记忆'
             )
 
+    dynamic_world_context = chapter_context.world_setting_context or world_setting_context(project)
+    if dynamic_world_context:
+        base_prompt = f"{base_prompt}\n\n【动态世界设定】\n{dynamic_world_context}"
     base_prompt = await _maybe_apply_lorebook_injection(
         base_prompt,
         db=db,
@@ -2605,6 +2726,9 @@ async def _run_chapter_generation_bg(
 
         await asyncio.sleep(0)
 
+    if await tracker.check_cancelled():
+        logger.info(f"🚫 后台章节生成在AI完成后被取消: {chapter_id}")
+        return
     # === 保存阶段 ===
     await tracker.saving("正在保存章节...", 0.3)
 
@@ -2616,6 +2740,10 @@ async def _run_chapter_generation_bg(
         current_chapter = chapter_result.scalar_one_or_none()
         if not current_chapter:
             await tracker.error("保存时章节不存在")
+            return
+        if await tracker.check_cancelled():
+            logger.info(f"🚫 后台章节生成在写入前被取消: {chapter_id}")
+            await db.rollback()
             return
 
         old_word_count = current_chapter.word_count or 0
@@ -2643,6 +2771,18 @@ async def _run_chapter_generation_bg(
         db.add(history)
 
         await db.commit()
+
+    await _schedule_chapter_extraction_after_completion(
+        user_id=user_id,
+        project_id=current_chapter.project_id,
+        chapter_id=current_chapter.id,
+        chapter_title=current_chapter.title,
+        status=current_chapter.status,
+        content=current_chapter.content,
+        trigger="chapter_background_generation",
+        source_metadata={"operation": "generate_chapter_content_background"},
+        db=db,
+    )
 
     logger.info(f"✅ 后台创作章节 {chapter_id} 完成，共 {new_word_count} 字")
 
@@ -3732,7 +3872,12 @@ async def execute_batch_generation_in_order(
                         custom_model=custom_model,
                         previous_summary_context=last_generated_summary,
                         skill_key=skill_key,
+                        batch_id=batch_id,
                     )
+                    await db_session.refresh(task)
+                    if task.status == "cancelled":
+                        logger.info("🛑 批量任务在章节AI生成后被取消: %s", batch_id)
+                        return
 
                     # 更新上一章摘要，供下一章使用
                     if generated_summary:
@@ -3946,6 +4091,7 @@ async def generate_single_chapter_for_batch(
     custom_model: Optional[str] = None,
     previous_summary_context: Optional[str] = None,
     skill_key: Optional[str] = None,
+    batch_id: Optional[str] = None,
 ) -> Optional[str]:
     """
     为批量生成执行单个章节的生成（非流式）
@@ -4217,8 +4363,21 @@ async def generate_single_chapter_for_batch(
     async for chunk in ai_service.generate_text_stream(**generate_kwargs):
         full_content += chunk
 
+    # 取消发生在AI返回之后时，绝不能把生成结果写入章节。
+    if batch_id:
+        batch_state = await db_session.get(BatchGenerationTask, batch_id)
+        if batch_state is not None and batch_state.status == "cancelled":
+            logger.info("🛑 批量任务在章节保存前被取消: %s", batch_id)
+            return None
+
     # 更新章节内容到数据库（使用锁保护）
     async with write_lock:
+        if batch_id:
+            batch_state = await db_session.get(BatchGenerationTask, batch_id)
+            if batch_state is not None and batch_state.status == "cancelled":
+                logger.info("🛑 批量任务在锁内保存前被取消: %s", batch_id)
+                await db_session.rollback()
+                return None
         old_word_count = chapter.word_count or 0
         chapter.content = full_content
         new_word_count = len(full_content)
@@ -4243,6 +4402,23 @@ async def generate_single_chapter_for_batch(
         await db_session.commit()
         await db_session.refresh(chapter)
 
+    await _schedule_chapter_extraction_after_completion(
+        user_id=user_id,
+        project_id=chapter.project_id,
+        chapter_id=chapter.id,
+        chapter_title=chapter.title,
+        status=chapter.status,
+        content=chapter.content,
+        trigger="chapter_batch_generation",
+        source_metadata={
+            "operation": "generate_single_chapter_for_batch",
+            "batch_id": batch_id,
+            "chapter_number": chapter.chapter_number,
+            "old_word_count": old_word_count,
+            "new_word_count": new_word_count,
+        },
+        db=db_session,
+    )
     _schedule_chapter_fact_sync_fire_and_forget(
         user_id=user_id,
         project_id=chapter.project_id,
@@ -4473,6 +4649,7 @@ async def regenerate_chapter_stream(
                 "time_period": project.world_time_period if project else "未设定",
                 "location": project.world_location if project else "未设定",
                 "atmosphere": project.world_atmosphere if project else "未设定",
+                "world_setting_context": world_setting_context(project) if project else "",
                 "characters_info": characters_info_with_careers,
                 "chapter_outline": outline.content
                 if outline

@@ -29,6 +29,7 @@ from app.logger import get_logger, safe_preview
 from app.api.settings import get_user_ai_service
 from app.api.common import verify_project_access
 from app.api.entity_compat import build_optional_entity_enrichment, candidate_policy_payload, normalized_name
+from app.services.world_setting_data_service import dynamic_world_setting_context
 
 router = APIRouter(prefix="/organizations", tags=["组织管理"])
 logger = get_logger(__name__)
@@ -609,6 +610,7 @@ async def generate_organization_stream(
 - 地理位置：{project.world_location or '未设定'}
 - 氛围基调：{project.world_atmosphere or '未设定'}
 - 世界规则：{project.world_rules or '未设定'}
+{dynamic_world_setting_context(project)}
 {existing_info}
 """
 

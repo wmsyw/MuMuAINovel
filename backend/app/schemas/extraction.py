@@ -15,13 +15,13 @@ ExtractionCandidateType = Literal[
     "organization",
     "profession",
     "relationship",
+    "goldfinger",
     "organization_affiliation",
     "profession_assignment",
     "world_fact",
     "character_state",
 ]
-CanonicalTargetType = Literal["character", "organization", "career"]
-
+CanonicalTargetType = Literal["character", "organization", "career", "relationship", "goldfinger"]
 
 class ExtractionRunResponse(BaseModel):
     """Extraction run response."""
@@ -125,6 +125,7 @@ class ExtractionCandidateResponse(BaseModel):
     reviewer_user_id: str | None = None
     reviewed_at: datetime | None = None
     accepted_at: datetime | None = None
+    review_required_reason: str | None = None
     rejection_reason: str | None = None
     supersedes_candidate_id: str | None = None
     rollback_of_candidate_id: str | None = None
@@ -168,6 +169,23 @@ class CandidateRollbackRequest(BaseModel):
     """Rollback accepted/merged candidate side effects."""
 
     reason: str | None = Field(None, description="Reviewer rollback reason")
+
+class CandidateBatchReviewRequest(BaseModel):
+    """Batch acceptance or rejection for pending extraction candidates."""
+
+    candidate_ids: list[str] = Field(..., min_length=1, max_length=200)
+    reason: str | None = Field(None, max_length=1000)
+
+
+class CandidateBatchReviewFailure(BaseModel):
+    candidate_id: str
+    reason: str
+
+
+class CandidateBatchReviewResponse(BaseModel):
+    changed: int
+    failures: list[CandidateBatchReviewFailure] = Field(default_factory=list)
+    candidates: list[ExtractionCandidateResponse] = Field(default_factory=list)
 
 
 class CandidateReviewResponse(BaseModel):

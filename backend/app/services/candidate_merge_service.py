@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 import json
+from difflib import SequenceMatcher
 import uuid
 
 from sqlalchemy import and_, or_, select
@@ -25,6 +26,7 @@ from app.models.relationship import (
     RelationshipTimelineEvent,
 )
 from app.services.character_card_service import normalize_character_card_fields
+from app.services.goldfinger_sync_service import GoldfingerSyncResult, GoldfingerSyncService
 
 
 EXTRACTION_SOURCE_TYPE = "extraction_candidate"
@@ -56,7 +58,7 @@ class CandidateMergeService:
         target_id: str | None = None,
         override: bool = False,
         supersedes_candidate_id: str | None = None,
-    ) -> MergeResult:
+    ) -> MergeResult | GoldfingerSyncResult:
         """Accept or merge a pending candidate without erasing its payload/history."""
 
         candidate = self._require_candidate(candidate_id)
@@ -65,7 +67,14 @@ class CandidateMergeService:
         if candidate.status in {"rejected", "superseded"}:
             return MergeResult(candidate=candidate, changed=False, reason=f"candidate is {candidate.status}")
 
-        if candidate.candidate_type in {"character", "organization", "profession"}:
+        if candidate.candidate_type == "goldfinger":
+            result = GoldfingerSyncService(self.db).accept_candidate(
+                candidate_id,
+                reviewer_user_id=reviewer_user_id,
+                target_id=target_id,
+                override=override,
+            )
+        elif candidate.candidate_type in {"character", "organization", "profession"}:
             result = self._accept_entity_candidate(
                 candidate,
                 reviewer_user_id=reviewer_user_id,
@@ -80,7 +89,7 @@ class CandidateMergeService:
         elif candidate.candidate_type == "profession_assignment":
             result = self._accept_profession_assignment(candidate, reviewer_user_id=reviewer_user_id, override=override)
         else:
-            return MergeResult(candidate=candidate, changed=False, reason="candidate type is not canonicalized by Task 7")
+            result = MergeResult(candidate=candidate, changed=False, reason="candidate type is not canonicalized by Task 7")
 
         if result.changed and supersedes_candidate_id:
             superseded = self.db.get(ExtractionCandidate, supersedes_candidate_id)
@@ -88,8 +97,11 @@ class CandidateMergeService:
                 superseded.status = "superseded"
                 superseded.reviewed_at = superseded.reviewed_at or self._now()
                 candidate.supersedes_candidate_id = superseded.id
+        if not result.changed and result.reason and candidate.status == "pending":
+            candidate.review_required_reason = result.reason
         self.db.flush()
         return result
+
 
     def merge_candidate(
         self,
@@ -99,8 +111,8 @@ class CandidateMergeService:
         target_id: str,
         reviewer_user_id: str | None = None,
         override: bool = False,
-    ) -> MergeResult:
-        """Explicitly merge a candidate into an existing canonical target."""
+    ) -> MergeResult | GoldfingerSyncResult:
+        """Explicitly merge a candidate into an existing canonical row."""
 
         return self.accept_candidate(
             candidate_id,
@@ -204,6 +216,89 @@ class CandidateMergeService:
                 )
             )
         return results
+
+    def stage_similar_pending(
+        self,
+        *,
+        run_id: str,
+        review_threshold: float = 0.80,
+        auto_merge_threshold: float = 0.92,
+    ) -> dict[str, int]:
+        """Preselect one fuzzy canonical match; only very strong matches merge automatically."""
+
+        candidates = self.db.execute(
+            select(ExtractionCandidate).where(
+                ExtractionCandidate.run_id == run_id,
+                ExtractionCandidate.status == "pending",
+                ExtractionCandidate.candidate_type.in_(["character", "organization", "profession"]),
+            )
+        ).scalars().all()
+        targets_by_type = {
+            "character": [(row.id, row.name) for row in self.db.execute(select(Character).where(Character.project_id == candidates[0].project_id)).scalars().all()] if candidates else [],
+            "organization": [(row.id, row.name) for row in self.db.execute(select(OrganizationEntity).where(OrganizationEntity.project_id == candidates[0].project_id)).scalars().all()] if candidates else [],
+            "profession": [(row.id, row.name) for row in self.db.execute(select(Career).where(Career.project_id == candidates[0].project_id)).scalars().all()] if candidates else [],
+        }
+
+        staged = 0
+        merged = 0
+        ambiguous = 0
+        for candidate in candidates:
+            candidate_name = self._normalize(candidate.normalized_name or candidate.display_name)
+            ranked = sorted(
+                (
+                    (SequenceMatcher(None, candidate_name, self._normalize(name)).ratio(), target_id)
+                    for target_id, name in targets_by_type[candidate.candidate_type]
+                    if candidate_name and self._normalize(name)
+                ),
+                reverse=True,
+            )
+            if not ranked or ranked[0][0] < review_threshold:
+                continue
+            best_score, best_id = ranked[0]
+            if len(ranked) > 1 and best_score - ranked[1][0] < 0.05:
+                candidate.review_required_reason = f"ambiguous_similarity:{best_score:.2f}"
+                ambiguous += 1
+                continue
+
+            target_type = self._expected_entity_type(candidate)
+            candidate.canonical_target_type = target_type
+            candidate.canonical_target_id = best_id
+            candidate.review_required_reason = f"similarity_match:{best_score:.2f}"
+            staged += 1
+            if best_score >= auto_merge_threshold and float(candidate.confidence or 0) >= SAFE_AUTO_MERGE_CONFIDENCE:
+                result = self.merge_candidate(
+                    candidate.id,
+                    target_type=target_type,
+                    target_id=best_id,
+                    reviewer_user_id=MERGE_CREATED_BY,
+                )
+                if result.changed:
+                    merged += 1
+
+        self.db.flush()
+        return {"staged": staged, "merged": merged, "ambiguous": ambiguous}
+
+    def auto_accept_safe_relationships(self, *, run_id: str) -> int:
+        """Create only high-confidence relationships whose endpoints resolve unambiguously."""
+
+        candidates = self.db.execute(
+            select(ExtractionCandidate).where(
+                ExtractionCandidate.run_id == run_id,
+                ExtractionCandidate.status == "pending",
+                ExtractionCandidate.candidate_type == "relationship",
+                ExtractionCandidate.confidence >= SAFE_AUTO_MERGE_CONFIDENCE,
+            )
+        ).scalars().all()
+        accepted = 0
+        for candidate in candidates:
+            try:
+                result = self.accept_candidate(candidate.id, reviewer_user_id=MERGE_CREATED_BY)
+                if result.changed:
+                    accepted += 1
+            except (ValueError, LookupError) as exc:
+                candidate.review_required_reason = f"automatic_relationship_review:{exc}"
+        self.db.flush()
+        return accepted
 
     def _accept_entity_candidate(
         self,
@@ -890,13 +985,14 @@ class CandidateMergeService:
     ) -> None:
         now = self._now()
         candidate.status = "merged" if merged else "accepted"
-        candidate.canonical_target_type = target_type if target_type in {"character", "organization", "career"} else candidate.canonical_target_type
-        candidate.canonical_target_id = target_id if target_type in {"character", "organization", "career"} else candidate.canonical_target_id
+        candidate.canonical_target_type = target_type if target_type in {"character", "organization", "career", "relationship", "goldfinger"} else candidate.canonical_target_type
+        candidate.canonical_target_id = target_id if target_type in {"character", "organization", "career", "relationship", "goldfinger"} else candidate.canonical_target_id
         candidate.merge_target_type = target_type
         candidate.merge_target_id = target_id
         candidate.reviewer_user_id = reviewer_user_id
         candidate.reviewed_at = now
         candidate.accepted_at = candidate.accepted_at or now
+        candidate.review_required_reason = None
 
     def _candidate_names(self, candidate: ExtractionCandidate) -> set[str]:
         return {self._normalize(value) for value in self._candidate_alias_values(candidate)}

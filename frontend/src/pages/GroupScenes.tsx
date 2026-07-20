@@ -23,6 +23,7 @@ import { CommentOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/ico
 import { useStore } from '../store';
 import { groupSceneApi, voicePersonaApi } from '../services/api';
 import type { Character, GroupScene, GroupSceneDraftRequest, VoicePersona } from '../types';
+import { sx } from '../styles/sx';
 
 const { Paragraph, Title } = Typography;
 const { TextArea } = Input;
@@ -158,7 +159,7 @@ export default function GroupScenes() {
       width: 220,
       render: (title: string, scene) => (
         <Space direction="vertical" size={2}>
-          <Button type="link" style={{ padding: 0 }} onClick={() => setSelectedScene(scene)}>{title}</Button>
+          <Button type="link" className="u-w0rcd3" onClick={() => setSelectedScene(scene)}>{title}</Button>
           <Tag color="blue">writing_artifact_only</Tag>
         </Space>
       ),
@@ -176,7 +177,7 @@ export default function GroupScenes() {
       title: '场景目标',
       dataIndex: 'scenario',
       render: (scenario: string) => (
-        <Paragraph ellipsis={{ rows: 2, expandable: true, symbol: '展开' }} style={{ marginBottom: 0 }}>
+        <Paragraph ellipsis={{ rows: 2, expandable: true, symbol: '展开' }} className="u-1sezbee">
           {scenario}
         </Paragraph>
       ),
@@ -194,15 +195,15 @@ export default function GroupScenes() {
   ];
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: token.paddingMD }}>
+    <div className={sx({ height: '100%', display: 'flex', flexDirection: 'column', gap: token.paddingMD })}>
       <Card>
-        <Space align="start" style={{ width: '100%', justifyContent: 'space-between' }} wrap>
+        <Space align="start" className="u-1qos3j5" wrap>
           <Space direction="vertical" size={4}>
             <Space>
-              <CommentOutlined style={{ color: token.colorPrimary, fontSize: 24 }} />
-              <Title level={3} style={{ margin: 0 }}>群像场景</Title>
+              <CommentOutlined className={sx({ color: token.colorPrimary, fontSize: 24 })} />
+              <Title level={3} className="u-avalr8">群像场景</Title>
             </Space>
-            <Paragraph type="secondary" style={{ marginBottom: 0 }}>
+            <Paragraph type="secondary" className="u-1sezbee">
               用当前项目角色、可选旁白声音、Lore ID 和提示上下文试写多角色对话。结果只保存为项目写作草稿，不创建聊天室、不自动轮询角色发言，也不改写章节正文。
             </Paragraph>
           </Space>
@@ -216,9 +217,9 @@ export default function GroupScenes() {
 
       {error && <Alert type="warning" showIcon message={error} />}
 
-      <Row gutter={[token.marginMD, token.marginMD]} style={{ flex: 1, minHeight: 0 }}>
-        <Col xs={24} xl={10} style={{ minHeight: 0 }}>
-          <Card title="创建场景草稿" style={{ height: '100%', overflow: 'hidden' }} bodyStyle={{ height: 'calc(100% - 57px)', overflow: 'auto' }}>
+      <Row gutter={[token.marginMD, token.marginMD]} className="u-15gdg2w">
+        <Col xs={24} xl={10} className="u-536cka">
+          <Card title="创建场景草稿" className="u-1ftff3t" bodyStyle={{ height: 'calc(100% - 57px)', overflow: 'auto' }}>
             <Form<GroupSceneFormValues>
               form={form}
               layout="vertical"
@@ -253,9 +254,9 @@ export default function GroupScenes() {
           </Card>
         </Col>
 
-        <Col xs={24} xl={14} style={{ minHeight: 0 }}>
-          <Space direction="vertical" style={{ width: '100%', height: '100%' }} size={token.marginMD}>
-            <Card title="已保存场景" style={{ flex: 1, minHeight: 0, overflow: 'hidden' }} bodyStyle={{ height: 360, overflow: 'auto' }}>
+        <Col xs={24} xl={14} className="u-536cka">
+          <Space direction="vertical" className="u-1ddf7dt" size={token.marginMD}>
+            <Card title="已保存场景" className="u-1tqrzca" bodyStyle={{ height: 360, overflow: 'auto' }}>
               <Table<GroupScene>
                 rowKey="id"
                 columns={columns}
@@ -266,19 +267,19 @@ export default function GroupScenes() {
               />
             </Card>
 
-            <Card title="场景草稿与Trace" style={{ flex: 1, minHeight: 0, overflow: 'hidden' }} bodyStyle={{ maxHeight: 520, overflow: 'auto' }}>
+            <Card title="场景草稿与Trace" className="u-1tqrzca" bodyStyle={{ maxHeight: 520, overflow: 'auto' }}>
               {selectedScene ? (
-                <Space direction="vertical" style={{ width: '100%' }} size={token.marginSM}>
+                <Space direction="vertical" className="u-1f3r3s" size={token.marginSM}>
                   <Space wrap>
                     <Tag color="blue">trace_id={selectedScene.prompt_trace.trace_id}</Tag>
                     <Tag color="green">{selectedScene.prompt_trace.boundary_decision}</Tag>
                     <Tag>tokens≈{selectedScene.prompt_trace.budget_estimate.estimated_tokens}</Tag>
                   </Space>
                   <Card size="small" title="草稿正文">
-                    <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, fontSize: 13 }}>{selectedScene.draft_text}</pre>
+                    <pre className="u-1kda7dj">{selectedScene.draft_text}</pre>
                   </Card>
                   <Card size="small" title="Prompt Trace 预览">
-                    <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, fontSize: 13 }}>{selectedScene.prompt_trace.final_preview_text}</pre>
+                    <pre className="u-1kda7dj">{selectedScene.prompt_trace.final_preview_text}</pre>
                   </Card>
                 </Space>
               ) : (

@@ -2,6 +2,7 @@ import { Button, Drawer, Empty, Space, Spin, Tag, Timeline, Typography, theme } 
 import { ReloadOutlined } from '@ant-design/icons';
 import type { Goldfinger, GoldfingerHistoryEvent } from '../../types';
 import { formatConfidence, stringifyGoldfingerValue } from './constants';
+import { sx } from '../../styles/sx';
 
 const { Paragraph, Text } = Typography;
 
@@ -30,9 +31,9 @@ function formatDate(value?: string | null): string {
 function renderSnapshot(title: string, value: unknown, borderColor: string) {
   if (value === null || value === undefined) return null;
   return (
-    <div style={{ borderLeft: `3px solid ${borderColor}`, paddingLeft: 10 }}>
+    <div className={sx({ borderLeft: `3px solid ${borderColor}`, paddingLeft: 10 })}>
       <Text type="secondary">{title}</Text>
-      <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: '4px 0 0', fontFamily: 'inherit' }}>
+      <pre className="u-64z7j1">
         {stringifyGoldfingerValue(value)}
       </pre>
     </div>
@@ -58,7 +59,7 @@ export default function GoldfingerHistoryDrawer({
       extra={<Button icon={<ReloadOutlined />} onClick={onReload} loading={loading}>刷新</Button>}
     >
       {loading ? (
-        <div style={{ padding: 48, textAlign: 'center' }}><Spin tip="加载历史中..." /></div>
+        <div className="u-1j6dug5"><Spin tip="加载历史中..." /></div>
       ) : history.length === 0 ? (
         <Empty description="暂无历史事件" />
       ) : (
@@ -68,7 +69,7 @@ export default function GoldfingerHistoryDrawer({
             return {
               color: meta.color === 'default' ? token.colorBorder : meta.color,
               children: (
-                <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                <Space direction="vertical" size="small" className="u-1f3r3s">
                   <Space wrap>
                     <Tag color={meta.color}>{meta.label}</Tag>
                     <Text>{formatDate(event.created_at)}</Text>
@@ -78,17 +79,17 @@ export default function GoldfingerHistoryDrawer({
                   </Space>
                   {event.evidence_excerpt && (
                     <Paragraph
-                      style={{
+                      className={sx({
                         marginBottom: 0,
                         padding: '8px 10px',
                         background: token.colorFillTertiary,
                         borderRadius: token.borderRadius,
-                      }}
+                      })}
                     >
                       {event.evidence_excerpt}
                     </Paragraph>
                   )}
-                  <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                  <Space direction="vertical" size="small" className="u-1f3r3s">
                     {renderSnapshot('旧值', event.old_value, token.colorWarning)}
                     {renderSnapshot('新值', event.new_value, token.colorPrimary)}
                   </Space>

@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Button, Tooltip, theme } from 'antd';
 import { EditOutlined } from '@ant-design/icons';
+import { sx } from '../../styles/sx';
 
 interface PartialRegenerateToolbarProps {
   visible: boolean;
@@ -20,6 +21,14 @@ export const PartialRegenerateToolbar: React.FC<PartialRegenerateToolbarProps> =
   selectedText
 }) => {
   const { token } = theme.useToken();
+  const toolbarRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const toolbar = toolbarRef.current;
+    if (!toolbar) return;
+    toolbar.style.setProperty('--partial-regenerate-top', `${position.top}px`);
+    toolbar.style.setProperty('--partial-regenerate-left', `${position.left}px`);
+  }, [visible, selectedText, position.top, position.left]);
 
   if (!visible || !selectedText) return null;
 
@@ -30,10 +39,11 @@ export const PartialRegenerateToolbar: React.FC<PartialRegenerateToolbarProps> =
 
   return (
     <div
-      style={{
+      ref={toolbarRef}
+      className={sx({
         position: 'fixed',
-        top: position.top,
-        left: position.left,
+        top: 'var(--partial-regenerate-top, 0px)',
+        left: 'var(--partial-regenerate-left, 0px)',
         zIndex: 10000,
         background: token.colorBgElevated,
         borderRadius: 8,
@@ -44,7 +54,7 @@ export const PartialRegenerateToolbar: React.FC<PartialRegenerateToolbarProps> =
         gap: 8,
         animation: 'fadeIn 0.2s ease-out',
         border: `1px solid ${token.colorBorderSecondary}`,
-      }}
+      })}
     >
       <Tooltip
         title={`AI重写选中内容: "${displayText}"`}
@@ -59,24 +69,24 @@ export const PartialRegenerateToolbar: React.FC<PartialRegenerateToolbarProps> =
             e.stopPropagation();
             onRegenerate();
           }}
-          style={{
+          className={sx({
             background: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-hover) 100%)',
             border: 'none',
             fontWeight: 500,
             boxShadow: token.boxShadowSecondary,
-          }}
+          })}
         >
           AI重写
         </Button>
       </Tooltip>
-      <span style={{ 
+      <span className={sx({ 
         fontSize: 12, 
         color: token.colorTextTertiary,
         maxWidth: 150,
         overflow: 'hidden',
         textOverflow: 'ellipsis',
         whiteSpace: 'nowrap',
-      }}>
+      })}>
         已选 {selectedText.length} 字
       </span>
     </div>

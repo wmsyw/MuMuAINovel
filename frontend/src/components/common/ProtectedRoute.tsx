@@ -35,12 +35,7 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   if (isAuthenticated === null) {
     return (
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: '100vh',
-      }}>
+      <div className="u-15e9syg">
         <Spin size="large" />
       </div>
     );
